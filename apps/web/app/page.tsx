@@ -1,17 +1,12 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  BarChart3,
   Boxes,
   CheckCircle2,
   Code2,
-  KeyRound,
   PackageSearch,
-  RefreshCw,
   ShieldCheck,
-  Store,
   Webhook,
-  Workflow,
 } from "lucide-react";
 
 const features = [
