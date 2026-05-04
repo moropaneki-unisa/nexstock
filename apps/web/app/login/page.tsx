@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { PackageSearch } from "lucide-react";
+import { Loader2, PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,16 +47,16 @@ export default function LoginPage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-950 text-white">
               <PackageSearch className="h-4 w-4" />
             </span>
-            ProductHub
+            InventoryHub
           </Link>
 
           <div className="flex flex-1 flex-col justify-center">
             <p className="mb-4 text-sm font-medium text-neutral-500">Welcome back</p>
             <h1 className="max-w-md text-4xl font-semibold tracking-[-0.035em]">
-              Continue managing products with a calmer workspace.
+              Continue managing products, APIs, and sync readiness from one workspace.
             </h1>
             <p className="mt-5 max-w-md leading-7 text-neutral-600">
-              Sign in to access your product operations, inventory visibility, and workflow dashboard.
+              Sign in to access product inventory, low-stock visibility, API keys, webhooks, and your Zoho-first integration roadmap.
             </p>
           </div>
         </section>
@@ -68,14 +68,14 @@ export default function LoginPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-950 text-white">
                   <PackageSearch className="h-4 w-4" />
                 </span>
-                ProductHub
+                InventoryHub
               </Link>
             </div>
 
             <div>
               <h2 className="text-3xl font-semibold tracking-tight">Login</h2>
               <p className="mt-2 text-sm text-neutral-600">
-                Enter your details to open your workspace.
+                Enter your details to open your InventoryHub workspace.
               </p>
             </div>
 
@@ -101,14 +101,9 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-sm font-medium text-neutral-700">
-                    Password
-                  </Label>
-                  <Link href="/forgot-password" className="text-sm font-medium text-neutral-500 hover:text-neutral-950">
-                    Forgot?
-                  </Link>
-                </div>
+                <Label htmlFor="password" className="text-sm font-medium text-neutral-700">
+                  Password
+                </Label>
                 <Input
                   id="password"
                   type="password"
@@ -120,12 +115,19 @@ export default function LoginPage() {
               </div>
 
               <Button className="h-11 w-full rounded-xl bg-neutral-950 text-white hover:bg-neutral-800" disabled={isSubmitting}>
-                {isSubmitting ? "Logging in..." : "Login"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  "Login"
+                )}
               </Button>
             </form>
 
             <p className="mt-6 text-center text-sm text-neutral-600">
-              New to ProductHub?{" "}
+              New to InventoryHub?{" "}
               <Link href="/signup" className="font-medium text-neutral-950 underline underline-offset-4">
                 Create an account
               </Link>
