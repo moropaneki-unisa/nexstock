@@ -40,7 +40,7 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden min-h-screen w-72 shrink-0 border-r bg-background p-4 md:block">
+    <aside className="hidden h-screen w-72 shrink-0 overflow-y-auto border-r bg-background p-4 md:block">
       <Link href="/dashboard" className="mb-8 flex items-center gap-3 rounded-2xl border bg-card p-3 shadow-sm">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <PackageSearch className="h-5 w-5" />
