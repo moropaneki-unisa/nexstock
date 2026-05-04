@@ -1,16 +1,25 @@
+export type ProductFieldType = "text" | "number" | "boolean" | "select" | "date" | "json";
+
+export type ProductField = {
+  id: string;
+  organizationId?: string;
+  key: string;
+  label: string;
+  type: ProductFieldType;
+  required: boolean;
+  options: string[];
+  defaultValue?: unknown;
+  order: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type ProductCustomFieldValue = {
   id?: string;
   fieldId: string;
   value: unknown;
-  field?: {
-    id: string;
-    key: string;
-    label: string;
-    type: string;
-    required?: boolean;
-    options?: string[];
-    order?: number;
-  };
+  field?: ProductField;
 };
 
 export type Product = {
