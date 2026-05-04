@@ -1,5 +1,9 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+export function getApiUrl() {
+  return API_URL;
+}
+
 export function getAccessToken() {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem("inventoryhub_access_token");
@@ -14,7 +18,7 @@ export function setAccessToken(token: string | null) {
 export async function apiFetch<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const token = getAccessToken();
   const headers = new Headers(options.headers);
-  if (!headers.has("content-type") && options.body) headers.set("content-type", "application/json");
+  if (!headers.has("content-type") && options.body && !(options.body instanceof FormData)) headers.set("content-type", "application/json");
   if (token) headers.set("authorization", `Bearer ${token}`);
 
   const response = await fetch(`${API_URL}${path}`, {
