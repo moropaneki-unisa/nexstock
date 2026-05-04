@@ -7,9 +7,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { randomUUID } from 'crypto';
+import { mkdirSync } from 'fs';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
-import { mkdirSync } from 'fs';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -28,7 +29,7 @@ export class ProductImagesController {
         destination: uploadDir,
         filename: (_req, file, callback) => {
           const safeExt = extname(file.originalname).toLowerCase() || '.jpg';
-          const fileName = `${Date.now()}-${crypto.randomUUID()}${safeExt}`;
+          const fileName = `${Date.now()}-${randomUUID()}${safeExt}`;
           callback(null, fileName);
         },
       }),
