@@ -7,17 +7,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole { admin member }
-enum Plan { free pro business }
-enum ProductStatus { active archived draft }
-enum InventoryMovementType { adjustment sale purchase import sync manual }
-enum WebhookEvent { product_created product_updated inventory_updated webhook_test }
-enum DeliveryStatus { pending delivered failed dead }
-enum CustomFieldType { text number boolean select date json }
-enum IntegrationProvider { zoho shopify custom }
-enum IntegrationStatus { connected disconnected error expired }
-enum SyncStatus { running success failed }
-enum SyncDirection { pull push }
+enum UserRole {
+  admin
+  member
+}
+
+enum Plan {
+  free
+  pro
+  business
+}
+
+enum ProductStatus {
+  active
+  archived
+  draft
+}
+
+enum InventoryMovementType {
+  adjustment
+  sale
+  purchase
+  import
+  sync
+  manual
+}
+
+enum WebhookEvent {
+  product_created
+  product_updated
+  inventory_updated
+  webhook_test
+}
+
+enum DeliveryStatus {
+  pending
+  delivered
+  failed
+  dead
+}
+
+enum CustomFieldType {
+  text
+  number
+  boolean
+  select
+  date
+  json
+}
+
+enum IntegrationProvider {
+  zoho
+  shopify
+  custom
+}
+
+enum IntegrationStatus {
+  connected
+  disconnected
+  error
+  expired
+}
+
+enum SyncStatus {
+  running
+  success
+  failed
+}
+
+enum SyncDirection {
+  pull
+  push
+}
 
 model User {
   id            String         @id @default(uuid())
