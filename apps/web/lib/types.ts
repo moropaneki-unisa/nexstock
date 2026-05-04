@@ -1,3 +1,18 @@
+export type ProductCustomFieldValue = {
+  id?: string;
+  fieldId: string;
+  value: unknown;
+  field?: {
+    id: string;
+    key: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    options?: string[];
+    order?: number;
+  };
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -8,7 +23,12 @@ export type Product = {
   quantity: number;
   lowStockLevel: number;
   category?: string | null;
+  images?: string[];
+  metadata?: Record<string, unknown> | null;
+  status?: string;
   createdAt: string;
+  updatedAt?: string;
+  customFieldValues?: ProductCustomFieldValue[];
 };
 
 export type Paginated<T> = {
