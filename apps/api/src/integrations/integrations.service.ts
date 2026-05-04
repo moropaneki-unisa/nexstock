@@ -11,6 +11,14 @@ type ZohoTokenResponse = {
   error?: string;
 };
 
+type ZohoOrganizationsResponse = {
+  organizations?: Array<{
+    organization_id?: string | number;
+    name?: string;
+    organization_name?: string;
+  }>;
+};
+
 type ZohoItemsResponse = {
   items?: Array<{
     item_id?: string | number;
@@ -94,6 +102,9 @@ export class IntegrationsService {
         throw new BadRequestException(token.error ?? 'Zoho did not return an access token');
       }
 
+      const apiDomain = token.api_domain ?? ZOHO_API_BASE;
+      const zohoOrganization = await this.resolveZohoOrganization(token.access_token, apiDomain);
+
       await this.db.integration.upsert({
         where: { organizationId_provider: { organizationId, provider: 'zoho' } },
         create: {
@@ -103,14 +114,22 @@ export class IntegrationsService {
           accessToken: token.access_token,
           refreshToken: token.refresh_token,
           tokenExpiresAt: this.expiresAt(token.expires_in),
-          config: { apiDomain: token.api_domain ?? ZOHO_API_BASE },
+          config: {
+            apiDomain,
+            zohoOrganizationId: zohoOrganization.id,
+            zohoOrganizationName: zohoOrganization.name,
+          },
         },
         update: {
           status: 'connected',
           accessToken: token.access_token,
           ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
           tokenExpiresAt: this.expiresAt(token.expires_in),
-          config: { apiDomain: token.api_domain ?? ZOHO_API_BASE },
+          config: {
+            apiDomain,
+            zohoOrganizationId: zohoOrganization.id,
+            zohoOrganizationName: zohoOrganization.name,
+          },
         },
       });
 
@@ -236,6 +255,31 @@ export class IntegrationsService {
     return response.json() as Promise<ZohoTokenResponse>;
   }
 
+  private async resolveZohoOrganization(accessToken: string, apiDomain: string) {
+    const response = await fetch(`${apiDomain}/organizations`, {
+      headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const fallbackId = process.env.ZOHO_ORGANIZATION_ID;
+      if (fallbackId) return { id: fallbackId, name: undefined };
+      throw new BadRequestException(`Could not load Zoho organizations. Zoho returned ${response.status}`);
+    }
+
+    const data = (await response.json()) as ZohoOrganizationsResponse;
+    const organization = data.organizations?.[0];
+    const id = organization?.organization_id ? String(organization.organization_id) : process.env.ZOHO_ORGANIZATION_ID;
+
+    if (!id) {
+      throw new BadRequestException('No Zoho organization found for this account');
+    }
+
+    return {
+      id,
+      name: organization?.organization_name ?? organization?.name,
+    };
+  }
+
   private async ensureFreshZohoToken(integrationId: string) {
     const integration = await this.db.integration.findUniqueOrThrow({ where: { id: integrationId } });
 
@@ -270,13 +314,21 @@ export class IntegrationsService {
   private async pullZohoProducts(accessToken: string, config: Prisma.JsonObject | null) {
     const apiDomain = typeof config?.apiDomain === 'string' ? config.apiDomain : ZOHO_API_BASE;
     const organizationId = typeof config?.zohoOrganizationId === 'string' ? config.zohoOrganizationId : process.env.ZOHO_ORGANIZATION_ID;
+
+    if (!organizationId) {
+      throw new BadRequestException('Zoho organization ID is missing. Reconnect Zoho from the integrations page.');
+    }
+
     const products: NonNullable<ZohoItemsResponse['items']> = [];
     let page = 1;
     let hasMore = true;
 
     while (hasMore && page <= 20) {
-      const params = new URLSearchParams({ page: String(page), per_page: '200' });
-      if (organizationId) params.set('organization_id', organizationId);
+      const params = new URLSearchParams({
+        page: String(page),
+        per_page: '200',
+        organization_id: organizationId,
+      });
 
       const response = await fetch(`${apiDomain}/items?${params.toString()}`, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
