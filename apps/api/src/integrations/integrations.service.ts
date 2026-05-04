@@ -102,8 +102,8 @@ export class IntegrationsService {
         throw new BadRequestException(token.error ?? 'Zoho did not return an access token');
       }
 
-      const apiDomain = token.api_domain ?? ZOHO_API_BASE;
-      const zohoOrganization = await this.resolveZohoOrganization(token.access_token, apiDomain);
+      const apiBase = this.inventoryApiBase(token.api_domain);
+      const zohoOrganization = await this.resolveZohoOrganization(token.access_token, apiBase);
 
       await this.db.integration.upsert({
         where: { organizationId_provider: { organizationId, provider: 'zoho' } },
@@ -115,7 +115,8 @@ export class IntegrationsService {
           refreshToken: token.refresh_token,
           tokenExpiresAt: this.expiresAt(token.expires_in),
           config: {
-            apiDomain,
+            apiBase,
+            apiDomain: token.api_domain ?? undefined,
             zohoOrganizationId: zohoOrganization.id,
             zohoOrganizationName: zohoOrganization.name,
           },
@@ -126,7 +127,8 @@ export class IntegrationsService {
           ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
           tokenExpiresAt: this.expiresAt(token.expires_in),
           config: {
-            apiDomain,
+            apiBase,
+            apiDomain: token.api_domain ?? undefined,
             zohoOrganizationId: zohoOrganization.id,
             zohoOrganizationName: zohoOrganization.name,
           },
@@ -252,21 +254,22 @@ export class IntegrationsService {
     });
 
     const response = await fetch(`${ZOHO_AUTH_BASE}/token`, { method: 'POST', body: params });
-    return response.json() as Promise<ZohoTokenResponse>;
+    return this.readJson<ZohoTokenResponse>(response, 'Zoho token exchange');
   }
 
-  private async resolveZohoOrganization(accessToken: string, apiDomain: string) {
-    const response = await fetch(`${apiDomain}/organizations`, {
+  private async resolveZohoOrganization(accessToken: string, apiBase: string) {
+    const response = await fetch(`${apiBase}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
 
     if (!response.ok) {
       const fallbackId = process.env.ZOHO_ORGANIZATION_ID;
       if (fallbackId) return { id: fallbackId, name: undefined };
-      throw new BadRequestException(`Could not load Zoho organizations. Zoho returned ${response.status}`);
+      const body = await response.text();
+      throw new BadRequestException(`Could not load Zoho organizations. Zoho returned ${response.status}: ${body.slice(0, 180)}`);
     }
 
-    const data = (await response.json()) as ZohoOrganizationsResponse;
+    const data = await this.readJson<ZohoOrganizationsResponse>(response, 'Zoho organizations');
     const organization = data.organizations?.[0];
     const id = organization?.organization_id ? String(organization.organization_id) : process.env.ZOHO_ORGANIZATION_ID;
 
@@ -299,7 +302,7 @@ export class IntegrationsService {
     });
 
     const response = await fetch(`${ZOHO_AUTH_BASE}/token`, { method: 'POST', body: params });
-    const token = (await response.json()) as ZohoTokenResponse;
+    const token = await this.readJson<ZohoTokenResponse>(response, 'Zoho token refresh');
 
     if (!token.access_token) {
       throw new BadRequestException(token.error ?? 'Could not refresh Zoho access token');
@@ -312,7 +315,7 @@ export class IntegrationsService {
   }
 
   private async pullZohoProducts(accessToken: string, config: Prisma.JsonObject | null) {
-    const apiDomain = typeof config?.apiDomain === 'string' ? config.apiDomain : ZOHO_API_BASE;
+    const apiBase = this.configApiBase(config);
     const organizationId = typeof config?.zohoOrganizationId === 'string' ? config.zohoOrganizationId : process.env.ZOHO_ORGANIZATION_ID;
 
     if (!organizationId) {
@@ -330,19 +333,41 @@ export class IntegrationsService {
         organization_id: organizationId,
       });
 
-      const response = await fetch(`${apiDomain}/items?${params.toString()}`, {
+      const response = await fetch(`${apiBase}/items?${params.toString()}`, {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
       });
 
-      if (!response.ok) throw new Error(`Zoho products request failed with ${response.status}`);
+      if (!response.ok) throw new Error(`Zoho products request failed with ${response.status}: ${(await response.text()).slice(0, 180)}`);
 
-      const data = (await response.json()) as ZohoItemsResponse;
+      const data = await this.readJson<ZohoItemsResponse>(response, 'Zoho products');
       products.push(...(data.items ?? []));
       hasMore = Boolean(data.page_context?.has_more_page);
       page++;
     }
 
     return products;
+  }
+
+  private inventoryApiBase(apiDomain?: string) {
+    const domain = (apiDomain || ZOHO_API_BASE).replace(/\/$/, '');
+    return domain.endsWith('/inventory/v1') ? domain : `${domain}/inventory/v1`;
+  }
+
+  private configApiBase(config: Prisma.JsonObject | null) {
+    if (typeof config?.apiBase === 'string') return this.inventoryApiBase(config.apiBase);
+    if (typeof config?.apiDomain === 'string') return this.inventoryApiBase(config.apiDomain);
+    return ZOHO_API_BASE;
+  }
+
+  private async readJson<T>(response: Response, label: string) {
+    const contentType = response.headers.get('content-type') ?? '';
+    const body = await response.text();
+
+    if (!contentType.includes('application/json')) {
+      throw new BadRequestException(`${label} returned non-JSON response: ${body.slice(0, 180)}`);
+    }
+
+    return JSON.parse(body) as T;
   }
 
   private signState(payload: { organizationId: string; timestamp: number }) {
