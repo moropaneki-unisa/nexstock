@@ -32,8 +32,12 @@ const ZOHO_API_BASE = 'https://www.zohoapis.com/inventory/v1';
 export class IntegrationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private get db() {
+    return this.prisma as PrismaService & { integration: any; syncLog: any };
+  }
+
   async list(organizationId: string) {
-    const integrations = await this.prisma.integration.findMany({
+    const integrations = await this.db.integration.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -48,7 +52,7 @@ export class IntegrationsService {
       },
     });
 
-    return integrations.map((integration) => ({
+    return integrations.map((integration: any) => ({
       ...integration,
       connected: integration.status === 'connected',
     }));
@@ -90,7 +94,7 @@ export class IntegrationsService {
         throw new BadRequestException(token.error ?? 'Zoho did not return an access token');
       }
 
-      await this.prisma.integration.upsert({
+      await this.db.integration.upsert({
         where: { organizationId_provider: { organizationId, provider: 'zoho' } },
         create: {
           organizationId,
@@ -99,18 +103,14 @@ export class IntegrationsService {
           accessToken: token.access_token,
           refreshToken: token.refresh_token,
           tokenExpiresAt: this.expiresAt(token.expires_in),
-          config: {
-            apiDomain: token.api_domain ?? ZOHO_API_BASE,
-          },
+          config: { apiDomain: token.api_domain ?? ZOHO_API_BASE },
         },
         update: {
           status: 'connected',
           accessToken: token.access_token,
           ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
           tokenExpiresAt: this.expiresAt(token.expires_in),
-          config: {
-            apiDomain: token.api_domain ?? ZOHO_API_BASE,
-          },
+          config: { apiDomain: token.api_domain ?? ZOHO_API_BASE },
         },
       });
 
@@ -122,7 +122,7 @@ export class IntegrationsService {
   }
 
   async syncZohoProducts(organizationId: string) {
-    const integration = await this.prisma.integration.findUnique({
+    const integration = await this.db.integration.findUnique({
       where: { organizationId_provider: { organizationId, provider: 'zoho' } },
     });
 
@@ -130,15 +130,14 @@ export class IntegrationsService {
       throw new NotFoundException('Zoho is not connected for this organization');
     }
 
-    const startedAt = new Date();
-    const log = await this.prisma.syncLog.create({
+    const log = await this.db.syncLog.create({
       data: {
         organizationId,
         integrationId: integration.id,
         provider: 'zoho',
         status: 'running',
         direction: 'pull',
-        startedAt,
+        startedAt: new Date(),
       },
     });
 
@@ -168,10 +167,7 @@ export class IntegrationsService {
           cost: item.purchase_rate === undefined ? undefined : new Prisma.Decimal(Number(item.purchase_rate) || 0),
           quantity,
           category: item.category_name?.trim(),
-          metadata: {
-            source: 'zoho',
-            externalId,
-          } as Prisma.InputJsonValue,
+          metadata: { source: 'zoho', externalId } as Prisma.InputJsonValue,
         };
 
         if (existing) {
@@ -198,23 +194,18 @@ export class IntegrationsService {
           }
         } else {
           await this.prisma.product.create({
-            data: {
-              organizationId,
-              sku,
-              lowStockLevel: 5,
-              ...data,
-            },
+            data: { organizationId, sku, lowStockLevel: 5, ...data },
           });
           created++;
         }
       }
 
-      await this.prisma.integration.update({
+      await this.db.integration.update({
         where: { id: freshIntegration.id },
         data: { lastSyncAt: new Date(), status: 'connected' },
       });
 
-      await this.prisma.syncLog.update({
+      await this.db.syncLog.update({
         where: { id: log.id },
         data: {
           status: 'success',
@@ -226,14 +217,8 @@ export class IntegrationsService {
       return { created, updated, total: products.length };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Zoho sync failed';
-      await this.prisma.integration.update({
-        where: { id: integration.id },
-        data: { status: 'error' },
-      });
-      await this.prisma.syncLog.update({
-        where: { id: log.id },
-        data: { status: 'failed', finishedAt: new Date(), error: message },
-      });
+      await this.db.integration.update({ where: { id: integration.id }, data: { status: 'error' } });
+      await this.db.syncLog.update({ where: { id: log.id }, data: { status: 'failed', finishedAt: new Date(), error: message } });
       throw new InternalServerErrorException(message);
     }
   }
@@ -252,7 +237,7 @@ export class IntegrationsService {
   }
 
   private async ensureFreshZohoToken(integrationId: string) {
-    const integration = await this.prisma.integration.findUniqueOrThrow({ where: { id: integrationId } });
+    const integration = await this.db.integration.findUniqueOrThrow({ where: { id: integrationId } });
 
     if (!integration.tokenExpiresAt || integration.tokenExpiresAt.getTime() > Date.now() + 60_000) {
       return integration;
@@ -276,12 +261,9 @@ export class IntegrationsService {
       throw new BadRequestException(token.error ?? 'Could not refresh Zoho access token');
     }
 
-    return this.prisma.integration.update({
+    return this.db.integration.update({
       where: { id: integration.id },
-      data: {
-        accessToken: token.access_token,
-        tokenExpiresAt: this.expiresAt(token.expires_in),
-      },
+      data: { accessToken: token.access_token, tokenExpiresAt: this.expiresAt(token.expires_in) },
     });
   }
 
@@ -300,9 +282,7 @@ export class IntegrationsService {
         headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
       });
 
-      if (!response.ok) {
-        throw new Error(`Zoho products request failed with ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Zoho products request failed with ${response.status}`);
 
       const data = (await response.json()) as ZohoItemsResponse;
       products.push(...(data.items ?? []));
