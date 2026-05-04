@@ -1,14 +1,17 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser = require('cookie-parser');
+import express from 'express';
 import helmet from 'helmet';
+import { join } from 'path';
 
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.use(helmet());
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   app.use(cookieParser());
   app.enableCors({
     origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
