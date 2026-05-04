@@ -1,0 +1,153 @@
+import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { AdjustInventoryDto, CreateProductDto, ListProductsDto, UpdateProductDto } from './dto';
+import { ProductsService } from './products.service';
+export declare class ProductsController {
+    private readonly products;
+    constructor(products: ProductsService);
+    list(user: CurrentUserPayload, query: ListProductsDto): Promise<{
+        items: ({
+            variants: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                sku: string;
+                price: import("@prisma/client/runtime/library").Decimal | null;
+                cost: import("@prisma/client/runtime/library").Decimal | null;
+                quantity: number;
+                metadata: import("@prisma/client/runtime/library").JsonValue | null;
+                productId: string;
+                size: string | null;
+                color: string | null;
+            }[];
+        } & {
+            id: string;
+            organizationId: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            sku: string;
+            description: string | null;
+            price: import("@prisma/client/runtime/library").Decimal;
+            cost: import("@prisma/client/runtime/library").Decimal | null;
+            quantity: number;
+            lowStockLevel: number;
+            category: string | null;
+            images: string[];
+            metadata: import("@prisma/client/runtime/library").JsonValue | null;
+            status: import(".prisma/client").$Enums.ProductStatus;
+            deletedAt: Date | null;
+        })[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            pages: number;
+        };
+    }>;
+    get(user: CurrentUserPayload, id: string): Promise<{
+        variants: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            sku: string;
+            price: import("@prisma/client/runtime/library").Decimal | null;
+            cost: import("@prisma/client/runtime/library").Decimal | null;
+            quantity: number;
+            metadata: import("@prisma/client/runtime/library").JsonValue | null;
+            productId: string;
+            size: string | null;
+            color: string | null;
+        }[];
+    } & {
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: import("@prisma/client/runtime/library").Decimal;
+        cost: import("@prisma/client/runtime/library").Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    create(user: CurrentUserPayload, dto: CreateProductDto): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: import("@prisma/client/runtime/library").Decimal;
+        cost: import("@prisma/client/runtime/library").Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    update(user: CurrentUserPayload, id: string, dto: UpdateProductDto): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: import("@prisma/client/runtime/library").Decimal;
+        cost: import("@prisma/client/runtime/library").Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    adjust(user: CurrentUserPayload, id: string, dto: AdjustInventoryDto): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: import("@prisma/client/runtime/library").Decimal;
+        cost: import("@prisma/client/runtime/library").Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    remove(user: CurrentUserPayload, id: string): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: import("@prisma/client/runtime/library").Decimal;
+        cost: import("@prisma/client/runtime/library").Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: import("@prisma/client/runtime/library").JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+}

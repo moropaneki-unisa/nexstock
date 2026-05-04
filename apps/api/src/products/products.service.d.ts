@@ -1,0 +1,155 @@
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { WebhookEventsService } from '../webhooks/webhook-events.service';
+import { AdjustInventoryDto, CreateProductDto, ListProductsDto, UpdateProductDto } from './dto';
+export declare class ProductsService {
+    private readonly prisma;
+    private readonly webhooks;
+    constructor(prisma: PrismaService, webhooks: WebhookEventsService);
+    list(organizationId: string, query: ListProductsDto): Promise<{
+        items: ({
+            variants: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                sku: string;
+                price: Prisma.Decimal | null;
+                cost: Prisma.Decimal | null;
+                quantity: number;
+                metadata: Prisma.JsonValue | null;
+                productId: string;
+                size: string | null;
+                color: string | null;
+            }[];
+        } & {
+            id: string;
+            organizationId: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            sku: string;
+            description: string | null;
+            price: Prisma.Decimal;
+            cost: Prisma.Decimal | null;
+            quantity: number;
+            lowStockLevel: number;
+            category: string | null;
+            images: string[];
+            metadata: Prisma.JsonValue | null;
+            status: import(".prisma/client").$Enums.ProductStatus;
+            deletedAt: Date | null;
+        })[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            pages: number;
+        };
+    }>;
+    get(organizationId: string, id: string): Promise<{
+        variants: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            sku: string;
+            price: Prisma.Decimal | null;
+            cost: Prisma.Decimal | null;
+            quantity: number;
+            metadata: Prisma.JsonValue | null;
+            productId: string;
+            size: string | null;
+            color: string | null;
+        }[];
+    } & {
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: Prisma.JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    create(organizationId: string, dto: CreateProductDto): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: Prisma.JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    update(organizationId: string, id: string, dto: UpdateProductDto): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: Prisma.JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    adjustInventory(organizationId: string, id: string, dto: AdjustInventoryDto): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: Prisma.JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+    softDelete(organizationId: string, id: string): Promise<{
+        id: string;
+        organizationId: string;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+        sku: string;
+        description: string | null;
+        price: Prisma.Decimal;
+        cost: Prisma.Decimal | null;
+        quantity: number;
+        lowStockLevel: number;
+        category: string | null;
+        images: string[];
+        metadata: Prisma.JsonValue | null;
+        status: import(".prisma/client").$Enums.ProductStatus;
+        deletedAt: Date | null;
+    }>;
+}
