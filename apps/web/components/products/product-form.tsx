@@ -7,9 +7,11 @@ import { useForm } from "react-hook-form";
 import {
   DatabaseZap,
   ImageIcon,
+  LinkIcon,
   Loader2,
   PackagePlus,
   Save,
+  UploadCloud,
   X,
 } from "lucide-react";
 
@@ -44,6 +46,7 @@ type FormValues = {
   cost?: number | string;
   quantity: number;
   lowStockLevel: number;
+  imageUrl?: string;
   customFieldValues: Record<string, string>;
 };
 
@@ -51,6 +54,14 @@ type ImagePreview = {
   id: string;
   name: string;
   url: string;
+};
+
+type UploadResponse = {
+  url: string;
+  fileName: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
 };
 
 type ProductFormProps = {
@@ -63,8 +74,10 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   const isEdit = mode === "edit" && Boolean(product);
 
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [schemaFields, setSchemaFields] = useState<ProductField[]>([]);
   const [schemaLoading, setSchemaLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [images, setImages] = useState<ImagePreview[]>(() =>
     (product?.images ?? []).map((url, index) => ({
       id: `existing-${index}-${url}`,
@@ -97,6 +110,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
       cost: product?.cost == null ? "" : Number(product.cost),
       quantity: product?.quantity ?? 0,
       lowStockLevel: product?.lowStockLevel ?? 5,
+      imageUrl: "",
       customFieldValues: existingCustomValues,
     },
   });
@@ -131,6 +145,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
       cost: product.cost == null ? "" : Number(product.cost),
       quantity: product.quantity ?? 0,
       lowStockLevel: product.lowStockLevel ?? 5,
+      imageUrl: "",
       customFieldValues: existingCustomValues,
     });
 
@@ -144,31 +159,62 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   }, [product, reset, existingCustomValues]);
 
   const customFieldValues = watch("customFieldValues");
+  const imageUrl = watch("imageUrl");
 
   async function handleImageUpload(files: FileList | null) {
     if (!files?.length) return;
 
-    const uploaded = await Promise.all(
-      Array.from(files).map(
-        (file) =>
-          new Promise<ImagePreview>((resolve, reject) => {
-            const reader = new FileReader();
+    setUploading(true);
+    setImageError(null);
 
-            reader.onload = () => {
-              resolve({
-                id: crypto.randomUUID(),
-                name: file.name,
-                url: reader.result as string,
-              });
-            };
+    try {
+      const uploaded: ImagePreview[] = [];
 
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          })
-      )
-    );
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
 
-    setImages((prev) => [...prev, ...uploaded]);
+        const result = await apiFetch<UploadResponse>("/api/products/images", {
+          method: "POST",
+          body: formData,
+        });
+
+        uploaded.push({
+          id: result.fileName,
+          name: result.originalName,
+          url: result.url,
+        });
+      }
+
+      setImages((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function addImageUrl() {
+    const url = imageUrl?.trim();
+    if (!url) return;
+
+    try {
+      new URL(url);
+    } catch {
+      setImageError("Enter a valid image URL");
+      return;
+    }
+
+    setImages((prev) => [
+      ...prev,
+      {
+        id: `url-${Date.now()}-${url}`,
+        name: url,
+        url,
+      },
+    ]);
+    setImageError(null);
+    setValue("imageUrl", "");
   }
 
   function removeImage(id: string) {
@@ -216,8 +262,8 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
 
       router.push("/products");
       router.refresh();
-    } catch (err: any) {
-      setError(err.message ?? `Failed to ${isEdit ? "update" : "create"} product`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to ${isEdit ? "update" : "create"} product`);
     }
   }
 
@@ -313,19 +359,42 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>Images</CardTitle>
-          <CardDescription>Upload product images. They are sent as URLs or image data through the API images field.</CardDescription>
+          <CardDescription>
+            Upload product images to the API or paste image URLs. Saved products store URLs in the images field.
+          </CardDescription>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center transition hover:bg-muted/50">
-            <ImageIcon className="mb-3 h-8 w-8 text-muted-foreground" />
-            <span className="text-sm font-medium">Click to upload product images</span>
-            <span className="mt-1 text-xs text-muted-foreground">PNG, JPG, WEBP. You can select multiple files.</span>
+        <CardContent className="space-y-5">
+          {imageError && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {imageError}
+            </div>
+          )}
 
-            <Input type="file" accept="image/*" multiple className="hidden" onChange={(event) => handleImageUpload(event.target.files)} />
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center transition hover:bg-muted/50">
+            {uploading ? <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground" /> : <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />}
+            <span className="text-sm font-medium">{uploading ? "Uploading images..." : "Click to upload product images"}</span>
+            <span className="mt-1 text-xs text-muted-foreground">JPG, PNG, WEBP, GIF. Max 5MB per file.</span>
+
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              className="hidden"
+              disabled={uploading}
+              onChange={(event) => handleImageUpload(event.target.files)}
+            />
           </label>
 
-          {images.length > 0 && (
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <div className="relative">
+              <LinkIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="pl-9" placeholder="https://example.com/product.jpg" {...register("imageUrl")} />
+            </div>
+            <Button type="button" variant="outline" onClick={addImageUrl}>Add image URL</Button>
+          </div>
+
+          {images.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
               {images.map((image) => (
                 <div key={image.id} className="group relative overflow-hidden rounded-xl border bg-muted/30">
@@ -343,6 +412,11 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed p-6 text-center">
+              <ImageIcon className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No images added yet.</p>
             </div>
           )}
         </CardContent>
@@ -401,7 +475,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
             <Button type="button" variant="outline" onClick={() => router.push("/products")} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting || uploading}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
