@@ -4,6 +4,7 @@ import { ApiKeysModule } from './api-keys/api-keys.module';
 import { AuthModule } from './auth/auth.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthModule } from './health/health.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
@@ -22,6 +23,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     ApiKeysModule,
     PublicApiModule,
     WebhooksModule,
+    IntegrationsModule,
   ],
 })
 export class AppModule {}
