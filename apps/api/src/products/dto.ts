@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  Allow,
   IsArray,
   IsEnum,
   IsInt,
@@ -16,6 +17,7 @@ export class ProductCustomFieldValueDto {
   @IsString()
   fieldId!: string;
 
+  @Allow()
   value!: unknown;
 }
 
@@ -87,6 +89,7 @@ export class CreateProductDto {
   images?: string[];
 
   @IsOptional()
+  @Allow()
   metadata?: unknown;
 
   @IsOptional()
@@ -139,6 +142,7 @@ export class UpdateProductDto {
   images?: string[];
 
   @IsOptional()
+  @Allow()
   metadata?: unknown;
 
   @IsOptional()
