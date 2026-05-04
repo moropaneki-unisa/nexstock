@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { CheckCircle2, PackageSearch } from "lucide-react";
+import { CheckCircle2, Loader2, PackageSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,20 +49,20 @@ export default function SignupPage() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-950 text-white">
               <PackageSearch className="h-4 w-4" />
             </span>
-            ProductHub
+            InventoryHub
           </Link>
 
           <div className="flex flex-1 flex-col justify-center">
             <p className="mb-4 text-sm font-medium text-neutral-500">Create your workspace</p>
             <h1 className="max-w-md text-4xl font-semibold tracking-[-0.035em]">
-              Start with a clean home for your product operations.
+              Start building your product source of truth.
             </h1>
             <p className="mt-5 max-w-md leading-7 text-neutral-600">
-              Set up your account and organization so your team can manage products, inventory, and workflows from one place.
+              Create an organization workspace for product CRUD, inventory logs, API keys, webhooks, and future Zoho sync.
             </p>
 
             <div className="mt-8 space-y-3">
-              {["Product records", "Inventory visibility", "Workflow-ready structure"].map((item) => (
+              {["Multi-tenant product workspace", "Developer API and webhooks", "Zoho-first sync roadmap"].map((item) => (
                 <div key={item} className="flex items-center gap-3 text-sm text-neutral-700">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                   {item}
@@ -79,14 +79,14 @@ export default function SignupPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-950 text-white">
                   <PackageSearch className="h-4 w-4" />
                 </span>
-                ProductHub
+                InventoryHub
               </Link>
             </div>
 
             <div>
               <h2 className="text-3xl font-semibold tracking-tight">Create account</h2>
               <p className="mt-2 text-sm text-neutral-600">
-                Add your details to create your ProductHub workspace.
+                Add your details to create your InventoryHub workspace.
               </p>
             </div>
 
@@ -154,7 +154,14 @@ export default function SignupPage() {
               </div>
 
               <Button className="h-11 w-full rounded-xl bg-neutral-950 text-white hover:bg-neutral-800" disabled={isSubmitting}>
-                {isSubmitting ? "Creating account..." : "Create account"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Create account"
+                )}
               </Button>
             </form>
 
