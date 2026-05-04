@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import {
@@ -8,11 +9,13 @@ import {
   Loader2,
   PackagePlus,
   Plus,
+  Save,
   Trash2,
   X,
 } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
+import type { Product } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,25 +37,24 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-type CustomFieldType = "text" | "number" | "boolean" | "select" | "date";
+type MetadataFieldType = "text" | "number" | "boolean" | "date";
 
-type CustomField = {
+type MetadataField = {
   key: string;
   label: string;
-  type: CustomFieldType;
+  type: MetadataFieldType;
   value: string;
 };
 
 type FormValues = {
   name: string;
-  sku: string;
   category?: string;
   description?: string;
   price: number;
-  cost?: number;
+  cost?: number | string;
   quantity: number;
   lowStockLevel: number;
-  customFields: CustomField[];
+  metadataFields: MetadataField[];
 };
 
 type ImagePreview = {
@@ -61,11 +63,28 @@ type ImagePreview = {
   url: string;
 };
 
-export function ProductForm() {
+type ProductFormProps = {
+  product?: Product;
+  mode?: "create" | "edit";
+};
+
+export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   const router = useRouter();
+  const isEdit = mode === "edit" && Boolean(product);
 
   const [error, setError] = useState<string | null>(null);
-  const [images, setImages] = useState<ImagePreview[]>([]);
+  const [images, setImages] = useState<ImagePreview[]>(() =>
+    (product?.images ?? []).map((url, index) => ({
+      id: `existing-${index}-${url}`,
+      name: `Image ${index + 1}`,
+      url,
+    }))
+  );
+
+  const defaultMetadataFields = useMemo(
+    () => metadataToFields(product?.metadata),
+    [product?.metadata]
+  );
 
   const {
     register,
@@ -73,26 +92,55 @@ export function ProductForm() {
     control,
     setValue,
     watch,
+    reset,
     formState: { isSubmitting },
   } = useForm<FormValues>({
     defaultValues: {
-      quantity: 0,
-      lowStockLevel: 5,
-      customFields: [],
+      name: product?.name ?? "",
+      category: product?.category ?? "",
+      description: product?.description ?? "",
+      price: Number(product?.price ?? 0),
+      cost: product?.cost == null ? "" : Number(product.cost),
+      quantity: product?.quantity ?? 0,
+      lowStockLevel: product?.lowStockLevel ?? 5,
+      metadataFields: defaultMetadataFields,
     },
   });
 
+  useEffect(() => {
+    if (!product) return;
+
+    reset({
+      name: product.name,
+      category: product.category ?? "",
+      description: product.description ?? "",
+      price: Number(product.price ?? 0),
+      cost: product.cost == null ? "" : Number(product.cost),
+      quantity: product.quantity ?? 0,
+      lowStockLevel: product.lowStockLevel ?? 5,
+      metadataFields: metadataToFields(product.metadata),
+    });
+
+    setImages(
+      (product.images ?? []).map((url, index) => ({
+        id: `existing-${index}-${url}`,
+        name: `Image ${index + 1}`,
+        url,
+      }))
+    );
+  }, [product, reset]);
+
   const { fields, append, remove } = useFieldArray({
     control,
-    name: "customFields",
+    name: "metadataFields",
   });
 
-  const customFields = watch("customFields");
+  const metadataFields = watch("metadataFields");
 
-  const customFieldCount = useMemo(() => {
-    return customFields?.filter((field) => field.key || field.label || field.value)
+  const metadataFieldCount = useMemo(() => {
+    return metadataFields?.filter((field) => field.key || field.label || field.value)
       .length;
-  }, [customFields]);
+  }, [metadataFields]);
 
   async function handleImageUpload(files: FileList | null) {
     if (!files?.length) return;
@@ -124,52 +172,41 @@ export function ProductForm() {
     setImages((prev) => prev.filter((image) => image.id !== id));
   }
 
- function generateKeyFromLabel(value: string) {
-  return value
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9_]/g, "");
-}
-
   async function onSubmit(values: FormValues) {
     setError(null);
 
+    const payload = {
+      name: values.name,
+      category: values.category || undefined,
+      description: values.description || undefined,
+      price: Number(values.price),
+      cost:
+        values.cost === undefined || values.cost === null || String(values.cost) === ""
+          ? undefined
+          : Number(values.cost),
+      quantity: Number(values.quantity),
+      lowStockLevel: Number(values.lowStockLevel),
+      images: images.map((image) => image.url),
+      metadata: fieldsToMetadata(values.metadataFields),
+    };
+
     try {
-      await apiFetch("/api/products", {
-        method: "POST",
-        body: JSON.stringify({
-          name: values.name,
-          sku: values.sku,
-          category: values.category || undefined,
-          description: values.description || undefined,
-          price: Number(values.price),
-          cost:
-            values.cost === undefined || values.cost === null || String(values.cost) === ""
-              ? undefined
-              : Number(values.cost),
-          quantity: Number(values.quantity),
-          lowStockLevel: Number(values.lowStockLevel),
-          images: images.map((image) => image.url),
-          customFields: values.customFields
-            .filter((field) => field.key && field.label)
-            .map((field) => ({
-              key: generateKeyFromLabel(field.label),
-              label: field.label,
-              type: field.type,
-              value:
-                field.type === "number"
-                  ? Number(field.value)
-                  : field.type === "boolean"
-                    ? field.value === "true"
-                    : field.value,
-            })),
-        }),
-      });
+      if (isEdit && product) {
+        await apiFetch(`/api/products/${product.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch("/api/products", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      }
 
       router.push("/products");
       router.refresh();
     } catch (err: any) {
-      setError(err.message ?? "Failed to create product");
+      setError(err.message ?? `Failed to ${isEdit ? "update" : "create"} product`);
     }
   }
 
@@ -199,6 +236,13 @@ export function ProductForm() {
         </CardHeader>
 
         <CardContent className="space-y-5">
+          {isEdit && product?.sku && (
+            <div className="rounded-xl border bg-muted/40 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Generated SKU</p>
+              <p className="mt-1 font-mono text-sm font-semibold">{product.sku}</p>
+            </div>
+          )}
+
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Product name" required>
               <Input
@@ -207,27 +251,8 @@ export function ProductForm() {
               />
             </Field>
 
-            <Field label="SKU" required>
-              <Input
-                placeholder="TSHIRT-001"
-                className="uppercase"
-                {...register("sku", { required: true })}
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
             <Field label="Category">
               <Input placeholder="Apparel" {...register("category")} />
-            </Field>
-
-            <Field label="Low stock alert" required>
-              <Input
-                type="number"
-                min={0}
-                placeholder="5"
-                {...register("lowStockLevel", { required: true })}
-              />
             </Field>
           </div>
 
@@ -275,17 +300,26 @@ export function ProductForm() {
           <CardHeader>
             <CardTitle>Inventory</CardTitle>
             <CardDescription>
-              Add the starting stock quantity for this product.
+              Set stock quantity and the low-stock threshold used by the dashboard.
             </CardDescription>
           </CardHeader>
 
-          <CardContent>
-            <Field label="Initial quantity" required>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <Field label="Quantity" required>
               <Input
                 type="number"
                 min={0}
                 placeholder="0"
                 {...register("quantity", { required: true })}
+              />
+            </Field>
+
+            <Field label="Low stock alert" required>
+              <Input
+                type="number"
+                min={0}
+                placeholder="5"
+                {...register("lowStockLevel", { required: true })}
               />
             </Field>
           </CardContent>
@@ -296,8 +330,7 @@ export function ProductForm() {
         <CardHeader>
           <CardTitle>Images</CardTitle>
           <CardDescription>
-            Upload product images. For now these are sent as image data; later you should store them in
-            Cloudinary, S3, Supabase Storage, or UploadThing.
+            Upload product images. They are sent as URLs or image data through the API images field.
           </CardDescription>
         </CardHeader>
 
@@ -356,9 +389,9 @@ export function ProductForm() {
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle>Custom fields</CardTitle>
+              <CardTitle>Metadata</CardTitle>
               <CardDescription>
-                Add flexible product attributes like color, material, warranty, supplier, or launch date.
+                Add flexible product attributes such as color, material, warranty, supplier, or launch date.
               </CardDescription>
             </div>
 
@@ -366,16 +399,16 @@ export function ProductForm() {
               type="button"
               variant="outline"
               onClick={() =>
-               append({
-                key: "",
-                label: "",
-                type: "text",
-                value: "",
-              })
+                append({
+                  key: "",
+                  label: "",
+                  type: "text",
+                  value: "",
+                })
               }
             >
               <Plus className="mr-2 h-4 w-4" />
-              Add custom field
+              Add metadata
             </Button>
           </div>
         </CardHeader>
@@ -383,7 +416,7 @@ export function ProductForm() {
         <CardContent className="space-y-4">
           {fields.length === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center">
-              <p className="text-sm font-medium">No custom fields yet</p>
+              <p className="text-sm font-medium">No metadata yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Add optional fields when the default product fields are not enough.
               </p>
@@ -409,7 +442,7 @@ export function ProductForm() {
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                 <p className="text-sm text-muted-foreground">
-                  {customFieldCount} custom field{customFieldCount === 1 ? "" : "s"} added
+                  {metadataFieldCount} metadata field{metadataFieldCount === 1 ? "" : "s"} added
                 </p>
 
                 <Badge variant="outline">Optional</Badge>
@@ -419,9 +452,9 @@ export function ProductForm() {
                 <div key={field.id} className="rounded-xl border p-4">
                   <div className="mb-4 flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-sm font-medium">Custom field #{index + 1}</p>
+                      <p className="text-sm font-medium">Metadata field #{index + 1}</p>
                       <p className="text-xs text-muted-foreground">
-                        Define the field and its value for this product.
+                        Metadata is saved directly to the product metadata object.
                       </p>
                     </div>
 
@@ -438,12 +471,11 @@ export function ProductForm() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <Field label="Label">
                       <Input
-                        placeholder="Car Keys"
-                        {...register(`customFields.${index}.label` as const, {
+                        placeholder="Supplier name"
+                        {...register(`metadataFields.${index}.label` as const, {
                           onChange: (event) => {
                             const generatedKey = generateKeyFromLabel(event.target.value);
-
-                            setValue(`customFields.${index}.key`, generatedKey);
+                            setValue(`metadataFields.${index}.key`, generatedKey);
                           },
                         })}
                       />
@@ -451,10 +483,10 @@ export function ProductForm() {
 
                     <Field label="Generated key">
                       <Input
-                        value={customFields?.[index]?.key || ""}
+                        value={metadataFields?.[index]?.key || ""}
                         readOnly
                         className="bg-muted text-muted-foreground"
-                        placeholder="Car_Keys"
+                        placeholder="supplier_name"
                       />
                     </Field>
                   </div>
@@ -463,8 +495,8 @@ export function ProductForm() {
                     <Field label="Type">
                       <Select
                         defaultValue={field.type || "text"}
-                        onValueChange={(value: CustomFieldType) =>
-                          setValue(`customFields.${index}.type`, value)
+                        onValueChange={(value: MetadataFieldType) =>
+                          setValue(`metadataFields.${index}.type`, value)
                         }
                       >
                         <SelectTrigger>
@@ -474,7 +506,6 @@ export function ProductForm() {
                           <SelectItem value="text">Text</SelectItem>
                           <SelectItem value="number">Number</SelectItem>
                           <SelectItem value="boolean">Boolean</SelectItem>
-                          <SelectItem value="select">Select</SelectItem>
                           <SelectItem value="date">Date</SelectItem>
                         </SelectContent>
                       </Select>
@@ -482,8 +513,9 @@ export function ProductForm() {
 
                     <Field label="Value">
                       <Input
-                        placeholder="Blue"
-                        {...register(`customFields.${index}.value` as const)}
+                        type={metadataFields?.[index]?.type === "date" ? "date" : "text"}
+                        placeholder="Acme Supplies"
+                        {...register(`metadataFields.${index}.value` as const)}
                       />
                     </Field>
                   </div>
@@ -494,12 +526,18 @@ export function ProductForm() {
         </CardContent>
       </Card>
 
+      <Separator />
+
       <Card className="sticky bottom-4 z-10 border bg-background/95 shadow-lg backdrop-blur">
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium">Ready to create this product?</p>
+            <p className="text-sm font-medium">
+              {isEdit ? "Ready to update this product?" : "Ready to create this product?"}
+            </p>
             <p className="text-xs text-muted-foreground">
-              You can edit product details, images, and custom fields later.
+              {isEdit
+                ? "Changes will be synced to inventory, activity logs, and webhooks through the API."
+                : "The backend will generate the SKU and create the initial inventory log."}
             </p>
           </div>
 
@@ -518,6 +556,11 @@ export function ProductForm() {
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
+                </>
+              ) : isEdit ? (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Update product
                 </>
               ) : (
                 <>
@@ -540,7 +583,7 @@ function Field({
 }: {
   label: string;
   required?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="space-y-2">
@@ -551,4 +594,57 @@ function Field({
       {children}
     </div>
   );
+}
+
+function generateKeyFromLabel(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
+}
+
+function metadataToFields(metadata?: Product["metadata"]): MetadataField[] {
+  if (!metadata || typeof metadata !== "object") return [];
+
+  return Object.entries(metadata).map(([key, value]) => ({
+    key,
+    label: key
+      .split("_")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ") || key,
+    type: inferMetadataType(value),
+    value: value == null ? "" : String(value),
+  }));
+}
+
+function fieldsToMetadata(fields: MetadataField[]) {
+  const metadata = fields.reduce<Record<string, unknown>>((acc, field) => {
+    const key = field.key || generateKeyFromLabel(field.label);
+    if (!key || field.value === "") return acc;
+
+    if (field.type === "number") {
+      const value = Number(field.value);
+      if (!Number.isNaN(value)) acc[key] = value;
+      return acc;
+    }
+
+    if (field.type === "boolean") {
+      acc[key] = String(field.value).toLowerCase() === "true";
+      return acc;
+    }
+
+    acc[key] = field.value;
+    return acc;
+  }, {});
+
+  return Object.keys(metadata).length ? metadata : undefined;
+}
+
+function inferMetadataType(value: unknown): MetadataFieldType {
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return "date";
+  return "text";
 }
