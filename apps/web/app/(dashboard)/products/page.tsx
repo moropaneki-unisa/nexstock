@@ -2,20 +2,25 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit, Loader2, PackageSearch, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Edit, Eye, Loader2, PackageSearch, Plus, RefreshCw, SlidersHorizontal, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
 import type { Paginated, Product } from "@/lib/types";
 
 const PAGE_LIMIT = 25;
 
 export default function ProductsPage() {
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") ?? "";
+
+  const [search, setSearch] = useState(initialSearch);
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Paginated<Product> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,22 +74,39 @@ export default function ProductsPage() {
 
   const products = data?.items ?? [];
   const pagination = data?.pagination;
+  const totalProducts = pagination?.total ?? 0;
+  const lowStockCount = products.filter((product) => product.quantity <= product.lowStockLevel).length;
+  const inventoryValue = products.reduce((sum, product) => sum + Number(product.price ?? 0) * product.quantity, 0);
 
   return (
-    <main className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Products</h1>
-          <p className="text-sm text-muted-foreground">Manage product details, inventory levels, and MVP CRUD flows.</p>
-        </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Product CRUD"
+        title="Products"
+        description="Create, view, edit, search, paginate, and archive organization products. The backend generates SKUs and records inventory movement when quantities change."
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href="/products/fields">
+                <SlidersHorizontal className="h-4 w-4" />
+                Product schema
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/products/new">
+                <Plus className="h-4 w-4" />
+                New product
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        <Button asChild>
-          <Link href="/products/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New product
-          </Link>
-        </Button>
-      </div>
+      <section className="grid gap-4 md:grid-cols-3">
+        <StatCard label="Total products" value={totalProducts} />
+        <StatCard label="Low stock on page" value={lowStockCount} />
+        <StatCard label="Inventory value on page" value={formatCurrency(inventoryValue)} />
+      </section>
 
       <Card>
         <CardContent className="space-y-4 p-4">
@@ -110,9 +132,7 @@ export default function ProductsPage() {
             <div className="rounded-xl border border-dashed p-10 text-center">
               <PackageSearch className="mx-auto mb-3 h-9 w-9 text-muted-foreground" />
               <p className="text-sm font-medium">No products found</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Create your first product or adjust your search query.
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">Create your first product or adjust your search query.</p>
               <Button asChild className="mt-4">
                 <Link href="/products/new">Create product</Link>
               </Button>
@@ -138,10 +158,8 @@ export default function ProductsPage() {
                     return (
                       <TableRow key={product.id}>
                         <TableCell>
-                          <div className="font-medium">{product.name}</div>
-                          {product.description && (
-                            <div className="line-clamp-1 text-xs text-muted-foreground">{product.description}</div>
-                          )}
+                          <Link href={`/products/${product.id}`} className="font-medium hover:underline">{product.name}</Link>
+                          {product.description && <div className="line-clamp-1 text-xs text-muted-foreground">{product.description}</div>}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{product.sku}</TableCell>
                         <TableCell>{product.category || "-"}</TableCell>
@@ -150,30 +168,26 @@ export default function ProductsPage() {
                           <Badge variant={lowStock ? "destructive" : "secondary"}>{product.quantity}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={product.status === "archived" ? "outline" : "secondary"}>
+                          <Badge variant={product.status === "archived" ? "outline" : lowStock ? "destructive" : "secondary"}>
                             {lowStock ? "Low stock" : product.status ?? "active"}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-2">
+                            <Button asChild size="sm" variant="ghost">
+                              <Link href={`/products/${product.id}`}>
+                                <Eye className="h-4 w-4" />
+                                View
+                              </Link>
+                            </Button>
                             <Button asChild size="sm" variant="outline">
                               <Link href={`/products/${product.id}/edit`}>
-                                <Edit className="mr-2 h-4 w-4" />
+                                <Edit className="h-4 w-4" />
                                 Edit
                               </Link>
                             </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => deleteProduct(product)}
-                              disabled={deletingId === product.id}
-                            >
-                              {deletingId === product.id ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="mr-2 h-4 w-4" />
-                              )}
+                            <Button type="button" size="sm" variant="destructive" onClick={() => deleteProduct(product)} disabled={deletingId === product.id}>
+                              {deletingId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                               Archive
                             </Button>
                           </div>
@@ -188,26 +202,12 @@ export default function ProductsPage() {
 
           {pagination && pagination.pages > 1 && (
             <div className="flex flex-col gap-3 border-t pt-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <p>
-                Showing page {pagination.page} of {pagination.pages} ({pagination.total} products)
-              </p>
+              <p>Showing page {pagination.page} of {pagination.pages} ({pagination.total} products)</p>
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page <= 1 || loading}
-                  onClick={() => setPage((value) => Math.max(value - 1, 1))}
-                >
+                <Button type="button" variant="outline" size="sm" disabled={pagination.page <= 1 || loading} onClick={() => setPage((value) => Math.max(value - 1, 1))}>
                   Previous
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={pagination.page >= pagination.pages || loading}
-                  onClick={() => setPage((value) => value + 1)}
-                >
+                <Button type="button" variant="outline" size="sm" disabled={pagination.page >= pagination.pages || loading} onClick={() => setPage((value) => value + 1)}>
                   Next
                 </Button>
               </div>
@@ -215,7 +215,18 @@ export default function ProductsPage() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </PageShell>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      </CardContent>
+    </Card>
   );
 }
 
