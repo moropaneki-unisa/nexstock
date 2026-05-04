@@ -10,6 +10,11 @@ import {
   UpdateProductDto,
 } from './dto';
 
+const PRODUCT_TRANSACTION_OPTIONS = {
+  maxWait: 10_000,
+  timeout: 30_000,
+};
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -155,7 +160,7 @@ export class ProductsService {
       }
 
       return created;
-    });
+    }, PRODUCT_TRANSACTION_OPTIONS);
 
     await this.webhooks.emit(organizationId, 'product_created', {
       productId: product.id,
@@ -190,7 +195,7 @@ export class ProductsService {
         this.validateCustomFieldValues(activeFields, dto.customFieldValues);
       }
 
-      const product = await tx.product.update({
+      await tx.product.update({
         where: { id_organizationId: { id, organizationId } },
         data,
       });
@@ -240,7 +245,7 @@ export class ProductsService {
           },
         },
       });
-    });
+    }, PRODUCT_TRANSACTION_OPTIONS);
 
     if (dto.quantity !== undefined && dto.quantity !== existing.quantity) {
       await this.webhooks.emit(organizationId, 'inventory_updated', {
@@ -288,7 +293,7 @@ export class ProductsService {
       });
 
       return product;
-    });
+    }, PRODUCT_TRANSACTION_OPTIONS);
 
     await this.webhooks.emit(organizationId, 'inventory_updated', {
       productId: id,
