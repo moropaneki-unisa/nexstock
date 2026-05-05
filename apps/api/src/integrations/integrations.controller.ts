@@ -1,8 +1,8 @@
-import { Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
-import { IntegrationsService } from './integrations.service';
+import { IntegrationsService, ZohoConnectInput } from './integrations.service';
 
 @Controller('integrations')
 export class IntegrationsController {
@@ -18,6 +18,12 @@ export class IntegrationsController {
   @UseGuards(JwtAuthGuard)
   connectZoho(@CurrentUser() user: CurrentUserPayload) {
     return this.integrations.buildZohoConnectUrl(user.organizationId);
+  }
+
+  @Post('zoho/connect')
+  @UseGuards(JwtAuthGuard)
+  connectZohoWithCredentials(@CurrentUser() user: CurrentUserPayload, @Body() body: ZohoConnectInput) {
+    return this.integrations.buildZohoConnectUrl(user.organizationId, body);
   }
 
   @Get('zoho/callback')
