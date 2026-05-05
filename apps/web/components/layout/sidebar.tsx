@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Boxes,
+  Building2,
   Code2,
   DatabaseZap,
   Home,
@@ -25,7 +26,7 @@ const sections = [
     items: [
       { href: "/dashboard", label: "Dashboard", description: "Operations command center", icon: Home },
       { href: "/products", label: "Products", description: "Catalog, stock, images", icon: Boxes },
-      { href: "/products/fields", label: "Product schema", description: "Custom fields and rules", icon: DatabaseZap },
+      { href: "/products/fields", label: "Product fields", description: "Default and additional fields", icon: DatabaseZap },
     ],
   },
   {
@@ -40,6 +41,7 @@ const sections = [
   {
     label: "Admin",
     items: [
+      { href: "/organization", label: "Organization", description: "Users, roles, billing, security", icon: Building2 },
       { href: "/settings", label: "Settings", description: "Workspace preferences", icon: Settings },
     ],
   },
@@ -65,7 +67,7 @@ export function Sidebar() {
           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
           Go-live workspace
         </div>
-        <p className="mt-1 text-[0.72rem] leading-5 text-muted-foreground">Products, integrations, APIs, and webhooks in one SaaS-ready console.</p>
+        <p className="mt-1 text-[0.72rem] leading-5 text-muted-foreground">Products, integrations, APIs, webhooks, users, and permissions in one SaaS-ready console.</p>
       </div>
 
       <nav className="space-y-6">
@@ -107,11 +109,11 @@ export function Sidebar() {
           Production checklist
         </div>
         <p className="mt-2 text-xs leading-5 text-primary-foreground/75">
-          Confirm mappings before sync, monitor webhooks, and keep product data clean before launch.
+          Confirm mappings, invite users, review security, monitor webhooks, and keep product data clean before launch.
         </p>
-        <Link href="/integrations" className="mt-4 flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs transition hover:bg-white/15">
+        <Link href="/organization" className="mt-4 flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs transition hover:bg-white/15">
           <BarChart3 className="h-3.5 w-3.5" />
-          Review integrations
+          Review admin setup
         </Link>
       </div>
     </aside>
