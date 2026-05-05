@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Clock3,
   DatabaseZap,
   Eye,
   EyeOff,
-  FileJson,
   FileSpreadsheet,
   Loader2,
   PlugZap,
@@ -22,6 +22,7 @@ import {
   Trash2,
   Upload,
   Workflow,
+  type LucideIcon,
 } from "lucide-react";
 
 import { FileImportExportCard } from "@/components/integrations/file-import-export-card";
@@ -31,9 +32,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
+import { apiFetch } from "@/lib/api";
 import {
   autoMapFields,
-  connectors,
   createDefaultConfiguration,
   createHistory,
   createLog,
@@ -49,12 +50,19 @@ import {
   type IntegrationSource,
   type SourceField,
 } from "@/lib/integrations";
-import { apiFetch } from "@/lib/api";
 import type { ProductField } from "@/lib/types";
 
 type WorkflowProps = {
   source: string;
   initialSection?: IntegrationSection;
+};
+
+const nextSection: Record<IntegrationSection, IntegrationSection> = {
+  configuration: "mapping",
+  mapping: "sync",
+  sync: "history",
+  history: "logs",
+  logs: "configuration",
 };
 
 export function IntegrationWorkflow({ source, initialSection = "configuration" }: WorkflowProps) {
@@ -67,7 +75,10 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
   const [error, setError] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState(false);
+  const [newSourceField, setNewSourceField] = useState("");
   const [jsonInput, setJsonInput] = useState("[{\n  \"title\": \"Classic T-Shirt\",\n  \"code\": \"TSHIRT-001\",\n  \"price\": 29.99,\n  \"inventory\": 42\n}]");
+
+  useEffect(() => setSection(initialSection), [initialSection]);
 
   useEffect(() => {
     if (!normalizedSource) return;
@@ -105,12 +116,12 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
 
   if (!normalizedSource || !connector || !configuration) {
     return (
-      <PageShell>
+      <PageShell className="space-y-6">
         <Button asChild variant="ghost" className="w-fit rounded-xl px-0">
           <Link href="/integrations"><ArrowLeft className="h-4 w-4" /> Back to integrations</Link>
         </Button>
         <div className="rounded-[1.5rem] border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
-          Integration source not found. Use /integration/zoho, /integration/csv, /integration/xlsx, /integration/json, /integration/wordpress, /integration/shopify, or /integration/custom.
+          Integration source not found. Go back to the integrations page and choose a supported source.
         </div>
       </PageShell>
     );
@@ -118,6 +129,7 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
 
   const Icon = connector.icon;
   const mappingConfirmed = configuration.mappingStatus === "confirmed" && validation.valid;
+  const hasRequiredConfiguration = connector.configurationFields.every((field) => !field.required || Boolean(configuration.credentials?.[field.key]?.trim()));
 
   async function loadCustomFields() {
     try {
@@ -133,59 +145,74 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
     window.localStorage.setItem(storageKey(next.source), JSON.stringify(next));
   }
 
+  function addEvent(next: IntegrationConfiguration, level: IntegrationConfiguration["logs"][number]["level"], action: string, status: string, detail: string) {
+    return {
+      ...next,
+      history: [createHistory(action, status, detail), ...next.history],
+      logs: [createLog(level, detail), ...next.logs],
+    };
+  }
+
   function updateCredentials(key: string, value: string) {
-    const next = {
+    persist({
       ...configuration,
       credentials: { ...(configuration.credentials ?? {}), [key]: value },
-      status: "configured" as const,
-      logs: [createLog("info", `Updated ${key} configuration.`), ...configuration.logs],
-    };
-    persist(next);
+      status: "configured",
+    });
   }
 
   function saveConfiguration() {
-    const next = {
-      ...configuration,
-      status: "configured" as const,
-      savedAt: new Date().toISOString(),
-      history: [createHistory("Configuration", "saved", `${connector.title} configuration saved.`), ...configuration.history],
-      logs: [createLog("success", `${connector.title} configuration saved.`), ...configuration.logs],
-    };
+    const missing = connector.configurationFields.filter((field) => field.required && !configuration.credentials?.[field.key]?.trim());
+    if (missing.length) {
+      setError(`Missing required configuration: ${missing.map((field) => field.label).join(", ")}.`);
+      return;
+    }
+
+    const next = addEvent(
+      { ...configuration, status: "configured", savedAt: new Date().toISOString() },
+      "success",
+      "Configuration",
+      "saved",
+      `${connector.title} configuration saved.`,
+    );
     persist(next);
-    setMessage("Configuration saved. Detect or confirm fields before syncing.");
+    setMessage("Configuration saved. Detect fields, then review and confirm mapping.");
     setError(null);
+    setSection("mapping");
   }
 
   async function testConnection() {
     setLoadingAction("test");
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    const missing = connector.configurationFields.filter((field) => field.required && !configuration.credentials?.[field.key]);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const missing = connector.configurationFields.filter((field) => field.required && !configuration.credentials?.[field.key]?.trim());
+
     if (missing.length) {
       setError(`Missing required configuration: ${missing.map((field) => field.label).join(", ")}.`);
     } else {
-      const next = {
-        ...configuration,
-        status: "connected" as const,
-        logs: [createLog("success", `${connector.title} connection test passed.`), ...configuration.logs],
-        history: [createHistory("Test connection", "success", `${connector.title} is ready to use.`), ...configuration.history],
-      };
+      const next = addEvent(
+        { ...configuration, status: "connected" },
+        "success",
+        "Test connection",
+        "success",
+        `${connector.title} connection details look ready.`,
+      );
       persist(next);
-      setMessage("Connection test passed. Continue to mapping.");
+      setMessage("Connection check passed. Continue to mapping.");
       setError(null);
     }
+
     setLoadingAction(null);
   }
 
   function detectDefaultFields() {
     const fields = connector.defaultFields;
-    const next = {
-      ...configuration,
-      detectedFields: fields,
-      mappings: autoMapFields(fields),
-      mappingStatus: "draft" as const,
-      history: [createHistory("Field detection", "success", `${fields.length} fields detected from ${connector.title}.`), ...configuration.history],
-      logs: [createLog("success", `${fields.length} source fields detected.`), ...configuration.logs],
-    };
+    const next = addEvent(
+      { ...configuration, detectedFields: fields, mappings: autoMapFields(fields), mappingStatus: "draft" },
+      "success",
+      "Field detection",
+      "success",
+      `${fields.length} source fields detected from ${connector.title}.`,
+    );
     persist(next);
     setMessage(`${fields.length} fields detected. Review and confirm mapping.`);
     setError(null);
@@ -202,14 +229,13 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
     try {
       const fields = await extractFieldsFromFile(file);
       if (!fields.length) throw new Error("No fields were detected in the file.");
-      const next = {
-        ...configuration,
-        detectedFields: fields,
-        mappings: autoMapFields(fields),
-        mappingStatus: "draft" as const,
-        history: [createHistory("Field detection", "success", `${fields.length} fields detected from ${file.name}.`), ...configuration.history],
-        logs: [createLog("success", `${fields.length} fields detected from uploaded file.`), ...configuration.logs],
-      };
+      const next = addEvent(
+        { ...configuration, detectedFields: fields, mappings: autoMapFields(fields), mappingStatus: "draft" },
+        "success",
+        "Field detection",
+        "success",
+        `${fields.length} fields detected from ${file.name}.`,
+      );
       persist(next);
       setMessage(`${fields.length} fields detected. Review and confirm mapping.`);
       setError(null);
@@ -227,14 +253,13 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
       const item = Array.isArray(parsed) ? parsed[0] : parsed;
       if (!item || typeof item !== "object") throw new Error("JSON must be an object or an array of objects.");
       const fields = Object.entries(item as Record<string, unknown>).map(([key, value]) => ({ key, label: key, sample: stringifySample(value), type: typeof value }));
-      const next = {
-        ...configuration,
-        detectedFields: fields,
-        mappings: autoMapFields(fields),
-        mappingStatus: "draft" as const,
-        history: [createHistory("Field detection", "success", `${fields.length} fields detected from JSON.`), ...configuration.history],
-        logs: [createLog("success", `${fields.length} fields detected from JSON.`), ...configuration.logs],
-      };
+      const next = addEvent(
+        { ...configuration, detectedFields: fields, mappings: autoMapFields(fields), mappingStatus: "draft" },
+        "success",
+        "Field detection",
+        "success",
+        `${fields.length} fields detected from JSON.`,
+      );
       persist(next);
       setMessage(`${fields.length} fields detected from JSON. Review and confirm mapping.`);
       setError(null);
@@ -245,36 +270,50 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
   }
 
   function updateMapping(id: string, patch: Partial<FieldMapping>) {
-    const next = {
+    persist({
       ...configuration,
-      mappingStatus: "draft" as const,
+      mappingStatus: "draft",
       mappings: configuration.mappings.map((mapping) => mapping.id === id ? { ...mapping, ...patch } : mapping),
-    };
-    persist(next);
+    });
   }
 
   function deleteMapping(id: string) {
-    const next = {
-      ...configuration,
-      mappingStatus: "draft" as const,
-      mappings: configuration.mappings.filter((mapping) => mapping.id !== id),
-      logs: [createLog("warning", "A mapping row was deleted."), ...configuration.logs],
-    };
+    const next = addEvent(
+      { ...configuration, mappingStatus: "draft", mappings: configuration.mappings.filter((mapping) => mapping.id !== id) },
+      "warning",
+      "Mapping",
+      "updated",
+      "A mapping row was deleted.",
+    );
     persist(next);
   }
 
   function addCustomMapping() {
-    const customField = prompt("Enter a source field name to add:");
-    if (!customField?.trim()) return;
-    const key = customField.trim();
-    const next = {
-      ...configuration,
-      mappingStatus: "draft" as const,
-      detectedFields: [...configuration.detectedFields, { key, label: key, sample: "Custom field" }],
-      mappings: [...configuration.mappings, { id: key, source: key, target: "ignore", status: "ignored" as const }],
-      logs: [createLog("info", `Added custom source field ${key}.`), ...configuration.logs],
-    };
+    const key = newSourceField.trim();
+    if (!key) {
+      setError("Enter a source field name before adding it.");
+      return;
+    }
+    if (configuration.mappings.some((mapping) => mapping.source === key)) {
+      setError("That source field already exists in the mapping.");
+      return;
+    }
+
+    const next = addEvent(
+      {
+        ...configuration,
+        mappingStatus: "draft",
+        detectedFields: [...configuration.detectedFields, { key, label: key, sample: "Manual source field" }],
+        mappings: [...configuration.mappings, { id: key, source: key, target: "ignore", status: "ignored" }],
+      },
+      "info",
+      "Mapping",
+      "updated",
+      `Added source field ${key}.`,
+    );
     persist(next);
+    setNewSourceField("");
+    setError(null);
   }
 
   function confirmMapping() {
@@ -282,13 +321,14 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
       setError(`Required mappings are missing: ${validation.missing.map(formatTarget).join(", ")}.`);
       return;
     }
-    const next = {
-      ...configuration,
-      mappingStatus: "confirmed" as const,
-      savedAt: new Date().toISOString(),
-      history: [createHistory("Mapping", "confirmed", `${configuration.mappings.filter((item) => item.target !== "ignore").length} mappings confirmed.`), ...configuration.history],
-      logs: [createLog("success", "Mapping confirmed. Sync is now enabled."), ...configuration.logs],
-    };
+    const mappedCount = configuration.mappings.filter((item) => item.target !== "ignore").length;
+    const next = addEvent(
+      { ...configuration, mappingStatus: "confirmed", savedAt: new Date().toISOString() },
+      "success",
+      "Mapping",
+      "confirmed",
+      `${mappedCount} mappings confirmed. Sync is now enabled.`,
+    );
     persist(next);
     setMessage("Mapping confirmed. Sync actions are now enabled.");
     setError(null);
@@ -301,12 +341,8 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
       return;
     }
     setLoadingAction("preview");
-    await new Promise((resolve) => setTimeout(resolve, 550));
-    const next = {
-      ...configuration,
-      history: [createHistory("Preview data", "success", "Preview generated from confirmed mapping."), ...configuration.history],
-      logs: [createLog("success", "Preview data is ready. No records were synced yet."), ...configuration.logs],
-    };
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    const next = addEvent(configuration, "success", "Preview data", "success", "Preview generated from confirmed mapping. No records were changed.");
     persist(next);
     setMessage("Preview ready. The mapping looks valid for product sync.");
     setError(null);
@@ -320,18 +356,38 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
     }
 
     setLoadingAction("sync");
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const next = {
-      ...configuration,
-      lastSyncAt: new Date().toISOString(),
-      history: [createHistory("Start sync", "success", `${connector.title} sync completed using confirmed mapping.`), ...configuration.history],
-      logs: [createLog("success", `${connector.title} sync completed successfully.`), ...configuration.logs],
-    };
-    persist(next);
-    setMessage("Sync completed successfully using the confirmed mapping.");
-    setError(null);
-    setSection("history");
-    setLoadingAction(null);
+    try {
+      if (connector.id === "zoho") {
+        const result = await apiFetch<{ created: number; updated: number; total: number }>("/api/integrations/zoho/sync", { method: "POST" });
+        const next = addEvent(
+          { ...configuration, lastSyncAt: new Date().toISOString() },
+          "success",
+          "Start sync",
+          "success",
+          `Zoho sync completed: ${result.total} processed, ${result.created} created, ${result.updated} updated.`,
+        );
+        persist(next);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 650));
+        const next = addEvent(
+          { ...configuration, lastSyncAt: new Date().toISOString() },
+          "success",
+          "Start sync",
+          "success",
+          `${connector.title} sync workflow completed using confirmed mapping.`,
+        );
+        persist(next);
+      }
+      setMessage("Sync completed successfully using the confirmed mapping.");
+      setError(null);
+      setSection("history");
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : "Sync failed.";
+      persist(addEvent(configuration, "error", "Start sync", "failed", detail));
+      setError(detail);
+    } finally {
+      setLoadingAction(null);
+    }
   }
 
   return (
@@ -358,11 +414,12 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
 
       <section className="grid gap-4 md:grid-cols-4">
         <WorkflowStatus icon={Icon} label="Source" value={connector.name} helper={connector.status === "live" ? "Live workflow" : "Reusable workflow"} />
-        <WorkflowStatus icon={DatabaseZap} label="Detected fields" value={configuration.detectedFields.length} helper="Source schema" />
-        <WorkflowStatus icon={CheckCircle2} label="Mapping" value={configuration.mappingStatus === "confirmed" ? "Confirmed" : "Draft"} helper={validation.valid ? "Required fields mapped" : "Missing required fields"} tone={configuration.mappingStatus === "confirmed" ? "success" : "warning"} />
+        <WorkflowStatus icon={PlugZap} label="Configuration" value={hasRequiredConfiguration ? "Ready" : "Needs setup"} helper={connector.configurationFields.length ? "Required settings" : "File or sample based"} tone={hasRequiredConfiguration ? "success" : "warning"} />
+        <WorkflowStatus icon={DatabaseZap} label="Mapping" value={mappingConfirmed ? "Confirmed" : "Draft"} helper={validation.valid ? "Required fields mapped" : "Missing required fields"} tone={mappingConfirmed ? "success" : "warning"} />
         <WorkflowStatus icon={Clock3} label="Last sync" value={configuration.lastSyncAt ? "Done" : "Not synced"} helper={configuration.lastSyncAt ? new Date(configuration.lastSyncAt).toLocaleString() : "Confirm mapping first"} />
       </section>
 
+      <NextStepBanner section={section} source={connector.id} mappingConfirmed={mappingConfirmed} hasRequiredConfiguration={hasRequiredConfiguration} />
       <IntegrationTabs source={connector.id} section={section} onSection={setSection} />
 
       {section === "configuration" && (
@@ -370,7 +427,7 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
           <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><PlugZap className="h-5 w-5" /> Configuration</CardTitle>
-              <CardDescription>Configure the source and detect fields before mapping. Sync will stay disabled until mapping is confirmed.</CardDescription>
+              <CardDescription>Configure the source and detect fields before mapping. Sync stays disabled until mapping is confirmed.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               {connector.configurationFields.length > 0 ? (
@@ -407,9 +464,7 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
                 </div>
               )}
 
-              {(connector.id === "csv" || connector.id === "xlsx" || connector.id === "json") && connector.id !== "json" && (
-                <FileDetector onDetect={detectFromFile} loading={loadingAction === "detect-file"} />
-              )}
+              {(connector.id === "csv" || connector.id === "xlsx") && <FileDetector onDetect={detectFromFile} loading={loadingAction === "detect-file"} />}
 
               <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={saveConfiguration} className="rounded-xl"><Save className="h-4 w-4" /> Save configuration</Button>
@@ -434,23 +489,26 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2"><DatabaseZap className="h-5 w-5" /> Field mapping</CardTitle>
-                <CardDescription>Map detected source fields to business fields. Required mappings must be complete before sync is enabled.</CardDescription>
+                <CardDescription>Map source fields to business fields. Required mappings must be complete before sync is enabled.</CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant={validation.valid ? "secondary" : "destructive"} className="rounded-full">{validation.valid ? "Valid mapping" : "Missing required mapping"}</Badge>
-                <Button type="button" variant="outline" onClick={addCustomMapping} className="rounded-xl">Add field</Button>
                 <Button type="button" onClick={confirmMapping} className="rounded-xl"><CheckCircle2 className="h-4 w-4" /> Confirm mapping</Button>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {!validation.valid && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Missing required targets: {validation.missing.map(formatTarget).join(", ")}</div>}
-            <div className="hidden grid-cols-[1fr_1fr_0.5fr] gap-3 px-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground md:grid"><span>Source field</span><span>Business target</span><span>Actions</span></div>
+            <div className="flex flex-col gap-2 rounded-2xl border bg-muted/20 p-4 sm:flex-row">
+              <Input value={newSourceField} onChange={(event) => setNewSourceField(event.target.value)} placeholder="Add source field name, e.g. supplier_code" className="rounded-xl" />
+              <Button type="button" variant="outline" onClick={addCustomMapping} className="rounded-xl">Add field</Button>
+            </div>
+            <div className="hidden grid-cols-[1fr_1fr_0.45fr] gap-3 px-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground md:grid"><span>Source field</span><span>Business target</span><span>Actions</span></div>
             {configuration.mappings.map((mapping) => {
               const field = configuration.detectedFields.find((item) => item.key === mapping.source);
               return (
-                <div key={mapping.id} className="grid gap-3 rounded-2xl border bg-background/70 p-3 md:grid-cols-[1fr_1fr_0.5fr] md:items-center">
-                  <div><p className="text-sm font-medium">{field?.label ?? mapping.source}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{mapping.source}{field?.sample ? ` · sample: ${field.sample}` : ""}</p></div>
+                <div key={mapping.id} className="grid gap-3 rounded-2xl border bg-background/70 p-3 md:grid-cols-[1fr_1fr_0.45fr] md:items-center">
+                  <div><p className="text-sm font-medium">{field?.label ?? mapping.source}</p><p className="mt-1 truncate font-mono text-xs text-muted-foreground">{mapping.source}{field?.sample ? ` · sample: ${field.sample}` : ""}</p></div>
                   <select value={mapping.target} onChange={(event) => updateMapping(mapping.id, { target: event.target.value })} className="h-10 w-full rounded-xl border bg-background px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/25">
                     {targetOptions.map((target) => <option key={target.key} value={target.key}>{target.label}</option>)}
                   </select>
@@ -481,7 +539,7 @@ export function IntegrationWorkflow({ source, initialSection = "configuration" }
           <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
             <CardHeader><CardTitle>Sync readiness</CardTitle><CardDescription>Business rules before data can move.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
-              <ReadinessLine ready={configuration.status !== "not_configured"} label="Configuration saved" />
+              <ReadinessLine ready={hasRequiredConfiguration} label="Configuration saved" />
               <ReadinessLine ready={configuration.detectedFields.length > 0} label="Fields detected" />
               <ReadinessLine ready={validation.valid} label="Required fields mapped" />
               <ReadinessLine ready={configuration.mappingStatus === "confirmed"} label="Mapping confirmed" />
@@ -505,12 +563,18 @@ function IntegrationTabs({ source, section, onSection }: { source: IntegrationSo
   return <div className="rounded-[1.5rem] border bg-card/95 p-2 shadow-sm"><div className="grid gap-2 md:grid-cols-5">{integrationSections.map((item) => { const Icon = item.icon; const active = section === item.id; return <Link key={item.id} href={`/integration/${source}/${item.id}`} onClick={() => onSection(item.id)} className={`rounded-2xl p-3 text-left transition ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"}`}><div className="flex items-center gap-2 text-sm font-medium"><Icon className="h-4 w-4" />{item.label}</div><p className={`mt-1 text-xs ${active ? "text-primary-foreground/75" : "text-muted-foreground"}`}>{item.description}</p></Link>; })}</div></div>;
 }
 
+function NextStepBanner({ section, source, mappingConfirmed, hasRequiredConfiguration }: { section: IntegrationSection; source: IntegrationSource; mappingConfirmed: boolean; hasRequiredConfiguration: boolean }) {
+  const label = section === "configuration" ? "Next: detect fields and review mapping" : section === "mapping" ? "Next: confirm mapping" : section === "sync" ? "Next: preview or start sync" : "Next: review operational details";
+  const href = `/integration/${source}/${nextSection[section]}`;
+  return <div className="flex flex-col gap-3 rounded-[1.5rem] border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{label}</p><p className="mt-1 text-sm text-muted-foreground">{!hasRequiredConfiguration ? "Complete required configuration first." : !mappingConfirmed ? "Sync remains disabled until required mappings are confirmed." : "This integration is ready for safe sync actions."}</p></div><Button asChild variant="outline" className="rounded-xl bg-background"><Link href={href}>Continue <ArrowRight className="h-4 w-4" /></Link></Button></div>;
+}
+
 function FileDetector({ onDetect, loading }: { onDetect: (file?: File | null) => void; loading: boolean }) {
   const [file, setFile] = useState<File | null>(null);
   return <div className="rounded-2xl border bg-muted/20 p-4"><Label>Upload source file for field detection</Label><Input type="file" accept=".csv,.xlsx,.xls,.json,application/json,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 rounded-xl" /><Button type="button" onClick={() => onDetect(file)} disabled={loading || !file} className="mt-3 rounded-xl">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Detect fields from file</Button></div>;
 }
 
-function WorkflowStatus({ icon: Icon, label, value, helper, tone = "default" }: { icon: typeof Store; label: string; value: string | number; helper: string; tone?: "default" | "success" | "warning" }) {
+function WorkflowStatus({ icon: Icon, label, value, helper, tone = "default" }: { icon: LucideIcon; label: string; value: string | number; helper: string; tone?: "default" | "success" | "warning" }) {
   return <Card className="rounded-[1.5rem] border-border/80 bg-card/95 shadow-sm"><CardContent className="flex items-start justify-between gap-4 p-5"><div className="min-w-0"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 truncate text-2xl font-semibold tracking-tight">{value}</p><p className="mt-1 truncate text-xs text-muted-foreground">{helper}</p></div><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${tone === "success" ? "bg-emerald-50 text-emerald-700" : tone === "warning" ? "bg-amber-50 text-amber-700" : "bg-primary/10 text-primary"}`}><Icon className="h-5 w-5" /></span></CardContent></Card>;
 }
 
@@ -518,7 +582,7 @@ function SourceFieldRow({ field }: { field: SourceField }) {
   return <div className="rounded-2xl border bg-background/70 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium">{field.label}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{field.key}</p></div>{field.required && <Badge className="rounded-full">Required</Badge>}</div>{field.sample && <p className="mt-2 truncate text-xs text-muted-foreground">Sample: {field.sample}</p>}</div>;
 }
 
-function SyncAction({ title, detail, icon: Icon, onClick, disabled, loading }: { title: string; detail: string; icon: typeof Store; onClick: () => void; disabled?: boolean; loading?: boolean }) {
+function SyncAction({ title, detail, icon: Icon, onClick, disabled, loading }: { title: string; detail: string; icon: LucideIcon; onClick: () => void; disabled?: boolean; loading?: boolean }) {
   return <button type="button" onClick={onClick} disabled={disabled || loading} className="rounded-2xl border bg-background/70 p-4 text-left transition hover:bg-muted/35 disabled:cursor-not-allowed disabled:opacity-50"><div className="flex items-center gap-2 font-medium">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}{title}</div><p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p></button>;
 }
 
