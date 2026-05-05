@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 
 export function PageShell({ children, className }: { children: ReactNode; className?: string }) {
-  return <main className={cn("mx-auto w-full max-w-[1440px] space-y-7 px-4 py-6 sm:px-6 lg:px-8", className)}>{children}</main>;
+  return <main className={cn("mx-auto w-full max-w-[1440px] space-y-5 px-4 py-4 sm:px-6 lg:px-7", className)}>{children}</main>;
 }
 
 export function PageHeader({
@@ -22,13 +22,12 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <section className="app-surface relative overflow-hidden rounded-[2rem] px-5 py-6 sm:px-7 sm:py-7">
-      <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl" />
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-4xl space-y-2">
-          {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{eyebrow}</p>}
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-foreground sm:text-4xl">{title}</h1>
-          {description && <p className="max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">{description}</p>}
+    <section className="border-b border-border/70 pb-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 space-y-1">
+          {eyebrow && <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">{eyebrow}</p>}
+          <h1 className="truncate text-2xl font-semibold tracking-[-0.03em] text-foreground sm:text-3xl">{title}</h1>
+          {description && <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>}
       </div>
@@ -57,15 +56,15 @@ export function MetricCard({
   }[tone];
 
   return (
-    <Card className="soft-panel overflow-hidden rounded-[1.5rem] border-border/80">
-      <CardContent className="p-5">
+    <Card className="soft-panel overflow-hidden rounded-[1.25rem] border-border/80">
+      <CardContent className="p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <span className={cn("rounded-2xl p-2.5 shadow-sm", toneClass)}>
+          <span className={cn("rounded-xl p-2 shadow-sm", toneClass)}>
             <Icon className="h-4 w-4" />
           </span>
         </div>
-        <p className="mt-5 text-3xl font-semibold tracking-[-0.03em]">{value}</p>
+        <p className="mt-4 text-2xl font-semibold tracking-[-0.03em]">{value}</p>
         {helper && <p className="mt-1 text-xs leading-5 text-muted-foreground">{helper}</p>}
       </CardContent>
     </Card>
@@ -86,14 +85,14 @@ export function EmptyState({
   onAction?: () => void;
 }) {
   return (
-    <div className="rounded-[1.75rem] border border-dashed bg-card/70 p-10 text-center shadow-sm">
-      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-        <Icon className="h-6 w-6" />
+    <div className="rounded-[1.25rem] border border-dashed bg-card/70 p-8 text-center shadow-sm">
+      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+        <Icon className="h-5 w-5" />
       </span>
-      <h3 className="mt-5 text-base font-semibold">{title}</h3>
+      <h3 className="mt-4 text-base font-semibold">{title}</h3>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
       {actionLabel && onAction && (
-        <Button className="mt-6 rounded-xl" onClick={onAction}>
+        <Button className="mt-5 rounded-xl" onClick={onAction}>
           {actionLabel}
           <ArrowRight className="h-4 w-4" />
         </Button>
@@ -112,7 +111,7 @@ export function ReadinessCard({
   items: Array<{ label: string; detail: string; status: "ready" | "next" | "planned" }>;
 }) {
   return (
-    <Card className="soft-panel rounded-[1.5rem]">
+    <Card className="soft-panel rounded-[1.25rem]">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
