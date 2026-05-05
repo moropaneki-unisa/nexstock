@@ -136,7 +136,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Workspace settings"
         title="Settings"
-        description="Manage organization profile, catalog defaults, security, notifications, billing, and launch readiness from one polished control center."
+        description="Manage organization profile, catalog defaults, security, operational alerts, billing, and launch readiness from one polished control center."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={resetSettings} disabled={!dirty || saving} className="rounded-xl bg-background/70">
@@ -160,7 +160,7 @@ export default function SettingsPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatusMetric icon={Building2} label="Workspace" value="Configured" helper={settings.organizationName} tone="default" />
         <StatusMetric icon={ShieldCheck} label="Security" value={`${readinessScore}%`} helper="Launch readiness" tone={readinessScore >= 85 ? "success" : "warning"} />
-        <StatusMetric icon={Webhook} label="Webhooks" value={settings.webhookSigning ? "Signed" : "Unsigned"} helper="Delivery protection" tone={settings.webhookSigning ? "success" : "warning"} />
+        <StatusMetric icon={BellRing} label="Alerts" value={settings.lowStockAlerts && settings.syncAlerts ? "Enabled" : "Review"} helper="Operational coverage" tone={settings.lowStockAlerts && settings.syncAlerts ? "success" : "warning"} />
         <StatusMetric icon={Crown} label="Plan" value="Pro" helper="Current workspace tier" tone="success" />
       </section>
 
@@ -171,7 +171,7 @@ export default function SettingsPage() {
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Building2 className="h-5 w-5" /> Organization profile
               </CardTitle>
-              <p className="text-sm leading-6 text-muted-foreground">Core workspace information used across products, API clients, sync jobs, and notification emails.</p>
+              <p className="text-sm leading-6 text-muted-foreground">Core workspace information used across products, API clients, sync jobs, and operational emails.</p>
             </CardHeader>
             <CardContent className="grid gap-5 p-5 md:grid-cols-2">
               <SettingsField label="Organization name" description="Displayed inside the dashboard and future billing screens.">
@@ -199,7 +199,7 @@ export default function SettingsPage() {
               <SettingsField label="SKU prefix" description="Prefix for generated product SKUs.">
                 <Input value={settings.skuPrefix} onChange={(event) => update("skuPrefix", event.target.value.toUpperCase().slice(0, 8))} className="rounded-xl font-mono" />
               </SettingsField>
-              <SettingsField label="Support email" description="Used for customer-facing system emails later.">
+              <SettingsField label="Alert recipient" description="Primary inbox for stock, sync, and webhook operational alerts.">
                 <Input type="email" value={settings.supportEmail} onChange={(event) => update("supportEmail", event.target.value)} className="rounded-xl" />
               </SettingsField>
             </CardContent>
@@ -208,15 +208,23 @@ export default function SettingsPage() {
           <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
             <CardHeader className="border-b bg-gradient-to-br from-card to-muted/25">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <BellRing className="h-5 w-5" /> Notifications
+                <BellRing className="h-5 w-5" /> Operational alerts
               </CardTitle>
-              <p className="text-sm leading-6 text-muted-foreground">Choose the operational alerts your workspace should surface for inventory and integrations.</p>
+              <p className="text-sm leading-6 text-muted-foreground">Control the alerts that protect day-to-day inventory operations: stock risk, Zoho sync health, webhook failures, and weekly executive summaries.</p>
             </CardHeader>
-            <CardContent className="grid gap-3 p-5 md:grid-cols-2">
-              <ToggleRow icon={PackageCheck} label="Low-stock alerts" description="Notify admins when products reach their low-stock threshold." checked={settings.lowStockAlerts} onChange={(checked) => update("lowStockAlerts", checked)} />
-              <ToggleRow icon={RefreshCw} label="Zoho sync alerts" description="Notify when sync jobs succeed, fail, or need reconnecting." checked={settings.syncAlerts} onChange={(checked) => update("syncAlerts", checked)} />
-              <ToggleRow icon={Webhook} label="Webhook alerts" description="Notify when webhook delivery repeatedly fails." checked={settings.webhookAlerts} onChange={(checked) => update("webhookAlerts", checked)} />
-              <ToggleRow icon={Mail} label="Weekly digest" description="Send a weekly inventory summary to workspace admins." checked={settings.weeklyDigest} onChange={(checked) => update("weeklyDigest", checked)} />
+            <CardContent className="space-y-4 p-5">
+              <div className="grid gap-3 md:grid-cols-2">
+                <ToggleRow icon={PackageCheck} label="Low-stock alerts" description="Notify admins when products reach their low-stock threshold." checked={settings.lowStockAlerts} onChange={(checked) => update("lowStockAlerts", checked)} />
+                <ToggleRow icon={RefreshCw} label="Zoho sync alerts" description="Notify when sync jobs succeed, fail, or require reconnecting." checked={settings.syncAlerts} onChange={(checked) => update("syncAlerts", checked)} />
+                <ToggleRow icon={Webhook} label="Webhook failure alerts" description="Notify when webhook delivery repeatedly fails or returns non-2xx responses." checked={settings.webhookAlerts} onChange={(checked) => update("webhookAlerts", checked)} />
+                <ToggleRow icon={Mail} label="Weekly operations digest" description="Send a weekly summary of inventory value, low-stock items, sync status, and API usage." checked={settings.weeklyDigest} onChange={(checked) => update("weeklyDigest", checked)} />
+              </div>
+
+              <div className="grid gap-3 rounded-[1.5rem] border bg-background/70 p-4 md:grid-cols-3">
+                <AlertSummary label="Stock risk" value={settings.lowStockAlerts ? "Monitored" : "Off"} ready={settings.lowStockAlerts} />
+                <AlertSummary label="Sync health" value={settings.syncAlerts ? "Monitored" : "Off"} ready={settings.syncAlerts} />
+                <AlertSummary label="Webhook delivery" value={settings.webhookAlerts ? "Monitored" : "Off"} ready={settings.webhookAlerts} />
+              </div>
             </CardContent>
           </Card>
 
@@ -253,7 +261,7 @@ export default function SettingsPage() {
                 <DarkCheck label="Organization profile" ready={settings.organizationName.length > 2} />
                 <DarkCheck label="SKU defaults" ready={settings.skuPrefix.length > 1} />
                 <DarkCheck label="Signed webhooks" ready={settings.webhookSigning} />
-                <DarkCheck label="Operational alerts" ready={settings.lowStockAlerts && settings.syncAlerts} />
+                <DarkCheck label="Operational alerts" ready={settings.lowStockAlerts && settings.syncAlerts && settings.webhookAlerts} />
               </div>
             </CardContent>
           </Card>
@@ -341,6 +349,18 @@ function ToggleRow({ icon: Icon, label, description, checked, onChange }: { icon
         <span className={cn("h-4 w-4 rounded-full bg-background shadow-sm transition", checked && "translate-x-5")} />
       </span>
     </button>
+  );
+}
+
+function AlertSummary({ label, value, ready }: { label: string; value: string; ready: boolean }) {
+  return (
+    <div className="rounded-2xl border bg-card p-4">
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold">{value}</p>
+        <Badge variant={ready ? "default" : "secondary"} className="rounded-full">{ready ? "On" : "Off"}</Badge>
+      </div>
+    </div>
   );
 }
 
