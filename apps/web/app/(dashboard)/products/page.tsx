@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowUpRight,
-  Boxes,
   CircleDollarSign,
   Edit,
   Filter,
@@ -20,9 +19,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
-  TrendingUp,
   Warehouse,
 } from "lucide-react";
 
@@ -203,40 +200,48 @@ export default function ProductsPage() {
       <section className="grid gap-6 xl:grid-cols-[1fr_0.42fr]">
         <Card className="overflow-hidden rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
           <CardContent className="p-0">
-            <div className="border-b bg-gradient-to-br from-card to-muted/35 p-5 sm:p-6">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">
-                      <Sparkles className="mr-1 h-3.5 w-3.5" /> Pro catalog
-                    </Badge>
-                    <Badge variant="secondary" className="rounded-full">{categories.length} categories</Badge>
+            <div className="border-b bg-gradient-to-br from-card to-muted/25 p-4 sm:p-5">
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="rounded-full">Pro catalog</Badge>
+                      <Badge variant="outline" className="rounded-full bg-background/70">{categories.length} categories</Badge>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold tracking-[-0.03em]">Product catalog</h2>
+                      <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                        Search products by name, SKU, or category. Keep product data ready for Zoho sync, public APIs, and webhooks.
+                      </p>
+                    </div>
                   </div>
-                  <h2 className="mt-3 text-xl font-semibold tracking-[-0.03em]">Product catalog</h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                    Search, review, edit, archive, and prepare product data for Zoho sync, public API access, and webhook delivery.
-                  </p>
                 </div>
 
-                <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto xl:items-center">
-                  <div className="relative w-full xl:w-96">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search name, SKU, category..."
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      className="h-11 rounded-2xl bg-background/80 pl-9 shadow-sm"
-                      aria-label="Search products"
-                    />
+                <div className="rounded-2xl border bg-background/80 p-2 shadow-sm">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                    <label className="relative block min-w-0 flex-1" htmlFor="product-search">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="product-search"
+                        placeholder="Search products, SKUs, categories..."
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        className="h-10 border-0 bg-transparent pl-9 shadow-none focus-visible:ring-0"
+                        aria-label="Search products"
+                      />
+                    </label>
+
+                    <div className="flex shrink-0 gap-2 md:border-l md:pl-2">
+                      <Button type="button" variant="ghost" onClick={loadProducts} disabled={loading} className="h-10 flex-1 rounded-xl px-3 md:flex-none">
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        Refresh
+                      </Button>
+                      <Button type="button" variant="ghost" className="h-10 flex-1 rounded-xl px-3 md:flex-none">
+                        <Filter className="h-4 w-4" />
+                        Filters
+                      </Button>
+                    </div>
                   </div>
-                  <Button type="button" variant="outline" onClick={loadProducts} disabled={loading} className="h-11 rounded-2xl bg-background/80">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Refresh
-                  </Button>
-                  <Button type="button" variant="outline" className="h-11 rounded-2xl bg-background/80">
-                    <Filter className="h-4 w-4" />
-                    Filters
-                  </Button>
                 </div>
               </div>
             </div>
