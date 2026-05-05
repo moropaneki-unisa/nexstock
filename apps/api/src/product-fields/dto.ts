@@ -7,7 +7,6 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { PartialType } from '@nestjs/mapped-types';
 import { CustomFieldType } from '@prisma/client';
 
 export class CreateProductFieldDto {
@@ -39,4 +38,33 @@ export class CreateProductFieldDto {
   isActive?: boolean;
 }
 
-export class UpdateProductFieldDto extends PartialType(CreateProductFieldDto) {}
+export class UpdateProductFieldDto {
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsOptional()
+  @IsEnum(CustomFieldType)
+  type?: CustomFieldType;
+
+  @IsOptional()
+  @IsBoolean()
+  required?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  options?: string[];
+
+  @IsOptional()
+  defaultValue?: unknown;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
