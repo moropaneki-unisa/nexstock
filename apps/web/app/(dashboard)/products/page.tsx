@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   Trash2,
   Warehouse,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,9 @@ import type { Paginated, Product } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PAGE_LIMIT = 25;
+
+type StatusFilter = "all" | "active" | "draft" | "archived";
+type StockFilter = "all" | "healthy" | "low" | "out";
 
 const sampleProducts: Product[] = [
   {
@@ -104,6 +108,10 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [stockFilter, setStockFilter] = useState<StockFilter>("all");
 
   const queryString = useMemo(() => {
     const query = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) });
@@ -150,15 +158,43 @@ export default function ProductsPage() {
     }
   }
 
+  function clearFilters() {
+    setCategoryFilter("all");
+    setStatusFilter("all");
+    setStockFilter("all");
+  }
+
   const realProducts = data?.items ?? [];
   const hasBackendData = realProducts.length > 0;
   const products = hasBackendData ? realProducts : error ? sampleProducts : realProducts;
   const pagination = data?.pagination;
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(products.map((product) => product.category || "Uncategorized"))).sort(),
+    [products],
+  );
+  const hasActiveFilters = categoryFilter !== "all" || statusFilter !== "all" || stockFilter !== "all";
+  const visibleProducts = useMemo(
+    () =>
+      products.filter((product) => {
+        const category = product.category || "Uncategorized";
+        const status = product.status || "active";
+        const lowStock = isLowStock(product);
+        const outOfStock = product.quantity <= 0;
+
+        if (categoryFilter !== "all" && category !== categoryFilter) return false;
+        if (statusFilter !== "all" && status !== statusFilter) return false;
+        if (stockFilter === "low" && (!lowStock || outOfStock)) return false;
+        if (stockFilter === "out" && !outOfStock) return false;
+        if (stockFilter === "healthy" && (lowStock || outOfStock)) return false;
+
+        return true;
+      }),
+    [products, categoryFilter, statusFilter, stockFilter],
+  );
   const totalProducts = pagination?.total ?? products.length;
   const activeProducts = products.filter((product) => product.status !== "archived").length;
   const lowStockCount = products.filter((product) => isLowStock(product)).length;
-  const inventoryValue = products.reduce((sum, product) => sum + Number(product.price ?? 0) * product.quantity, 0);
-  const categories = Array.from(new Set(products.map((product) => product.category || "Uncategorized")));
+  const inventoryValue = visibleProducts.reduce((sum, product) => sum + Number(product.price ?? 0) * product.quantity, 0);
 
   return (
     <PageShell className="space-y-6 pb-10">
@@ -193,7 +229,7 @@ export default function ProductsPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={PackageCheck} label="Total products" value={totalProducts} helper="Catalog records" tone="default" />
         <MetricCard icon={Warehouse} label="Active products" value={activeProducts} helper="Ready for operations" tone="success" />
-        <MetricCard icon={CircleDollarSign} label="Inventory value" value={formatCurrency(inventoryValue)} helper="Value on visible page" tone="success" />
+        <MetricCard icon={CircleDollarSign} label="Visible value" value={formatCurrency(inventoryValue)} helper="Filtered catalog value" tone="success" />
         <MetricCard icon={PackageSearch} label="Low stock" value={lowStockCount} helper="Needs review" tone={lowStockCount > 0 ? "warning" : "default"} />
       </section>
 
@@ -206,12 +242,13 @@ export default function ProductsPage() {
                   <div className="min-w-0 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary" className="rounded-full">Pro catalog</Badge>
-                      <Badge variant="outline" className="rounded-full bg-background/70">{categories.length} categories</Badge>
+                      <Badge variant="outline" className="rounded-full bg-background/70">{categoryOptions.length} categories</Badge>
+                      {hasActiveFilters && <Badge className="rounded-full">Filtered</Badge>}
                     </div>
                     <div>
                       <h2 className="text-xl font-semibold tracking-[-0.03em]">Product catalog</h2>
                       <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                        Search products by name, SKU, or category. Keep product data ready for Zoho sync, public APIs, and webhooks.
+                        Search products by name, SKU, or category. Use filters to narrow by stock health, status, and category.
                       </p>
                     </div>
                   </div>
@@ -236,20 +273,73 @@ export default function ProductsPage() {
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                         Refresh
                       </Button>
-                      <Button type="button" variant="ghost" className="h-10 flex-1 rounded-xl px-3 md:flex-none">
+                      <Button
+                        type="button"
+                        variant={filtersOpen || hasActiveFilters ? "secondary" : "ghost"}
+                        className="h-10 flex-1 rounded-xl px-3 md:flex-none"
+                        onClick={() => setFiltersOpen((open) => !open)}
+                        aria-expanded={filtersOpen}
+                      >
                         <Filter className="h-4 w-4" />
                         Filters
+                        {hasActiveFilters && <span className="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-[0.65rem] text-primary-foreground">{activeFilterCount(categoryFilter, statusFilter, stockFilter)}</span>}
                       </Button>
                     </div>
                   </div>
+
+                  {filtersOpen && (
+                    <div className="mt-2 rounded-2xl border bg-card/90 p-3">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <FilterSelect
+                          label="Category"
+                          value={categoryFilter}
+                          onChange={setCategoryFilter}
+                          options={["all", ...categoryOptions]}
+                          formatOption={(value) => (value === "all" ? "All categories" : value)}
+                        />
+                        <FilterSelect
+                          label="Status"
+                          value={statusFilter}
+                          onChange={(value) => setStatusFilter(value as StatusFilter)}
+                          options={["all", "active", "draft", "archived"]}
+                          formatOption={(value) => (value === "all" ? "All statuses" : titleCase(value))}
+                        />
+                        <FilterSelect
+                          label="Stock"
+                          value={stockFilter}
+                          onChange={(value) => setStockFilter(value as StockFilter)}
+                          options={["all", "healthy", "low", "out"]}
+                          formatOption={(value) => {
+                            if (value === "all") return "All stock";
+                            if (value === "low") return "Low stock";
+                            if (value === "out") return "Out of stock";
+                            return "Healthy stock";
+                          }}
+                        />
+                      </div>
+
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-wrap gap-2">
+                          {categoryFilter !== "all" && <ActiveFilter label={`Category: ${categoryFilter}`} />}
+                          {statusFilter !== "all" && <ActiveFilter label={`Status: ${titleCase(statusFilter)}`} />}
+                          {stockFilter !== "all" && <ActiveFilter label={`Stock: ${stockFilterLabel(stockFilter)}`} />}
+                          {!hasActiveFilters && <span className="text-xs text-muted-foreground">No filters applied.</span>}
+                        </div>
+                        <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!hasActiveFilters} className="w-fit rounded-xl">
+                          <X className="h-4 w-4" />
+                          Clear filters
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {loading && !data && !error ? (
               <CatalogLoading />
-            ) : products.length === 0 ? (
-              <EmptyProducts />
+            ) : visibleProducts.length === 0 ? (
+              <EmptyProducts hasFilters={hasActiveFilters} onClearFilters={clearFilters} />
             ) : (
               <>
                 <div className="hidden overflow-x-auto xl:block">
@@ -265,7 +355,7 @@ export default function ProductsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {products.map((product) => (
+                      {visibleProducts.map((product) => (
                         <ProductTableRow key={product.id} product={product} deletingId={deletingId} onArchive={archiveProduct} sampleMode={!hasBackendData && Boolean(error)} />
                       ))}
                     </TableBody>
@@ -273,7 +363,7 @@ export default function ProductsPage() {
                 </div>
 
                 <div className="grid gap-3 p-4 xl:hidden">
-                  {products.map((product) => (
+                  {visibleProducts.map((product) => (
                     <ProductMobileCard key={product.id} product={product} deletingId={deletingId} onArchive={archiveProduct} sampleMode={!hasBackendData && Boolean(error)} />
                   ))}
                 </div>
@@ -282,8 +372,9 @@ export default function ProductsPage() {
 
             <div className="flex flex-col gap-3 border-t bg-muted/20 px-4 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <p>
-                Showing <span className="font-medium text-foreground">{products.length}</span> of{" "}
+                Showing <span className="font-medium text-foreground">{visibleProducts.length}</span> of{" "}
                 <span className="font-medium text-foreground">{totalProducts}</span> products
+                {hasActiveFilters ? " after filters" : ""}
                 {pagination && pagination.pages > 1 ? ` · Page ${pagination.page} of ${pagination.pages}` : ""}
               </p>
               {pagination && pagination.pages > 1 && (
@@ -309,7 +400,7 @@ export default function ProductsPage() {
               <p className="text-sm text-muted-foreground">Visible catalog distribution.</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {buildCategoryStats(products).map((category) => (
+              {buildCategoryStats(visibleProducts).map((category) => (
                 <div key={category.name}>
                   <div className="mb-2 flex items-center justify-between gap-3 text-sm">
                     <span className="truncate font-medium">{category.name}</span>
@@ -465,6 +556,7 @@ function ProductThumbnail({ product }: { product: Product }) {
 
 function ProductStatusBadge({ product, lowStock }: { product: Product; lowStock: boolean }) {
   if (product.status === "archived") return <Badge variant="outline" className="rounded-full">Archived</Badge>;
+  if (product.quantity <= 0) return <Badge variant="destructive" className="rounded-full">Out of stock</Badge>;
   if (lowStock) return <Badge variant="destructive" className="rounded-full">Low stock</Badge>;
   if (product.status === "draft") return <Badge variant="secondary" className="rounded-full">Draft</Badge>;
   return <Badge className="rounded-full bg-emerald-600 hover:bg-emerald-600">Active</Badge>;
@@ -487,6 +579,27 @@ function MetricCard({ icon: Icon, label, value, helper, tone = "default" }: { ic
   );
 }
 
+function FilterSelect({ label, value, onChange, options, formatOption }: { label: string; value: string; onChange: (value: string) => void; options: string[]; formatOption: (value: string) => string }) {
+  return (
+    <label className="space-y-1.5 text-sm">
+      <span className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full rounded-xl border bg-background px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/25"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>{formatOption(option)}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ActiveFilter({ label }: { label: string }) {
+  return <Badge variant="secondary" className="rounded-full">{label}</Badge>;
+}
+
 function CatalogLoading() {
   return (
     <div className="space-y-3 p-4 sm:p-6">
@@ -497,21 +610,28 @@ function CatalogLoading() {
   );
 }
 
-function EmptyProducts() {
+function EmptyProducts({ hasFilters, onClearFilters }: { hasFilters: boolean; onClearFilters: () => void }) {
   return (
     <div className="p-6">
       <div className="rounded-[1.75rem] border border-dashed bg-muted/20 p-10 text-center">
         <PackageSearch className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
         <p className="text-sm font-semibold">No products found</p>
         <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-muted-foreground">
-          Create your first product, upload images, define schema fields, or adjust your search query.
+          {hasFilters ? "No products match the current filters. Clear filters or adjust your search." : "Create your first product, upload images, define schema fields, or adjust your search query."}
         </p>
-        <Button asChild className="mt-5 rounded-xl">
-          <Link href="/products/new">
-            <Plus className="h-4 w-4" />
-            Create product
-          </Link>
-        </Button>
+        {hasFilters ? (
+          <Button type="button" variant="outline" onClick={onClearFilters} className="mt-5 rounded-xl">
+            <X className="h-4 w-4" />
+            Clear filters
+          </Button>
+        ) : (
+          <Button asChild className="mt-5 rounded-xl">
+            <Link href="/products/new">
+              <Plus className="h-4 w-4" />
+              Create product
+            </Link>
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -540,8 +660,23 @@ function buildCategoryStats(products: Product[]) {
     .slice(0, 5);
 }
 
+function activeFilterCount(categoryFilter: string, statusFilter: StatusFilter, stockFilter: StockFilter) {
+  return [categoryFilter !== "all", statusFilter !== "all", stockFilter !== "all"].filter(Boolean).length;
+}
+
 function isLowStock(product: Product) {
   return product.quantity <= product.lowStockLevel;
+}
+
+function stockFilterLabel(value: StockFilter) {
+  if (value === "low") return "Low stock";
+  if (value === "out") return "Out of stock";
+  if (value === "healthy") return "Healthy stock";
+  return "All stock";
+}
+
+function titleCase(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function formatCurrency(value: string | number) {
