@@ -65,10 +65,8 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('signup')
-  async signup(@Body() dto: SignupDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const tokens = await this.auth.signup(dto, getRequestMeta(request));
-    setAuthCookies(response, tokens);
-    return { accessToken: tokens.accessToken };
+  async signup(@Body() dto: SignupDto) {
+    return this.auth.signup(dto);
   }
 
   @Post('login')
@@ -78,11 +76,20 @@ export class AuthController {
     return { accessToken: tokens.accessToken };
   }
 
-  @Post('refresh')
-  async refresh(@Body() body: { refreshToken?: string }, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
-    const tokens = await this.auth.refresh(getRefreshToken(request, body), getRequestMeta(request));
+  @Post('verify-email')
+  async verifyEmail(
+    @Body() body: { email: string; otp: string },
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const tokens = await this.auth.verifyEmail(body.email, body.otp, getRequestMeta(request));
     setAuthCookies(response, tokens);
     return { accessToken: tokens.accessToken };
+  }
+
+  @Post('resend-otp')
+  async resend(@Body() body: { email: string }) {
+    return this.auth.resendOtp(body.email);
   }
 
   @Post('logout')
