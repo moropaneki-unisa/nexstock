@@ -1,35 +1,20 @@
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import * as cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'https://product-hub-web.vercel.app',
-    process.env.FRONTEND_URL,
-  ].filter(Boolean) as string[];
+  app.use(cookieParser());
 
   app.enableCors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-        return;
-      }
-      callback(new Error(`CORS blocked origin: ${origin}`), false);
-    },
+    origin: [
+      'https://product-hub-web.vercel.app',
+      'http://localhost:3000',
+    ],
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  app.setGlobalPrefix('api');
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-
-  const port = process.env.PORT || 4000;
-  await app.listen(port);
-  console.log(`InventoryHub API running on http://localhost:${port}/api`);
+  await app.listen(process.env.PORT || 4000);
 }
-
 bootstrap();
