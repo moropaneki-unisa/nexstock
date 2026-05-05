@@ -126,6 +126,15 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, membership.organizationId, membership.role, meta);
   }
 
+  async logout(refreshToken?: string) {
+    if (!refreshToken) return;
+    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+
+    await this.prisma.refreshToken.deleteMany({
+      where: { tokenHash },
+    });
+  }
+
   private async issueTokens(
     userId: string,
     email: string,
