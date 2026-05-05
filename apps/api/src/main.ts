@@ -8,25 +8,14 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  const allowedOrigins = new Set([
-    'https://product-hub-web.vercel.app',
-    'http://localhost:3000',
-  ]);
-
   app.enableCors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error(`CORS blocked origin: ${origin}`), false);
-    },
+    origin: [
+      'https://product-hub-web.vercel.app',
+      'http://localhost:3000',
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Set-Cookie'],
-    optionsSuccessStatus: 204,
   });
 
   app.setGlobalPrefix('api');
