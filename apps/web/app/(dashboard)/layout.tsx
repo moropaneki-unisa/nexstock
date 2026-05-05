@@ -5,13 +5,13 @@ import { Topbar } from "@/components/layout/topbar";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen overflow-hidden bg-muted/20">
+      <div className="fixed inset-0 flex overflow-hidden bg-background">
         <Sidebar />
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex h-dvh min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar />
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth">
             {children}
-          </div>
+          </main>
         </div>
       </div>
     </AuthGuard>
