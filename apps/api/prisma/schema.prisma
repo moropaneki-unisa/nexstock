@@ -18,6 +18,16 @@ enum Plan {
   business
 }
 
+enum PaymentProvider {
+  paystack
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+}
+
 enum ProductStatus {
   active
   archived
@@ -137,6 +147,7 @@ model Organization {
   inventoryLogs    InventoryLog[]
   integrations     Integration[]
   syncLogs         SyncLog[]
+  payments         Payment[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -155,6 +166,26 @@ model Membership {
 
   @@unique([userId, organizationId])
   @@index([organizationId])
+}
+
+model Payment {
+  id             String          @id @default(uuid())
+  organizationId String
+  provider       PaymentProvider @default(paystack)
+  status         PaymentStatus   @default(pending)
+  plan           Plan
+  amount         Int
+  currency       String          @default("ZAR")
+  reference      String          @unique
+  authorizationUrl String?
+  paidAt         DateTime?
+  payload        Json?
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([status])
 }
 
 model Product {
