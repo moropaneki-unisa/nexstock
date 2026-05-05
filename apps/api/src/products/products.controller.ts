@@ -7,8 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Response } from 'express';
 import {
   CurrentUser,
   CurrentUserPayload,
@@ -20,12 +26,23 @@ import {
   ListProductsDto,
   UpdateProductDto,
 } from './dto';
+import { ProductsImportExportService } from './products-import-export.service';
 import { ProductsService } from './products.service';
+
+type ProductImportFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+  size: number;
+};
 
 @Controller('products')
 @UseGuards(JwtAuthGuard)
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly importExport: ProductsImportExportService,
+  ) {}
 
   @Get()
   list(
@@ -33,6 +50,32 @@ export class ProductsController {
     @Query() query: ListProductsDto,
   ) {
     return this.products.list(user.organizationId, query);
+  }
+
+  @Get('export/file')
+  async exportProducts(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('format') format: 'csv' | 'xlsx' | undefined,
+    @Res() response: Response,
+  ) {
+    const file = await this.importExport.exportProducts(user.organizationId, format === 'xlsx' ? 'xlsx' : 'csv');
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    response.send(file.buffer);
+  }
+
+  @Post('import/file')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  importProducts(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file?: ProductImportFile,
+  ) {
+    return this.importExport.importProducts(user.organizationId, file as ProductImportFile);
   }
 
   @Get(':id')
