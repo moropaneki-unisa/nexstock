@@ -112,6 +112,21 @@ model Organization {
   slug             String         @unique
   plan             Plan           @default(free)
   stripeCustomerId String?        @unique
+  legalName        String?
+  tradingName      String?
+  registrationNo   String?
+  vatNumber        String?
+  industry         String?
+  companySize      String?
+  website          String?
+  phone            String?
+  billingEmail     String?
+  addressLine1     String?
+  addressLine2     String?
+  city             String?
+  province         String?
+  postalCode       String?
+  country          String?
   skuPrefix        String?
   nextSkuNumber    Int            @default(1)
   memberships      Membership[]
@@ -270,11 +285,11 @@ model ApiKey {
 
 model Webhook {
   id             String            @id @default(uuid())
-  organizationId String
   url            String
   secret         String
   events         WebhookEvent[]
   isActive       Boolean           @default(true)
+  organizationId String
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deliveries     WebhookDelivery[]
   createdAt      DateTime          @default(now())
