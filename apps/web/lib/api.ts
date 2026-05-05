@@ -1,77 +1,101 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export function getApiUrl() {
-  return API_URL;
+let isRefreshing = false;
+let pendingRequests: Array<() => void> = [];
+
+function resolvePending() {
+  pendingRequests.forEach((cb) => cb());
+  pendingRequests = [];
 }
 
-export function getAccessToken() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("inventoryhub_access_token");
+async function refreshToken() {
+  if (isRefreshing) {
+    return new Promise<void>((resolve) => pendingRequests.push(resolve));
+  }
+
+  isRefreshing = true;
+
+  try {
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!res.ok) throw new Error('Refresh failed');
+
+    resolvePending();
+  } catch {
+    localStorage.removeItem('accessToken');
+    window.location.href = '/login';
+  } finally {
+    isRefreshing = false;
+  }
 }
 
-export function setAccessToken(token: string | null) {
-  if (typeof window === "undefined") return;
-  if (token) window.localStorage.setItem("inventoryhub_access_token", token);
-  else window.localStorage.removeItem("inventoryhub_access_token");
-}
+export async function apiFetch<T = any>(url: string, options: RequestInit = {}): Promise<T> {
+  const accessToken = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
-  const token = getAccessToken();
-  const headers = new Headers(options.headers);
-  if (!headers.has("content-type") && options.body && !(options.body instanceof FormData)) headers.set("content-type", "application/json");
-  if (token) headers.set("authorization", `Bearer ${token}`);
-
-  const response = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}${url}`, {
     ...options,
-    credentials: "include",
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(options.headers || {}),
+    },
+    credentials: 'include',
   });
 
-  if (response.status === 401 && retry) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed) return apiFetch<T>(path, options, false);
+  if (res.status === 401) {
+    await refreshToken();
+
+    const retry = await fetch(`${API_URL}${url}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(options.headers || {}),
+      },
+      credentials: 'include',
+    });
+
+    if (!retry.ok) {
+      const body = await retry.json().catch(() => null);
+      throw new Error(body?.message || 'API request failed');
+    }
+
+    return retry.json();
   }
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.message || body?.error || "API request failed");
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.message || 'API request failed');
   }
 
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
-}
-
-export async function refreshAccessToken() {
-  try {
-    const response = await fetch(`${API_URL}/api/auth/refresh`, { method: "POST", credentials: "include" });
-    if (!response.ok) return false;
-    const data = await response.json();
-    setAccessToken(data.accessToken);
-    return true;
-  } catch {
-    return false;
-  }
+  return res.status === 204 ? (undefined as T) : res.json();
 }
 
 export async function login(email: string, password: string) {
-  const data = await apiFetch<{ accessToken: string }>("/api/auth/login", {
-    method: "POST",
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
-  }, false);
-  setAccessToken(data.accessToken);
-  return data;
-}
+    credentials: 'include',
+  });
 
-export async function signup(values: { email: string; password: string; name: string; orgName: string }) {
-  const data = await apiFetch<{ accessToken: string }>("/api/auth/signup", {
-    method: "POST",
-    body: JSON.stringify(values),
-  }, false);
-  setAccessToken(data.accessToken);
+  if (!res.ok) throw new Error('Login failed');
+
+  const data = await res.json();
+  if (data.accessToken) localStorage.setItem('accessToken', data.accessToken);
+
   return data;
 }
 
 export async function logout() {
-  await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-  setAccessToken(null);
+  await fetch(`${API_URL}/api/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  localStorage.removeItem('accessToken');
+  window.location.href = '/login';
 }
