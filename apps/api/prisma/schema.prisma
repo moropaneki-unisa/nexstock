@@ -91,14 +91,17 @@ enum SyncDirection {
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String
-  name          String?
-  memberships   Membership[]
-  refreshTokens RefreshToken[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  passwordHash          String
+  name                  String?
+  emailVerifiedAt       DateTime?
+  verificationOtpHash   String?
+  verificationOtpExpiry DateTime?
+  memberships           Membership[]
+  refreshTokens         RefreshToken[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 }
 
 model RefreshToken {
@@ -117,39 +120,40 @@ model RefreshToken {
 }
 
 model Organization {
-  id               String         @id @default(uuid())
-  name             String
-  slug             String         @unique
-  plan             Plan           @default(free)
-  stripeCustomerId String?        @unique
-  legalName        String?
-  tradingName      String?
-  registrationNo   String?
-  vatNumber        String?
-  industry         String?
-  companySize      String?
-  website          String?
-  phone            String?
-  billingEmail     String?
-  addressLine1     String?
-  addressLine2     String?
-  city             String?
-  province         String?
-  postalCode       String?
-  country          String?
-  skuPrefix        String?
-  nextSkuNumber    Int            @default(1)
-  memberships      Membership[]
-  products         Product[]
-  customFields     CustomField[]
-  apiKeys          ApiKey[]
-  webhooks         Webhook[]
-  inventoryLogs    InventoryLog[]
-  integrations     Integration[]
-  syncLogs         SyncLog[]
-  payments         Payment[]
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                 String         @id @default(uuid())
+  name               String
+  slug               String         @unique
+  plan               Plan           @default(free)
+  stripeCustomerId   String?        @unique
+  legalName          String?
+  tradingName        String?
+  registrationNo     String?
+  vatNumber          String?
+  industry           String?
+  companySize        String?
+  website            String?
+  phone              String?
+  billingEmail       String?
+  addressLine1       String?
+  addressLine2       String?
+  city               String?
+  province           String?
+  postalCode         String?
+  country            String?
+  skuPrefix          String?
+  onboardingComplete Boolean        @default(false)
+  nextSkuNumber      Int            @default(1)
+  memberships        Membership[]
+  products           Product[]
+  customFields       CustomField[]
+  apiKeys            ApiKey[]
+  webhooks           Webhook[]
+  inventoryLogs      InventoryLog[]
+  integrations       Integration[]
+  syncLogs           SyncLog[]
+  payments           Payment[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([slug])
   @@index([skuPrefix])
@@ -169,20 +173,20 @@ model Membership {
 }
 
 model Payment {
-  id             String          @id @default(uuid())
-  organizationId String
-  provider       PaymentProvider @default(paystack)
-  status         PaymentStatus   @default(pending)
-  plan           Plan
-  amount         Int
-  currency       String          @default("ZAR")
-  reference      String          @unique
+  id               String          @id @default(uuid())
+  organizationId   String
+  provider         PaymentProvider @default(paystack)
+  status           PaymentStatus   @default(pending)
+  plan             Plan
+  amount           Int
+  currency         String          @default("ZAR")
+  reference        String          @unique
   authorizationUrl String?
-  paidAt         DateTime?
-  payload        Json?
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  paidAt           DateTime?
+  payload          Json?
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
   @@index([organizationId, createdAt])
   @@index([status])
