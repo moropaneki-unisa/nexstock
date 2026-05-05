@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import slugify from 'slugify';
+import { SignupDto } from './dto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type TokenMeta = { ip?: string; ua?: string };
@@ -15,7 +16,7 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async signup(dto: { email: string; password: string; name: string; orgName: string }, meta: TokenMeta) {
+  async signup(dto: SignupDto, meta: TokenMeta) {
     const email = dto.email.toLowerCase().trim();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already exists');
@@ -33,7 +34,25 @@ export class AuthService {
           create: {
             role: 'admin',
             organization: {
-              create: { name: dto.orgName.trim(), slug },
+              create: {
+                name: dto.orgName.trim(),
+                slug,
+                legalName: dto.legalName?.trim() || null,
+                tradingName: dto.tradingName?.trim() || null,
+                registrationNo: dto.registrationNo?.trim() || null,
+                vatNumber: dto.vatNumber?.trim() || null,
+                industry: dto.industry?.trim() || null,
+                companySize: dto.companySize?.trim() || null,
+                website: dto.website?.trim() || null,
+                phone: dto.phone?.trim() || null,
+                billingEmail: dto.billingEmail?.trim() || email,
+                addressLine1: dto.addressLine1?.trim() || null,
+                addressLine2: dto.addressLine2?.trim() || null,
+                city: dto.city?.trim() || null,
+                province: dto.province?.trim() || null,
+                postalCode: dto.postalCode?.trim() || null,
+                country: dto.country?.trim() || null,
+              },
             },
           },
         },
