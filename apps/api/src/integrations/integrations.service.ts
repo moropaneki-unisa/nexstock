@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { Prisma } from '@prisma/client';
+import { CustomField, CustomFieldType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+export type IntegrationFieldMapping = {
+  source: string;
+  target: string;
+};
 
 export type ZohoConnectInput = {
   clientId?: string;
@@ -9,6 +14,7 @@ export type ZohoConnectInput = {
   redirectUri?: string;
   organizationId?: string;
   accountsDomain?: string;
+  fieldMapping?: IntegrationFieldMapping[];
 };
 
 type ZohoCredentials = {
@@ -17,6 +23,7 @@ type ZohoCredentials = {
   redirectUri: string;
   organizationId?: string;
   accountsDomain: string;
+  fieldMapping: IntegrationFieldMapping[];
 };
 
 type ZohoTokenResponse = {
@@ -35,22 +42,53 @@ type ZohoOrganizationsResponse = {
   }>;
 };
 
+type ZohoItem = Record<string, unknown> & {
+  item_id?: string | number;
+  name?: string;
+  sku?: string;
+  description?: string;
+  rate?: string | number;
+  purchase_rate?: string | number;
+  stock_on_hand?: string | number;
+  category_name?: string;
+};
+
 type ZohoItemsResponse = {
-  items?: Array<{
-    item_id?: string | number;
-    name?: string;
-    sku?: string;
-    description?: string;
-    rate?: string | number;
-    purchase_rate?: string | number;
-    stock_on_hand?: string | number;
-    category_name?: string;
-  }>;
+  items?: ZohoItem[];
   page_context?: { has_more_page?: boolean };
+};
+
+type MappedZohoProduct = {
+  externalId?: string;
+  sku?: string;
+  name?: string;
+  quantity: number;
+  data: {
+    name?: string;
+    description?: string;
+    price?: Prisma.Decimal;
+    cost?: Prisma.Decimal;
+    quantity?: number;
+    lowStockLevel?: number;
+    category?: string;
+    metadata: Prisma.InputJsonValue;
+  };
+  customValues: Array<{ fieldId: string; value: Prisma.InputJsonValue }>;
 };
 
 const DEFAULT_ZOHO_AUTH_BASE = 'https://accounts.zoho.com/oauth/v2';
 const ZOHO_API_BASE = 'https://www.zohoapis.com/inventory/v1';
+
+const DEFAULT_ZOHO_FIELD_MAPPING: IntegrationFieldMapping[] = [
+  { source: 'name', target: 'core:name' },
+  { source: 'sku', target: 'core:sku' },
+  { source: 'description', target: 'core:description' },
+  { source: 'rate', target: 'core:price' },
+  { source: 'purchase_rate', target: 'core:cost' },
+  { source: 'stock_on_hand', target: 'core:quantity' },
+  { source: 'category_name', target: 'core:category' },
+  { source: 'item_id', target: 'metadata:externalId' },
+];
 
 @Injectable()
 export class IntegrationsService {
@@ -135,6 +173,7 @@ export class IntegrationsService {
         clientSecret: credentials.clientSecret,
         redirectUri: credentials.redirectUri,
         accountsDomain: credentials.accountsDomain,
+        fieldMapping: credentials.fieldMapping,
       };
 
       await this.db.integration.upsert({
@@ -186,14 +225,18 @@ export class IntegrationsService {
 
     try {
       const freshIntegration = await this.ensureFreshZohoToken(integration.id);
-      const products = await this.pullZohoProducts(freshIntegration.accessToken, freshIntegration.config as Prisma.JsonObject | null);
+      const config = freshIntegration.config as Prisma.JsonObject | null;
+      const mapping = this.fieldMappingFromConfig(config);
+      const customFields = await this.prisma.customField.findMany({ where: { organizationId, isActive: true } });
+      const products = await this.pullZohoProducts(freshIntegration.accessToken, config);
       let created = 0;
       let updated = 0;
 
       for (const item of products) {
-        const name = item.name?.trim();
-        const externalId = item.item_id ? String(item.item_id) : undefined;
-        const sku = item.sku?.trim() || (externalId ? `ZOHO-${externalId}` : undefined);
+        const mapped = this.mapZohoItem(item, mapping, customFields);
+        const externalId = mapped.externalId;
+        const sku = mapped.sku?.trim() || (externalId ? `ZOHO-${externalId}` : undefined);
+        const name = mapped.name?.trim();
 
         if (!name || !sku) continue;
 
@@ -202,15 +245,15 @@ export class IntegrationsService {
           select: { id: true, quantity: true },
         });
 
-        const quantity = Number(item.stock_on_hand ?? 0) || 0;
         const data = {
           name,
-          description: item.description?.trim(),
-          price: new Prisma.Decimal(Number(item.rate ?? 0) || 0),
-          cost: item.purchase_rate === undefined ? undefined : new Prisma.Decimal(Number(item.purchase_rate) || 0),
-          quantity,
-          category: item.category_name?.trim(),
-          metadata: { source: 'zoho', externalId } as Prisma.InputJsonValue,
+          description: mapped.data.description,
+          price: mapped.data.price ?? new Prisma.Decimal(0),
+          cost: mapped.data.cost,
+          quantity: mapped.quantity,
+          lowStockLevel: mapped.data.lowStockLevel,
+          category: mapped.data.category,
+          metadata: mapped.data.metadata,
         };
 
         if (existing) {
@@ -218,17 +261,26 @@ export class IntegrationsService {
             where: { id_organizationId: { id: existing.id, organizationId } },
             data,
           });
+
+          for (const customValue of mapped.customValues) {
+            await this.prisma.productCustomFieldValue.upsert({
+              where: { productId_fieldId: { productId: existing.id, fieldId: customValue.fieldId } },
+              create: { productId: existing.id, fieldId: customValue.fieldId, value: customValue.value },
+              update: { value: customValue.value },
+            });
+          }
+
           updated++;
 
-          if (existing.quantity !== quantity) {
+          if (existing.quantity !== mapped.quantity) {
             await this.prisma.inventoryLog.create({
               data: {
                 organizationId,
                 productId: existing.id,
                 type: 'sync',
                 quantityBefore: existing.quantity,
-                quantityAfter: quantity,
-                delta: quantity - existing.quantity,
+                quantityAfter: mapped.quantity,
+                delta: mapped.quantity - existing.quantity,
                 reason: 'Zoho inventory sync',
                 source: 'zoho',
                 referenceId: externalId,
@@ -237,7 +289,13 @@ export class IntegrationsService {
           }
         } else {
           await this.prisma.product.create({
-            data: { organizationId, sku, lowStockLevel: 5, ...data },
+            data: {
+              organizationId,
+              sku,
+              lowStockLevel: mapped.data.lowStockLevel ?? 5,
+              ...data,
+              customFieldValues: { create: mapped.customValues },
+            },
           });
           created++;
         }
@@ -253,7 +311,7 @@ export class IntegrationsService {
         data: {
           status: 'success',
           finishedAt: new Date(),
-          summary: { created, updated, total: products.length },
+          summary: { created, updated, total: products.length, mappedFields: mapping.length },
         },
       });
 
@@ -272,12 +330,96 @@ export class IntegrationsService {
     const redirectUri = input?.redirectUri?.trim() || process.env.ZOHO_REDIRECT_URI;
     const organizationId = input?.organizationId?.trim() || process.env.ZOHO_ORGANIZATION_ID;
     const accountsDomain = this.normalizeZohoAccountsDomain(input?.accountsDomain);
+    const fieldMapping = this.normalizeFieldMapping(input?.fieldMapping);
 
     if (!clientId) throw new BadRequestException('Zoho client ID is required');
     if (!clientSecret) throw new BadRequestException('Zoho client secret is required');
     if (!redirectUri) throw new BadRequestException('Zoho redirect URI is required');
 
-    return { clientId, clientSecret, redirectUri, organizationId, accountsDomain };
+    return { clientId, clientSecret, redirectUri, organizationId, accountsDomain, fieldMapping };
+  }
+
+  private normalizeFieldMapping(mapping?: IntegrationFieldMapping[]) {
+    const source = mapping?.length ? mapping : DEFAULT_ZOHO_FIELD_MAPPING;
+    return source
+      .filter((item) => item.source?.trim() && item.target?.trim() && item.target !== 'ignore')
+      .map((item) => ({ source: item.source.trim(), target: item.target.trim() }));
+  }
+
+  private fieldMappingFromConfig(config: Prisma.JsonObject | null) {
+    if (Array.isArray(config?.fieldMapping)) {
+      return this.normalizeFieldMapping(config.fieldMapping as IntegrationFieldMapping[]);
+    }
+    return DEFAULT_ZOHO_FIELD_MAPPING;
+  }
+
+  private mapZohoItem(item: ZohoItem, mapping: IntegrationFieldMapping[], customFields: CustomField[]): MappedZohoProduct {
+    const customFieldsById = new Map(customFields.map((field) => [field.id, field]));
+    const metadata: Record<string, unknown> = { source: 'zoho' };
+    const customValues: Array<{ fieldId: string; value: Prisma.InputJsonValue }> = [];
+    const result: MappedZohoProduct = { quantity: 0, data: { metadata: metadata as Prisma.InputJsonValue }, customValues };
+
+    for (const map of mapping) {
+      const value = item[map.source];
+      if (value === undefined || value === null || value === '') continue;
+
+      if (map.target.startsWith('core:')) {
+        const target = map.target.replace('core:', '');
+        if (target === 'name') result.name = String(value).trim();
+        if (target === 'sku') result.sku = String(value).trim();
+        if (target === 'description') result.data.description = String(value).trim();
+        if (target === 'price') result.data.price = new Prisma.Decimal(Number(value) || 0);
+        if (target === 'cost') result.data.cost = new Prisma.Decimal(Number(value) || 0);
+        if (target === 'quantity') result.quantity = Number(value) || 0;
+        if (target === 'lowStockLevel') result.data.lowStockLevel = Number(value) || 5;
+        if (target === 'category') result.data.category = String(value).trim();
+        continue;
+      }
+
+      if (map.target === 'metadata:externalId') {
+        result.externalId = String(value);
+        metadata.externalId = result.externalId;
+        continue;
+      }
+
+      if (map.target.startsWith('metadata:')) {
+        metadata[map.target.replace('metadata:', '')] = value;
+        continue;
+      }
+
+      if (map.target.startsWith('custom:')) {
+        const fieldId = map.target.replace('custom:', '');
+        const field = customFieldsById.get(fieldId);
+        if (!field) continue;
+        const converted = this.convertCustomFieldValue(field, value);
+        if (converted !== undefined) customValues.push({ fieldId, value: converted });
+      }
+    }
+
+    result.externalId = result.externalId ?? (item.item_id ? String(item.item_id) : undefined);
+    result.sku = result.sku ?? item.sku?.trim();
+    result.name = result.name ?? item.name?.trim();
+    result.quantity = result.quantity || Number(item.stock_on_hand ?? 0) || 0;
+    result.data.description = result.data.description ?? item.description?.trim();
+    result.data.price = result.data.price ?? new Prisma.Decimal(Number(item.rate ?? 0) || 0);
+    result.data.cost = result.data.cost ?? (item.purchase_rate === undefined ? undefined : new Prisma.Decimal(Number(item.purchase_rate) || 0));
+    result.data.category = result.data.category ?? item.category_name?.trim();
+    result.data.metadata = metadata as Prisma.InputJsonValue;
+
+    return result;
+  }
+
+  private convertCustomFieldValue(field: CustomField, value: unknown): Prisma.InputJsonValue | undefined {
+    if (value === undefined || value === null || value === '') return undefined;
+
+    if (field.type === CustomFieldType.number) return Number(value) || 0;
+    if (field.type === CustomFieldType.boolean) {
+      if (typeof value === 'boolean') return value;
+      return ['true', '1', 'yes', 'y'].includes(String(value).toLowerCase());
+    }
+    if (field.type === CustomFieldType.json) return value as Prisma.InputJsonValue;
+    if (field.type === CustomFieldType.date) return String(value);
+    return String(value);
   }
 
   private async exchangeZohoCode(code: string, credentials: ZohoCredentials) {
@@ -392,6 +534,7 @@ export class IntegrationsService {
       redirectUri: typeof config?.redirectUri === 'string' ? config.redirectUri : undefined,
       organizationId: typeof config?.zohoOrganizationId === 'string' ? config.zohoOrganizationId : undefined,
       accountsDomain: typeof config?.accountsDomain === 'string' ? config.accountsDomain : undefined,
+      fieldMapping: Array.isArray(config?.fieldMapping) ? (config.fieldMapping as IntegrationFieldMapping[]) : undefined,
     });
   }
 
