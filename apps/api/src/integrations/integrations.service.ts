@@ -251,7 +251,7 @@ export class IntegrationsService {
           price: mapped.data.price ?? new Prisma.Decimal(0),
           cost: mapped.data.cost,
           quantity: mapped.quantity,
-          lowStockLevel: mapped.data.lowStockLevel,
+          lowStockLevel: mapped.data.lowStockLevel ?? 5,
           category: mapped.data.category,
           metadata: mapped.data.metadata,
         };
@@ -292,7 +292,6 @@ export class IntegrationsService {
             data: {
               organizationId,
               sku,
-              lowStockLevel: mapped.data.lowStockLevel ?? 5,
               ...data,
               customFieldValues: { create: mapped.customValues },
             },
