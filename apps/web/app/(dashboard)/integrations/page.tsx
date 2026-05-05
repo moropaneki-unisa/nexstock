@@ -5,9 +5,13 @@ import {
   ArrowRightLeft,
   CheckCircle2,
   Clock3,
+  Eye,
+  EyeOff,
   Loader2,
   PlugZap,
   RefreshCw,
+  Save,
+  Settings2,
   ShoppingBag,
   Store,
   Workflow,
@@ -17,6 +21,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PageHeader, PageShell, ReadinessCard } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
 
@@ -36,11 +42,28 @@ type SyncResult = {
   total: number;
 };
 
+type ZohoCredentials = {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  organizationId: string;
+  accountsDomain: string;
+};
+
+const ZOHO_CREDENTIALS_STORAGE_KEY = "inventoryhub_zoho_credentials";
+const defaultCredentials: ZohoCredentials = {
+  clientId: "",
+  clientSecret: "",
+  redirectUri: "http://localhost:4000/api/integrations/zoho/callback",
+  organizationId: "",
+  accountsDomain: "https://accounts.zoho.com",
+};
+
 const syncSteps = [
-  { title: "Connect", detail: "Authorize InventoryHub from your Zoho Inventory account.", icon: PlugZap },
+  { title: "Credentials", detail: "Paste your own Zoho OAuth client details for this workspace.", icon: Settings2 },
+  { title: "Authorize", detail: "Authorize InventoryHub from the Zoho account you want to connect.", icon: PlugZap },
   { title: "Import", detail: "Pull Zoho items into your InventoryHub product catalog.", icon: ArrowRightLeft },
-  { title: "Update", detail: "Match by SKU and update product pricing, category, and quantity.", icon: RefreshCw },
-  { title: "Review", detail: "Use products and inventory pages to review synced changes.", icon: Workflow },
+  { title: "Review", detail: "Review synced products, quantities, categories, and price changes.", icon: Workflow },
 ];
 
 export default function IntegrationsPage() {
@@ -48,13 +71,28 @@ export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [savingCredentials, setSavingCredentials] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  const [credentialsSaved, setCredentialsSaved] = useState(false);
+  const [credentials, setCredentials] = useState<ZohoCredentials>(defaultCredentials);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   const zoho = useMemo(() => integrations.find((item) => item.provider === "zoho"), [integrations]);
+  const canConnect = Boolean(credentials.clientId.trim() && credentials.clientSecret.trim() && credentials.redirectUri.trim());
 
   useEffect(() => {
+    const stored = window.localStorage.getItem(ZOHO_CREDENTIALS_STORAGE_KEY);
+    if (stored) {
+      try {
+        setCredentials({ ...defaultCredentials, ...JSON.parse(stored) });
+        setCredentialsSaved(true);
+      } catch {
+        window.localStorage.removeItem(ZOHO_CREDENTIALS_STORAGE_KEY);
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     const zohoStatus = params.get("zoho");
     const callbackMessage = params.get("message");
@@ -79,13 +117,42 @@ export default function IntegrationsPage() {
     }
   }
 
+  function updateCredential<K extends keyof ZohoCredentials>(key: K, value: ZohoCredentials[K]) {
+    setCredentials((current) => ({ ...current, [key]: value }));
+    setCredentialsSaved(false);
+  }
+
+  async function saveCredentials() {
+    setSavingCredentials(true);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    window.localStorage.setItem(ZOHO_CREDENTIALS_STORAGE_KEY, JSON.stringify(credentials));
+    setCredentialsSaved(true);
+    setSavingCredentials(false);
+    setMessage("Zoho credentials saved in this browser. Use Connect Zoho to authorize this workspace.");
+  }
+
+  function clearCredentials() {
+    setCredentials(defaultCredentials);
+    setCredentialsSaved(false);
+    window.localStorage.removeItem(ZOHO_CREDENTIALS_STORAGE_KEY);
+  }
+
   async function connectZoho() {
     setConnecting(true);
     setError(null);
     setMessage(null);
 
     try {
-      const result = await apiFetch<{ url: string }>("/api/integrations/zoho/connect");
+      const result = await apiFetch<{ url: string }>("/api/integrations/zoho/connect", {
+        method: "POST",
+        body: JSON.stringify({
+          clientId: credentials.clientId.trim(),
+          clientSecret: credentials.clientSecret.trim(),
+          redirectUri: credentials.redirectUri.trim(),
+          organizationId: credentials.organizationId.trim() || undefined,
+          accountsDomain: credentials.accountsDomain.trim() || undefined,
+        }),
+      });
       window.location.href = result.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start Zoho connection");
@@ -115,25 +182,18 @@ export default function IntegrationsPage() {
     <PageShell>
       <PageHeader
         eyebrow="Integrations"
-        title="Connect InventoryHub to Zoho Inventory"
-        description="Authorize Zoho, import products, and keep InventoryHub aligned with your inventory source of truth."
+        title="Connect your own Zoho Inventory account"
+        description="Let each workspace use its own Zoho OAuth credentials, organization ID, and redirect URI instead of being limited to one hardcoded app configuration."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={loadIntegrations} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh
             </Button>
-            {zoho?.connected ? (
-              <Button type="button" onClick={syncZoho} disabled={syncing}>
-                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Sync Zoho products
-              </Button>
-            ) : (
-              <Button type="button" onClick={connectZoho} disabled={connecting}>
-                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                Connect Zoho
-              </Button>
-            )}
+            <Button type="button" onClick={connectZoho} disabled={connecting || !canConnect}>
+              {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {zoho?.connected ? "Reconnect Zoho" : "Connect Zoho"}
+            </Button>
           </div>
         }
       />
@@ -150,16 +210,92 @@ export default function IntegrationsPage() {
                   <Store className="h-5 w-5" />
                 </span>
                 <div>
-                  <CardTitle>Zoho Inventory</CardTitle>
+                  <CardTitle>Zoho Inventory credentials</CardTitle>
                   <CardDescription className="mt-1">
-                    OAuth connection, product import, SKU matching, stock updates, and sync activity for Zoho-first businesses.
+                    Add the Zoho OAuth client details for this customer/workspace, then authorize and sync products.
                   </CardDescription>
                 </div>
               </div>
-              <Badge variant={zoho?.connected ? "default" : zoho?.status === "error" ? "destructive" : "secondary"}>
-                {zoho?.connected ? "Connected" : zoho?.status === "error" ? "Error" : "Not connected"}
+              <Badge variant={zoho?.connected ? "default" : zoho?.status === "error" ? "destructive" : credentialsSaved ? "secondary" : "outline"}>
+                {zoho?.connected ? "Connected" : credentialsSaved ? "Credentials saved" : "Not configured"}
               </Badge>
             </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <CredentialField label="Zoho client ID" description="OAuth client ID from Zoho API Console.">
+                <Input value={credentials.clientId} onChange={(event) => updateCredential("clientId", event.target.value)} placeholder="1000.xxxxx" className="rounded-xl font-mono" />
+              </CredentialField>
+              <CredentialField label="Zoho client secret" description="OAuth client secret for this Zoho app.">
+                <div className="relative">
+                  <Input
+                    type={showSecret ? "text" : "password"}
+                    value={credentials.clientSecret}
+                    onChange={(event) => updateCredential("clientSecret", event.target.value)}
+                    placeholder="Client secret"
+                    className="rounded-xl pr-10 font-mono"
+                  />
+                  <button type="button" onClick={() => setShowSecret((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-label={showSecret ? "Hide secret" : "Show secret"}>
+                    {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </CredentialField>
+              <CredentialField label="Redirect URI" description="Must exactly match the redirect URI configured in Zoho.">
+                <Input value={credentials.redirectUri} onChange={(event) => updateCredential("redirectUri", event.target.value)} className="rounded-xl font-mono" />
+              </CredentialField>
+              <CredentialField label="Zoho organization ID" description="Recommended for inventory item requests and sync stability.">
+                <Input value={credentials.organizationId} onChange={(event) => updateCredential("organizationId", event.target.value)} placeholder="913563938" className="rounded-xl font-mono" />
+              </CredentialField>
+              <CredentialField label="Zoho accounts domain" description="Use .com, .eu, .in, etc. depending on the customer's Zoho data center.">
+                <select value={credentials.accountsDomain} onChange={(event) => updateCredential("accountsDomain", event.target.value)} className="h-10 w-full rounded-xl border bg-background px-3 text-sm shadow-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/25">
+                  <option value="https://accounts.zoho.com">accounts.zoho.com</option>
+                  <option value="https://accounts.zoho.eu">accounts.zoho.eu</option>
+                  <option value="https://accounts.zoho.in">accounts.zoho.in</option>
+                  <option value="https://accounts.zoho.com.au">accounts.zoho.com.au</option>
+                  <option value="https://accounts.zoho.jp">accounts.zoho.jp</option>
+                </select>
+              </CredentialField>
+            </div>
+
+            <div className="rounded-2xl border bg-amber-50 p-4 text-sm text-amber-800">
+              For production, store these credentials encrypted in the backend. This UI saves them in this browser only until the workspace credentials API is added.
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={saveCredentials} disabled={savingCredentials || !canConnect}>
+                {savingCredentials ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Save credentials
+              </Button>
+              <Button type="button" onClick={connectZoho} disabled={connecting || !canConnect}>
+                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+                {zoho?.connected ? "Reconnect Zoho" : "Connect Zoho"}
+              </Button>
+              <Button type="button" variant="outline" onClick={syncZoho} disabled={!zoho?.connected || syncing}>
+                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Sync products
+              </Button>
+              <Button type="button" variant="ghost" onClick={clearCredentials}>Clear</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <ReadinessCard
+          title="Zoho setup checklist"
+          description="Each customer can now enter their own Zoho app credentials."
+          items={[
+            { label: "Client ID", status: credentials.clientId ? "ready" : "next", detail: "OAuth client ID from Zoho API Console." },
+            { label: "Client secret", status: credentials.clientSecret ? "ready" : "next", detail: "Secret from the same Zoho OAuth client." },
+            { label: "Redirect URI", status: credentials.redirectUri ? "ready" : "next", detail: "Must match the backend callback URL exactly." },
+            { label: "Organization ID", status: credentials.organizationId ? "ready" : "next", detail: "Recommended for stable Zoho Inventory item requests." },
+          ]}
+        />
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Connection status</CardTitle>
+            <CardDescription>Current Zoho OAuth and sync state for this workspace.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -167,7 +303,7 @@ export default function IntegrationsPage() {
                 ["Status", zoho?.status ?? "disconnected"],
                 ["Last sync", zoho?.lastSyncAt ? new Date(zoho.lastSyncAt).toLocaleString() : "Never"],
                 ["Token expires", zoho?.tokenExpiresAt ? new Date(zoho.tokenExpiresAt).toLocaleString() : "Not connected"],
-                ["Provider", "Zoho Inventory"],
+                ["Zoho organization", typeof zoho?.config?.zohoOrganizationName === "string" ? zoho.config.zohoOrganizationName : typeof zoho?.config?.zohoOrganizationId === "string" ? zoho.config.zohoOrganizationId : "Not connected"],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-2xl border bg-muted/30 p-4">
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
@@ -184,39 +320,15 @@ export default function IntegrationsPage() {
                 </p>
               </div>
             )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant={zoho?.connected ? "outline" : "default"} onClick={connectZoho} disabled={connecting}>
-                {connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
-                {zoho?.connected ? "Reconnect Zoho" : "Connect Zoho"}
-              </Button>
-              <Button type="button" onClick={syncZoho} disabled={!zoho?.connected || syncing}>
-                {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Sync products
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
-        <ReadinessCard
-          title="Zoho setup checklist"
-          description="Set these environment variables before connecting."
-          items={[
-            { label: "ZOHO_CLIENT_ID", status: "next", detail: "OAuth client ID from Zoho API Console." },
-            { label: "ZOHO_CLIENT_SECRET", status: "next", detail: "OAuth client secret from Zoho API Console." },
-            { label: "ZOHO_REDIRECT_URI", status: "next", detail: "Must match your backend callback URL: /api/integrations/zoho/callback." },
-            { label: "ZOHO_ORGANIZATION_ID", status: "next", detail: "Optional but recommended for Zoho Inventory item requests." },
-          ]}
-        />
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
         <Card>
           <CardHeader>
             <CardTitle>Sync flow</CardTitle>
             <CardDescription>How InventoryHub imports products from Zoho.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-4">
+          <CardContent className="grid gap-4 sm:grid-cols-2">
             {syncSteps.map((step, index) => {
               const Icon = step.icon;
 
@@ -235,45 +347,49 @@ export default function IntegrationsPage() {
             })}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Coming next</CardTitle>
-            <CardDescription>After Zoho is stable, reuse this pattern for more platforms.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {[
-              { name: "Shopify", icon: ShoppingBag, status: "Planned" },
-              { name: "Custom API", icon: PlugZap, status: "Ready foundation" },
-              { name: "Sync conflict review", icon: Workflow, status: "Next" },
-            ].map((item) => {
-              const Icon = item.icon;
-
-              return (
-                <div key={item.name} className="flex items-center justify-between rounded-2xl border p-4">
-                  <div className="flex items-center gap-3">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{item.name}</span>
-                  </div>
-                  <Badge variant="secondary">{item.status}</Badge>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
       </section>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock3 className="h-5 w-5" />
-            Production note
+            More integrations coming next
           </CardTitle>
           <CardDescription>
-            The first sync runs directly from the API request. Before high-volume launch, move Zoho pull/push jobs into a queue worker and encrypt stored provider credentials.
+            After Zoho is stable, reuse this credential-driven pattern for Shopify, custom APIs, and sync conflict review.
           </CardDescription>
         </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          {[
+            { name: "Shopify", icon: ShoppingBag, status: "Planned" },
+            { name: "Custom API", icon: PlugZap, status: "Ready foundation" },
+            { name: "Sync conflict review", icon: Workflow, status: "Next" },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.name} className="flex items-center justify-between rounded-2xl border p-4">
+                <div className="flex items-center gap-3">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">{item.name}</span>
+                </div>
+                <Badge variant="secondary">{item.status}</Badge>
+              </div>
+            );
+          })}
+        </CardContent>
       </Card>
     </PageShell>
+  );
+}
+
+function CredentialField({ label, description, children }: { label: string; description: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <Label className="text-sm font-medium">{label}</Label>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </div>
   );
 }
