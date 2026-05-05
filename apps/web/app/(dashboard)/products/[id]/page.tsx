@@ -8,22 +8,19 @@ import {
   ArrowLeft,
   ArrowUpRight,
   Barcode,
-  Boxes,
-  CalendarClock,
   CheckCircle2,
   CircleDollarSign,
   DatabaseZap,
   Edit,
+  FileText,
   History,
   ImageIcon,
   Layers3,
   Loader2,
-  PackageCheck,
   PackageSearch,
   RefreshCw,
   ShieldCheck,
   Sparkles,
-  Tags,
   TrendingUp,
   Warehouse,
 } from "lucide-react";
@@ -92,14 +89,18 @@ export default function ProductDetailPage() {
 
   const lowStock = product ? product.quantity <= product.lowStockLevel : false;
   const primaryImage = product?.images?.[0];
+  const cleanDescription = useMemo(() => cleanText(product?.description), [product?.description]);
+  const shortDescription = cleanDescription
+    ? truncateText(cleanDescription, 190)
+    : "Review product data, images, pricing, stock health, fields, and inventory movement from one unified profile.";
 
   const unifiedFields = useMemo<UnifiedField[]>(() => {
     if (!product) return [];
 
     const baseFields: UnifiedField[] = [
-      { id: "name", label: "Product name", value: product.name, important: true },
+      { id: "name", label: "Product name", value: cleanText(product.name) || "—", important: true },
       { id: "sku", label: "SKU", value: product.sku, type: "system", important: true, mono: true },
-      { id: "category", label: "Category", value: product.category || "Uncategorized" },
+      { id: "category", label: "Category", value: cleanText(product.category) || "Uncategorized" },
       { id: "status", label: "Status", value: lowStock ? "Low stock" : product.status || "active", type: "system" },
       { id: "price", label: "Price", value: formatCurrency(product.price), important: true },
       { id: "cost", label: "Cost", value: product.cost == null ? "Not set" : formatCurrency(product.cost) },
@@ -164,8 +165,8 @@ export default function ProductDetailPage() {
 
       <PageHeader
         eyebrow="Product profile"
-        title={product.name}
-        description={product.description || "Review product data, images, pricing, stock health, custom fields, and recent inventory movement from one unified profile."}
+        title={cleanText(product.name) || "Product"}
+        description={shortDescription}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
@@ -185,65 +186,86 @@ export default function ProductDetailPage() {
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Barcode} label="SKU" value={product.sku} helper="Generated product identifier" mono />
+        <MetricCard icon={Barcode} label="SKU" value={product.sku} helper="Generated identifier" mono />
         <MetricCard icon={CircleDollarSign} label="Price" value={formatCurrency(product.price)} helper="Customer-facing value" tone="success" />
         <MetricCard icon={Warehouse} label="Stock" value={product.quantity} helper={`Alert at ${product.lowStockLevel}`} tone={lowStock ? "warning" : "success"} />
         <MetricCard icon={Layers3} label="Fields" value={unifiedFields.length} helper="Default and custom values" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
-        <Card className="overflow-hidden rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
-          <CardContent className="p-0">
-            <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-              {primaryImage ? (
-                <img src={primaryImage} alt={product.name} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-muted to-background text-muted-foreground">
-                  <ImageIcon className="h-12 w-12" />
-                  <p className="mt-3 text-sm font-medium">No primary image</p>
-                  <p className="mt-1 text-xs">Add images from the edit page</p>
+        <div className="space-y-6">
+          <Card className="overflow-hidden rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
+            <CardContent className="p-0">
+              <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                {primaryImage ? (
+                  <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-muted to-background text-muted-foreground">
+                    <ImageIcon className="h-12 w-12" />
+                    <p className="mt-3 text-sm font-medium">No primary image</p>
+                    <p className="mt-1 text-xs">Add images from the edit page</p>
+                  </div>
+                )}
+                <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                  <ProductStatusBadge product={product} lowStock={lowStock} />
+                  {product.category && <Badge className="rounded-full bg-background/90 text-foreground hover:bg-background/90">{cleanText(product.category)}</Badge>}
                 </div>
-              )}
-              <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                <ProductStatusBadge product={product} lowStock={lowStock} />
-                {product.category && <Badge className="rounded-full bg-background/90 text-foreground hover:bg-background/90">{product.category}</Badge>}
               </div>
-            </div>
 
-            {product.images?.length ? (
-              <div className="grid grid-cols-4 gap-2 border-t p-3">
-                {product.images.slice(0, 4).map((image, index) => (
-                  <img key={`${image}-${index}`} src={image} alt={`${product.name} image ${index + 1}`} className="h-16 w-full rounded-xl border object-cover" />
-                ))}
+              {product.images?.length ? (
+                <div className="grid grid-cols-4 gap-2 border-t p-3">
+                  {product.images.slice(0, 4).map((image, index) => (
+                    <img key={`${image}-${index}`} src={image} alt={`${cleanText(product.name) || "Product"} image ${index + 1}`} className="h-16 w-full rounded-xl border object-cover" />
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="space-y-3 p-5">
+                <div className="rounded-2xl border bg-muted/25 p-4">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">Stock health</p>
+                    <span className={cn("text-sm font-semibold", lowStock ? "text-amber-700" : "text-emerald-700")}>
+                      {lowStock ? "Review" : "Healthy"}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted">
+                    <div
+                      className={cn("h-full rounded-full", lowStock ? "bg-amber-500" : "bg-emerald-600")}
+                      style={{ width: `${Math.min(100, Math.max(8, Math.round((product.quantity / Math.max(product.lowStockLevel * 2, 1)) * 100)))}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {product.quantity} units available · alert threshold {product.lowStockLevel}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <SmallStat label="Cost" value={product.cost == null ? "—" : formatCurrency(product.cost)} />
+                  <SmallStat label="Margin" value={calculateMargin(product.price, product.cost)} />
+                </div>
               </div>
-            ) : null}
+            </CardContent>
+          </Card>
 
-            <div className="space-y-3 p-5">
-              <div className="rounded-2xl border bg-muted/25 p-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">Stock health</p>
-                  <span className={cn("text-sm font-semibold", lowStock ? "text-amber-700" : "text-emerald-700")}>
-                    {lowStock ? "Review" : "Healthy"}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full bg-muted">
-                  <div
-                    className={cn("h-full rounded-full", lowStock ? "bg-amber-500" : "bg-emerald-600")}
-                    style={{ width: `${Math.min(100, Math.max(8, Math.round((product.quantity / Math.max(product.lowStockLevel * 2, 1)) * 100)))}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {product.quantity} units available · alert threshold {product.lowStockLevel}
+          <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
+            <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FileText className="h-5 w-5" />
+                Description
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">Imported HTML is cleaned and contained here.</p>
+            </CardHeader>
+            <CardContent className="p-5">
+              {cleanDescription ? (
+                <p className="max-h-48 overflow-y-auto whitespace-pre-line rounded-2xl border bg-background/70 p-4 text-sm leading-6 text-muted-foreground">
+                  {cleanDescription}
                 </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <SmallStat label="Cost" value={product.cost == null ? "—" : formatCurrency(product.cost)} />
-                <SmallStat label="Margin" value={calculateMargin(product.price, product.cost)} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              ) : (
+                <EmptyPanel icon={FileText} title="No description" description="Add a concise customer-facing product description from the edit page." />
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
           <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
@@ -254,7 +276,7 @@ export default function ProductDetailPage() {
                   Product fields
                 </CardTitle>
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Default product fields and custom schema values are shown together so this reads like one complete product record.
+                  Default product fields and custom schema values are shown together as one complete product record.
                 </p>
               </div>
               <Badge variant="secondary" className="w-fit rounded-full">Unified</Badge>
@@ -296,7 +318,7 @@ export default function ProductDetailPage() {
             <Sparkles className="h-7 w-7 text-white/80" />
             <h3 className="mt-5 text-2xl font-semibold tracking-[-0.04em]">Product readiness</h3>
             <p className="mt-2 text-sm leading-6 text-white/70">
-              This product profile is ready for customer-facing demos, API consumers, and integration workflows once key data is complete.
+              This product profile is ready for demos, API consumers, and integration workflows once key data is complete.
             </p>
             <div className="mt-6 space-y-2 text-sm">
               <ReadinessItem icon={CheckCircle2} label="Core fields" value="Ready" />
@@ -341,7 +363,7 @@ function FieldTile({ field }: { field: UnifiedField }) {
         <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{field.label}</p>
         {field.type && <Badge variant="outline" className="rounded-full text-[0.65rem]">{field.type}</Badge>}
       </div>
-      <p className={cn("break-words text-sm font-semibold leading-6", field.mono && "font-mono")}>{field.value}</p>
+      <p className={cn("line-clamp-3 break-words text-sm font-semibold leading-6", field.mono && "font-mono")}>{field.value}</p>
     </div>
   );
 }
@@ -422,6 +444,32 @@ function formatDate(value: string) {
 
 function formatCustomValue(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  if (typeof value === "object") return truncateText(JSON.stringify(value), 180);
+  return truncateText(cleanText(String(value)) || String(value), 180);
+}
+
+function cleanText(value?: string | null) {
+  if (!value) return "";
+
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).trim()}...`;
 }
