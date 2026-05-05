@@ -3,6 +3,22 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+export type ZohoConnectInput = {
+  clientId?: string;
+  clientSecret?: string;
+  redirectUri?: string;
+  organizationId?: string;
+  accountsDomain?: string;
+};
+
+type ZohoCredentials = {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  organizationId?: string;
+  accountsDomain: string;
+};
+
 type ZohoTokenResponse = {
   access_token?: string;
   refresh_token?: string;
@@ -33,7 +49,7 @@ type ZohoItemsResponse = {
   page_context?: { has_more_page?: boolean };
 };
 
-const ZOHO_AUTH_BASE = 'https://accounts.zoho.com/oauth/v2';
+const DEFAULT_ZOHO_AUTH_BASE = 'https://accounts.zoho.com/oauth/v2';
 const ZOHO_API_BASE = 'https://www.zohoapis.com/inventory/v1';
 
 @Injectable()
@@ -63,24 +79,28 @@ export class IntegrationsService {
     return integrations.map((integration: any) => ({
       ...integration,
       connected: integration.status === 'connected',
+      config: this.safeIntegrationConfig(integration.config),
     }));
   }
 
-  buildZohoConnectUrl(organizationId: string) {
-    const clientId = this.requiredEnv('ZOHO_CLIENT_ID');
-    const redirectUri = this.requiredEnv('ZOHO_REDIRECT_URI');
-    const state = this.signState({ organizationId, timestamp: Date.now() });
+  buildZohoConnectUrl(organizationId: string, input?: ZohoConnectInput) {
+    const credentials = this.resolveZohoCredentials(input);
+    const state = this.signState({
+      organizationId,
+      timestamp: Date.now(),
+      zoho: this.encodeCredentialState(credentials),
+    });
     const params = new URLSearchParams({
       response_type: 'code',
-      client_id: clientId,
+      client_id: credentials.clientId,
       scope: 'ZohoInventory.items.ALL,ZohoInventory.settings.READ',
-      redirect_uri: redirectUri,
+      redirect_uri: credentials.redirectUri,
       access_type: 'offline',
       prompt: 'consent',
       state,
     });
 
-    return { url: `${ZOHO_AUTH_BASE}/auth?${params.toString()}` };
+    return { url: `${credentials.accountsDomain}/auth?${params.toString()}` };
   }
 
   async handleZohoCallback(input: { code?: string; state?: string; error?: string }) {
@@ -95,15 +115,27 @@ export class IntegrationsService {
     }
 
     try {
-      const { organizationId } = this.verifyState(input.state);
-      const token = await this.exchangeZohoCode(input.code);
+      const { organizationId, zoho } = this.verifyState(input.state);
+      const credentials = this.decodeCredentialState(zoho);
+      const token = await this.exchangeZohoCode(input.code, credentials);
 
       if (!token.access_token) {
         throw new BadRequestException(token.error ?? 'Zoho did not return an access token');
       }
 
       const apiBase = this.inventoryApiBase(token.api_domain);
-      const zohoOrganization = await this.resolveZohoOrganization(token.access_token, apiBase);
+      const zohoOrganization = await this.resolveZohoOrganization(token.access_token, apiBase, credentials.organizationId);
+
+      const config = {
+        apiBase,
+        apiDomain: token.api_domain ?? undefined,
+        zohoOrganizationId: zohoOrganization.id,
+        zohoOrganizationName: zohoOrganization.name,
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        redirectUri: credentials.redirectUri,
+        accountsDomain: credentials.accountsDomain,
+      };
 
       await this.db.integration.upsert({
         where: { organizationId_provider: { organizationId, provider: 'zoho' } },
@@ -114,24 +146,14 @@ export class IntegrationsService {
           accessToken: token.access_token,
           refreshToken: token.refresh_token,
           tokenExpiresAt: this.expiresAt(token.expires_in),
-          config: {
-            apiBase,
-            apiDomain: token.api_domain ?? undefined,
-            zohoOrganizationId: zohoOrganization.id,
-            zohoOrganizationName: zohoOrganization.name,
-          },
+          config,
         },
         update: {
           status: 'connected',
           accessToken: token.access_token,
           ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
           tokenExpiresAt: this.expiresAt(token.expires_in),
-          config: {
-            apiBase,
-            apiDomain: token.api_domain ?? undefined,
-            zohoOrganizationId: zohoOrganization.id,
-            zohoOrganizationName: zohoOrganization.name,
-          },
+          config,
         },
       });
 
@@ -244,34 +266,47 @@ export class IntegrationsService {
     }
   }
 
-  private async exchangeZohoCode(code: string) {
+  private resolveZohoCredentials(input?: ZohoConnectInput): ZohoCredentials {
+    const clientId = input?.clientId?.trim() || process.env.ZOHO_CLIENT_ID;
+    const clientSecret = input?.clientSecret?.trim() || process.env.ZOHO_CLIENT_SECRET;
+    const redirectUri = input?.redirectUri?.trim() || process.env.ZOHO_REDIRECT_URI;
+    const organizationId = input?.organizationId?.trim() || process.env.ZOHO_ORGANIZATION_ID;
+    const accountsDomain = this.normalizeZohoAccountsDomain(input?.accountsDomain);
+
+    if (!clientId) throw new BadRequestException('Zoho client ID is required');
+    if (!clientSecret) throw new BadRequestException('Zoho client secret is required');
+    if (!redirectUri) throw new BadRequestException('Zoho redirect URI is required');
+
+    return { clientId, clientSecret, redirectUri, organizationId, accountsDomain };
+  }
+
+  private async exchangeZohoCode(code: string, credentials: ZohoCredentials) {
     const params = new URLSearchParams({
       code,
-      client_id: this.requiredEnv('ZOHO_CLIENT_ID'),
-      client_secret: this.requiredEnv('ZOHO_CLIENT_SECRET'),
-      redirect_uri: this.requiredEnv('ZOHO_REDIRECT_URI'),
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
+      redirect_uri: credentials.redirectUri,
       grant_type: 'authorization_code',
     });
 
-    const response = await fetch(`${ZOHO_AUTH_BASE}/token`, { method: 'POST', body: params });
+    const response = await fetch(`${credentials.accountsDomain}/token`, { method: 'POST', body: params });
     return this.readJson<ZohoTokenResponse>(response, 'Zoho token exchange');
   }
 
-  private async resolveZohoOrganization(accessToken: string, apiBase: string) {
+  private async resolveZohoOrganization(accessToken: string, apiBase: string, fallbackOrganizationId?: string) {
     const response = await fetch(`${apiBase}/organizations`, {
       headers: { Authorization: `Zoho-oauthtoken ${accessToken}` },
     });
 
     if (!response.ok) {
-      const fallbackId = process.env.ZOHO_ORGANIZATION_ID;
-      if (fallbackId) return { id: fallbackId, name: undefined };
+      if (fallbackOrganizationId) return { id: fallbackOrganizationId, name: undefined };
       const body = await response.text();
       throw new BadRequestException(`Could not load Zoho organizations. Zoho returned ${response.status}: ${body.slice(0, 180)}`);
     }
 
     const data = await this.readJson<ZohoOrganizationsResponse>(response, 'Zoho organizations');
     const organization = data.organizations?.[0];
-    const id = organization?.organization_id ? String(organization.organization_id) : process.env.ZOHO_ORGANIZATION_ID;
+    const id = organization?.organization_id ? String(organization.organization_id) : fallbackOrganizationId;
 
     if (!id) {
       throw new BadRequestException('No Zoho organization found for this account');
@@ -294,14 +329,16 @@ export class IntegrationsService {
       throw new BadRequestException('Zoho refresh token is missing. Reconnect Zoho.');
     }
 
+    const config = integration.config as Prisma.JsonObject | null;
+    const credentials = this.credentialsFromConfig(config);
     const params = new URLSearchParams({
       refresh_token: integration.refreshToken,
-      client_id: this.requiredEnv('ZOHO_CLIENT_ID'),
-      client_secret: this.requiredEnv('ZOHO_CLIENT_SECRET'),
+      client_id: credentials.clientId,
+      client_secret: credentials.clientSecret,
       grant_type: 'refresh_token',
     });
 
-    const response = await fetch(`${ZOHO_AUTH_BASE}/token`, { method: 'POST', body: params });
+    const response = await fetch(`${credentials.accountsDomain}/token`, { method: 'POST', body: params });
     const token = await this.readJson<ZohoTokenResponse>(response, 'Zoho token refresh');
 
     if (!token.access_token) {
@@ -348,6 +385,16 @@ export class IntegrationsService {
     return products;
   }
 
+  private credentialsFromConfig(config: Prisma.JsonObject | null): ZohoCredentials {
+    return this.resolveZohoCredentials({
+      clientId: typeof config?.clientId === 'string' ? config.clientId : undefined,
+      clientSecret: typeof config?.clientSecret === 'string' ? config.clientSecret : undefined,
+      redirectUri: typeof config?.redirectUri === 'string' ? config.redirectUri : undefined,
+      organizationId: typeof config?.zohoOrganizationId === 'string' ? config.zohoOrganizationId : undefined,
+      accountsDomain: typeof config?.accountsDomain === 'string' ? config.accountsDomain : undefined,
+    });
+  }
+
   private inventoryApiBase(apiDomain?: string) {
     const domain = (apiDomain || ZOHO_API_BASE).replace(/\/$/, '');
     return domain.endsWith('/inventory/v1') ? domain : `${domain}/inventory/v1`;
@@ -370,7 +417,7 @@ export class IntegrationsService {
     return JSON.parse(body) as T;
   }
 
-  private signState(payload: { organizationId: string; timestamp: number }) {
+  private signState(payload: { organizationId: string; timestamp: number; zoho: string }) {
     const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const signature = createHmac('sha256', this.stateSecret()).update(body).digest('base64url');
     return `${body}.${signature}`;
@@ -384,12 +431,43 @@ export class IntegrationsService {
     const valid = timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
     if (!valid) throw new BadRequestException('Invalid Zoho state signature');
 
-    const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { organizationId: string; timestamp: number };
+    const parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as { organizationId: string; timestamp: number; zoho: string };
     if (!parsed.organizationId || Date.now() - parsed.timestamp > 10 * 60 * 1000) {
       throw new BadRequestException('Expired Zoho state');
     }
 
+    if (!parsed.zoho) {
+      throw new BadRequestException('Missing Zoho credential state');
+    }
+
     return parsed;
+  }
+
+  private encodeCredentialState(credentials: ZohoCredentials) {
+    return Buffer.from(JSON.stringify(credentials)).toString('base64url');
+  }
+
+  private decodeCredentialState(value: string) {
+    try {
+      const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as ZohoCredentials;
+      return this.resolveZohoCredentials(parsed);
+    } catch {
+      throw new BadRequestException('Invalid Zoho credential state');
+    }
+  }
+
+  private safeIntegrationConfig(config: Prisma.JsonObject | null) {
+    if (!config) return null;
+    const safe = { ...config } as Record<string, unknown>;
+    if (typeof safe.clientSecret === 'string') safe.clientSecretConfigured = true;
+    delete safe.clientSecret;
+    return safe;
+  }
+
+  private normalizeZohoAccountsDomain(value?: string) {
+    const base = (value?.trim() || DEFAULT_ZOHO_AUTH_BASE).replace(/\/$/, '');
+    if (base.endsWith('/oauth/v2')) return base;
+    return `${base}/oauth/v2`;
   }
 
   private expiresAt(seconds?: number) {
@@ -399,11 +477,5 @@ export class IntegrationsService {
 
   private stateSecret() {
     return process.env.ZOHO_STATE_SECRET ?? process.env.JWT_ACCESS_SECRET ?? 'dev-zoho-state-secret-change-me';
-  }
-
-  private requiredEnv(name: string) {
-    const value = process.env[name];
-    if (!value) throw new BadRequestException(`${name} is not configured`);
-    return value;
   }
 }
