@@ -14,13 +14,13 @@ import {
   PlugZap,
   RefreshCw,
   Save,
-  Settings2,
   ShoppingBag,
   Store,
   Workflow,
   Zap,
 } from "lucide-react";
 
+import { FileImportExportCard } from "@/components/integrations/file-import-export-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,13 +98,13 @@ const connectors: ConnectorDefinition[] = [
   },
   {
     id: "csv",
-    name: "CSV / spreadsheet import",
-    description: "Planned importer for files with reusable mapping templates and validation.",
-    status: "foundation",
+    name: "CSV / XLSX import-export",
+    description: "Live spreadsheet workflow for importing and exporting products using CSV, XLS, or XLSX files.",
+    status: "active",
     category: "data",
     icon: FileSpreadsheet,
     accent: "bg-amber-50 text-amber-700",
-    capabilities: ["Bulk import", "Mapping", "Validation", "Preview"],
+    capabilities: ["CSV import", "XLSX import", "CSV export", "XLSX export"],
   },
   {
     id: "custom",
@@ -176,10 +176,10 @@ const defaultCredentials: ZohoCredentials = {
 };
 
 const syncSteps = [
-  { title: "Choose app", detail: "Select Zoho today, then reuse the same hub for Shopify, WooCommerce, CSV, or custom APIs.", icon: PlugZap },
-  { title: "Map fields", detail: "Translate each app schema into InventoryHub core fields, metadata, or custom fields.", icon: DatabaseZap },
-  { title: "Authorize", detail: "Connect the external account using credentials or OAuth.", icon: ArrowRightLeft },
-  { title: "Sync", detail: "Import products and review results before expanding to more apps.", icon: Workflow },
+  { title: "Choose source", detail: "Pick Zoho, CSV/XLSX, Shopify, WooCommerce, or a custom API.", icon: PlugZap },
+  { title: "Map fields", detail: "Translate each source schema into InventoryHub core fields, metadata, or custom fields.", icon: DatabaseZap },
+  { title: "Import or sync", detail: "Upload a spreadsheet, authorize an app, or call a custom endpoint.", icon: ArrowRightLeft },
+  { title: "Review results", detail: "Review created, updated, skipped, and errored product records.", icon: Workflow },
 ];
 
 export default function IntegrationsPage() {
@@ -199,6 +199,7 @@ export default function IntegrationsPage() {
 
   const zoho = useMemo(() => integrations.find((item) => item.provider === "zoho"), [integrations]);
   const selectedConnector = connectors.find((connector) => connector.id === activeProvider) ?? connectors[0];
+  const SelectedIcon = selectedConnector.icon;
   const canConnect = Boolean(credentials.clientId.trim() && credentials.clientSecret.trim() && credentials.redirectUri.trim());
   const targetOptions = useMemo(
     () => [...coreTargets, ...customFields.map((field) => ({ key: `custom:${field.id}`, label: `Custom: ${field.label}` }))],
@@ -328,7 +329,7 @@ export default function IntegrationsPage() {
       <PageHeader
         eyebrow="Universal integrations"
         title="Connect any product data source"
-        description="A central integration hub for Zoho today and future commerce, spreadsheet, ERP, supplier, and custom API connections. Every connector uses the same flexible field-mapping model."
+        description="A central integration hub for Zoho, CSV/XLSX files, commerce apps, supplier feeds, and custom APIs. Every source uses the same flexible field-mapping model."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={loadIntegrations} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Refresh</Button>
@@ -346,16 +347,11 @@ export default function IntegrationsPage() {
           const connected = integrations.some((item) => item.provider === connector.id && item.connected);
           const selected = activeProvider === connector.id;
           return (
-            <button
-              key={connector.id}
-              type="button"
-              onClick={() => setActiveProvider(connector.id)}
-              className={`rounded-[1.5rem] border bg-card/95 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/5 ${selected ? "border-primary/40 ring-2 ring-primary/10" : "border-border/80"}`}
-            >
+            <button key={connector.id} type="button" onClick={() => setActiveProvider(connector.id)} className={`rounded-[1.5rem] border bg-card/95 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-950/5 ${selected ? "border-primary/40 ring-2 ring-primary/10" : "border-border/80"}`}>
               <div className="flex items-start justify-between gap-3">
                 <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${connector.accent}`}><Icon className="h-5 w-5" /></span>
                 <Badge variant={connected ? "default" : connector.status === "active" ? "secondary" : "outline"} className="rounded-full">
-                  {connected ? "Connected" : connector.status === "active" ? "Active" : connector.status === "foundation" ? "Foundation" : "Planned"}
+                  {connected ? "Connected" : connector.status === "active" ? "Live" : connector.status === "foundation" ? "Foundation" : "Planned"}
                 </Badge>
               </div>
               <h3 className="mt-4 font-semibold tracking-tight">{connector.name}</h3>
@@ -365,19 +361,21 @@ export default function IntegrationsPage() {
         })}
       </section>
 
+      {activeProvider === "csv" && <FileImportExportCard />}
+
       <section className="grid gap-4 lg:grid-cols-3">
         <Card className="overflow-hidden lg:col-span-2">
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
-                <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${selectedConnector.accent}`}><selectedConnector.icon className="h-5 w-5" /></span>
+                <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${selectedConnector.accent}`}><SelectedIcon className="h-5 w-5" /></span>
                 <div>
                   <CardTitle>{selectedConnector.name}</CardTitle>
                   <CardDescription className="mt-1">{selectedConnector.description}</CardDescription>
                 </div>
               </div>
-              <Badge variant={activeProvider === "zoho" && zoho?.connected ? "default" : activeProvider === "zoho" && credentialsSaved ? "secondary" : "outline"}>
-                {activeProvider === "zoho" ? (zoho?.connected ? "Connected" : credentialsSaved ? "Saved locally" : "Not configured") : "Coming soon"}
+              <Badge variant={activeProvider === "zoho" && zoho?.connected ? "default" : activeProvider === "zoho" && credentialsSaved ? "secondary" : activeProvider === "csv" ? "default" : "outline"}>
+                {activeProvider === "zoho" ? (zoho?.connected ? "Connected" : credentialsSaved ? "Saved locally" : "Not configured") : activeProvider === "csv" ? "Ready" : "Coming soon"}
               </Badge>
             </div>
           </CardHeader>
@@ -399,24 +397,29 @@ export default function IntegrationsPage() {
                   <Button type="button" variant="ghost" onClick={clearCredentials}>Clear</Button>
                 </div>
               </>
+            ) : activeProvider === "csv" ? (
+              <div className="rounded-[1.5rem] border bg-muted/20 p-6">
+                <h3 className="font-semibold">Spreadsheet workflow is live</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Use the CSV / XLSX card above to import or export products. Existing SKUs are updated, new SKUs are created, and active custom fields export/import as <span className="font-mono">custom:</span> columns.</p>
+              </div>
             ) : (
               <div className="rounded-[1.5rem] border border-dashed bg-muted/20 p-8 text-center">
-                <selectedConnector.icon className="mx-auto h-10 w-10 text-muted-foreground" />
+                <SelectedIcon className="mx-auto h-10 w-10 text-muted-foreground" />
                 <h3 className="mt-4 font-semibold">{selectedConnector.name} is prepared for the universal integration model</h3>
-                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">This connector will use the same pattern as Zoho: credentials, source-field discovery, mapping to core/custom fields, sync preview, and conflict review.</p>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">This connector will use the same pattern as Zoho and spreadsheets: credentials, source-field discovery, mapping to core/custom fields, sync preview, and conflict review.</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">{selectedConnector.capabilities.map((item) => <Badge key={item} variant="secondary" className="rounded-full">{item}</Badge>)}</div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <ReadinessCard title="Integration setup checklist" description="Universal steps that every connector follows." items={[{ label: "Select connector", status: "ready", detail: selectedConnector.name },{ label: "Credentials", status: activeProvider === "zoho" && credentials.clientId && credentials.clientSecret ? "ready" : "next", detail: "OAuth keys, API token, file source, or custom endpoint." },{ label: "Field mapping", status: activeProvider === "zoho" && credentials.fieldMapping.length ? "ready" : "next", detail: "Map external schema into InventoryHub fields." },{ label: "Sync review", status: zoho?.connected ? "ready" : "next", detail: "Import, validate, and review synced records." }]} />
+        <ReadinessCard title="Integration setup checklist" description="Universal steps that every connector follows." items={[{ label: "Select connector", status: "ready", detail: selectedConnector.name },{ label: "Credentials or file", status: activeProvider === "csv" || (activeProvider === "zoho" && credentials.clientId && credentials.clientSecret) ? "ready" : "next", detail: "OAuth keys, API token, file upload, or custom endpoint." },{ label: "Field mapping", status: activeProvider === "csv" || (activeProvider === "zoho" && credentials.fieldMapping.length) ? "ready" : "next", detail: "Map external schema into InventoryHub fields." },{ label: "Sync review", status: activeProvider === "csv" || zoho?.connected ? "ready" : "next", detail: "Import, validate, and review synced records." }]} />
       </section>
 
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div><CardTitle className="flex items-center gap-2"><DatabaseZap className="h-5 w-5" /> Universal field mapping</CardTitle><CardDescription>{activeProvider === "zoho" ? "Choose where each Zoho item field should go. Targets can be InventoryHub core fields, metadata, or your custom product fields." : "This shared mapping system will power every future connector so different app schemas can still create clean InventoryHub product data."}</CardDescription></div>
+            <div><CardTitle className="flex items-center gap-2"><DatabaseZap className="h-5 w-5" /> Universal field mapping</CardTitle><CardDescription>{activeProvider === "zoho" ? "Choose where each Zoho item field should go. Targets can be InventoryHub core fields, metadata, or your custom product fields." : activeProvider === "csv" ? "Spreadsheet imports use column names like name, sku, price, quantity, category, images, and custom:<field-key>." : "This shared mapping system will power every future connector so different app schemas can still create clean InventoryHub product data."}</CardDescription></div>
             {activeProvider === "zoho" && <Button type="button" variant="outline" onClick={resetMapping}>Reset default mapping</Button>}
           </div>
         </CardHeader>
@@ -439,7 +442,7 @@ export default function IntegrationsPage() {
           ) : (
             <div className="grid gap-3 md:grid-cols-3">
               {[
-                ["Source fields", "Discover fields from the selected app, CSV headers, or API response."],
+                ["Source fields", activeProvider === "csv" ? "Use spreadsheet headers such as name, sku, price, quantity, category, images, and custom:<field-key>." : "Discover fields from the selected app, CSV headers, or API response."],
                 ["Transform rules", "Normalize names, numbers, dates, booleans, metadata, and custom fields."],
                 ["Preview imports", "Validate mapped data before creating or updating products."],
               ].map(([title, detail]) => <div key={title} className="rounded-2xl border bg-muted/20 p-4"><p className="font-medium">{title}</p><p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p></div>)}
@@ -449,11 +452,11 @@ export default function IntegrationsPage() {
       </Card>
 
       <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <Card><CardHeader><CardTitle>Connection status</CardTitle><CardDescription>Current connector state for this workspace.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid gap-3 sm:grid-cols-2">{[["Selected app", selectedConnector.name],["Zoho status", zoho?.status ?? "disconnected"],["Last sync", zoho?.lastSyncAt ? new Date(zoho.lastSyncAt).toLocaleString() : "Never"],["Mapped fields", `${credentials.fieldMapping.filter((item) => item.target !== "ignore").length}`]].map(([label, value]) => <div key={label} className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 break-words text-sm font-medium">{value}</p></div>)}</div>{syncResult && <div className="rounded-2xl border bg-background p-4"><p className="text-sm font-medium">Latest sync result</p><p className="mt-1 text-sm text-muted-foreground">{syncResult.total} Zoho items processed · {syncResult.created} created · {syncResult.updated} updated</p></div>}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Universal sync flow</CardTitle><CardDescription>How InventoryHub will handle every current and future integration.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">{syncSteps.map((step, index) => { const Icon = step.icon; return <div key={step.title} className="rounded-2xl border bg-background p-4"><div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted"><Icon className="h-5 w-5" /></span><span className="text-xs text-muted-foreground">0{index + 1}</span></div><h3 className="mt-4 font-medium">{step.title}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{step.detail}</p></div>; })}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Connection status</CardTitle><CardDescription>Current connector state for this workspace.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid gap-3 sm:grid-cols-2">{[["Selected source", selectedConnector.name],["Zoho status", zoho?.status ?? "disconnected"],["Last Zoho sync", zoho?.lastSyncAt ? new Date(zoho.lastSyncAt).toLocaleString() : "Never"],["Mapped fields", `${credentials.fieldMapping.filter((item) => item.target !== "ignore").length}`]].map(([label, value]) => <div key={label} className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 break-words text-sm font-medium">{value}</p></div>)}</div>{syncResult && <div className="rounded-2xl border bg-background p-4"><p className="text-sm font-medium">Latest sync result</p><p className="mt-1 text-sm text-muted-foreground">{syncResult.total} Zoho items processed · {syncResult.created} created · {syncResult.updated} updated</p></div>}</CardContent></Card>
+        <Card><CardHeader><CardTitle>Universal sync flow</CardTitle><CardDescription>How InventoryHub handles current and future product-data sources.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">{syncSteps.map((step, index) => { const Icon = step.icon; return <div key={step.title} className="rounded-2xl border bg-background p-4"><div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted"><Icon className="h-5 w-5" /></span><span className="text-xs text-muted-foreground">0{index + 1}</span></div><h3 className="mt-4 font-medium">{step.title}</h3><p className="mt-2 text-xs leading-5 text-muted-foreground">{step.detail}</p></div>; })}</CardContent></Card>
       </section>
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5" /> Connector roadmap</CardTitle><CardDescription>Zoho is live first. Other apps will reuse the same credentials, mapping, sync, and review framework.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-5">{connectors.map((connector) => { const Icon = connector.icon; return <div key={connector.id} className="rounded-2xl border p-4"><Icon className="h-4 w-4 text-muted-foreground" /><p className="mt-3 text-sm font-medium">{connector.name}</p><Badge variant="secondary" className="mt-3 rounded-full">{connector.status === "active" ? "Live" : connector.status === "foundation" ? "Foundation" : "Planned"}</Badge></div>; })}</CardContent></Card>
+      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Clock3 className="h-5 w-5" /> Connector roadmap</CardTitle><CardDescription>Zoho and CSV/XLSX are available now. Other apps will reuse the same credentials, mapping, sync, and review framework.</CardDescription></CardHeader><CardContent className="grid gap-3 md:grid-cols-5">{connectors.map((connector) => { const Icon = connector.icon; return <div key={connector.id} className="rounded-2xl border p-4"><Icon className="h-4 w-4 text-muted-foreground" /><p className="mt-3 text-sm font-medium">{connector.name}</p><Badge variant="secondary" className="mt-3 rounded-full">{connector.status === "active" ? "Live" : connector.status === "foundation" ? "Foundation" : "Planned"}</Badge></div>; })}</CardContent></Card>
     </PageShell>
   );
 }
