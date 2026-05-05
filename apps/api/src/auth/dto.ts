@@ -83,6 +83,19 @@ export class LoginDto {
   password!: string;
 }
 
+export class VerifyEmailDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  otp!: string;
+}
+
+export class ResendOtpDto {
+  @IsEmail()
+  email!: string;
+}
+
 export class SwitchOrganizationDto {
   @IsString()
   organizationId!: string;
