@@ -17,6 +17,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 const uploadDir = join(process.cwd(), 'uploads', 'products');
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
+type UploadedProductImage = {
+  filename: string;
+  originalname: string;
+  mimetype: string;
+  size: number;
+};
+
 mkdirSync(uploadDir, { recursive: true });
 
 @Controller('products/images')
@@ -44,7 +51,7 @@ export class ProductImagesController {
       },
     }),
   )
-  upload(@UploadedFile() file?: Express.Multer.File) {
+  upload(@UploadedFile() file?: UploadedProductImage) {
     if (!file) {
       throw new BadRequestException('Image file is required');
     }
