@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Settings,
+  Sparkles,
   Webhook,
   X,
 } from "lucide-react";
@@ -54,13 +55,13 @@ export function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-      <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 border-b border-border/70 bg-card/80 shadow-sm backdrop-blur-xl">
+      <div className="flex h-[4.25rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="rounded-xl md:hidden"
             aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((open) => !open)}
@@ -68,16 +69,21 @@ export function Topbar() {
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{title}</p>
-            <p className="hidden text-xs text-muted-foreground sm:block">Zoho-first inventory API and product sync platform</p>
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-semibold tracking-tight">{title}</p>
+              <span className="hidden items-center gap-1 rounded-full border bg-background/70 px-2 py-0.5 text-[0.68rem] font-medium text-muted-foreground sm:inline-flex">
+                <Sparkles className="h-3 w-3" /> Live workspace
+              </span>
+            </div>
+            <p className="hidden text-xs text-muted-foreground sm:block">Inventory, Zoho sync, product APIs, and operational controls</p>
           </div>
         </div>
 
-        <div className="hidden w-full max-w-sm items-center gap-2 rounded-xl border bg-muted/40 px-3 py-1.5 lg:flex">
+        <div className="hidden w-full max-w-md items-center gap-2 rounded-2xl border bg-background/70 px-3 py-2 shadow-sm lg:flex">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
             aria-label="Global search"
-            placeholder="Search products, SKUs, integrations..."
+            placeholder="Search products, SKUs, categories..."
             className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
             onKeyDown={(event) => {
               if (event.key === "Enter") handleSearch(event.currentTarget.value);
@@ -86,13 +92,13 @@ export function Topbar() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          <Button asChild size="sm" className="hidden sm:inline-flex">
+          <Button asChild size="sm" className="hidden rounded-xl shadow-sm sm:inline-flex">
             <Link href="/products/new">
               <Plus className="h-4 w-4" />
               New product
             </Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={handleLogout}>
+          <Button variant="outline" size="sm" onClick={handleLogout} className="rounded-xl bg-background/70">
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>
           </Button>
@@ -100,8 +106,8 @@ export function Topbar() {
       </div>
 
       {mobileOpen && (
-        <div className="border-t bg-background p-4 md:hidden">
-          <div className="mb-4 flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-1.5">
+        <div className="border-t bg-card/95 p-4 shadow-lg backdrop-blur-xl md:hidden">
+          <div className="mb-4 flex items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 shadow-sm">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Input
               aria-label="Mobile product search"
@@ -113,7 +119,7 @@ export function Topbar() {
             />
           </div>
 
-          <nav className="grid gap-1">
+          <nav className="grid gap-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -124,7 +130,7 @@ export function Topbar() {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground",
+                    "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground",
                     active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
                   )}
                 >
