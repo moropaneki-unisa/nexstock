@@ -15,6 +15,8 @@ const PRODUCT_TRANSACTION_OPTIONS = {
   timeout: 30_000,
 };
 
+type PrismaTransaction = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -94,7 +96,8 @@ export class ProductsService {
     const quantity = dto.quantity ?? 0;
 
     const product = await this.prisma.$transaction(async (tx) => {
-      const organization = await tx.organization.findUnique({
+      const db = tx as PrismaTransaction;
+      const organization = await db.organization.findUnique({
         where: { id: organizationId },
       });
 
@@ -105,13 +108,13 @@ export class ProductsService {
       const skuPrefix = organization.skuPrefix ?? this.generateSkuPrefix(organization.name);
       const sku = this.generateSku(skuPrefix, organization.nextSkuNumber);
 
-      const activeFields = await tx.customField.findMany({
+      const activeFields = await db.customField.findMany({
         where: { organizationId, isActive: true },
       });
 
       this.validateCustomFieldValues(activeFields, dto.customFieldValues ?? []);
 
-      const created = await tx.product.create({
+      const created = await db.product.create({
         data: {
           organizationId,
           name: dto.name.trim(),
@@ -136,7 +139,7 @@ export class ProductsService {
         },
       });
 
-      await tx.organization.update({
+      await db.organization.update({
         where: { id: organizationId },
         data: {
           skuPrefix,
@@ -145,7 +148,7 @@ export class ProductsService {
       });
 
       if (quantity > 0) {
-        await tx.inventoryLog.create({
+        await db.inventoryLog.create({
           data: {
             organizationId,
             productId: created.id,
@@ -187,7 +190,8 @@ export class ProductsService {
     };
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const activeFields = await tx.customField.findMany({
+      const db = tx as PrismaTransaction;
+      const activeFields = await db.customField.findMany({
         where: { organizationId, isActive: true },
       });
 
@@ -195,14 +199,14 @@ export class ProductsService {
         this.validateCustomFieldValues(activeFields, dto.customFieldValues);
       }
 
-      await tx.product.update({
+      await db.product.update({
         where: { id_organizationId: { id, organizationId } },
         data,
       });
 
       if (dto.customFieldValues) {
         for (const item of dto.customFieldValues) {
-          await tx.productCustomFieldValue.upsert({
+          await db.productCustomFieldValue.upsert({
             where: {
               productId_fieldId: {
                 productId: id,
@@ -222,7 +226,7 @@ export class ProductsService {
       }
 
       if (dto.quantity !== undefined && dto.quantity !== existing.quantity) {
-        await tx.inventoryLog.create({
+        await db.inventoryLog.create({
           data: {
             organizationId,
             productId: id,
@@ -236,7 +240,7 @@ export class ProductsService {
         });
       }
 
-      return tx.product.findFirstOrThrow({
+      return db.product.findFirstOrThrow({
         where: { id, organizationId },
         include: {
           customFieldValues: {
@@ -273,12 +277,13 @@ export class ProductsService {
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.update({
+      const db = tx as PrismaTransaction;
+      const product = await db.product.update({
         where: { id_organizationId: { id, organizationId } },
         data: { quantity: nextQuantity },
       });
 
-      await tx.inventoryLog.create({
+      await db.inventoryLog.create({
         data: {
           organizationId,
           productId: id,
