@@ -85,14 +85,14 @@ export function Sidebar() {
       <div className="mt-8 rounded-[1.35rem] border bg-gradient-to-br from-primary to-slate-800 p-4 text-primary-foreground shadow-sm">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Sparkles className="h-4 w-4" />
-          Launch standard
+          Launch-ready workspace
         </div>
         <p className="mt-2 text-xs leading-5 text-primary-foreground/75">
-          Clean product data, reliable sync, developer APIs, and a focused UI customers can trust.
+          Manage products, stock, Zoho sync, API keys, and webhooks from one professional inventory command center.
         </p>
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs">
           <BarChart3 className="h-3.5 w-3.5" />
-          Production polish enabled
+          Production UI active
         </div>
       </div>
     </aside>
