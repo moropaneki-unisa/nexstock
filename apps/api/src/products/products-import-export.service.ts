@@ -20,6 +20,9 @@ type ProductImportResult = {
   errors: Array<{ row: number; message: string }>;
 };
 
+const XLSX_CELL_TEXT_LIMIT = 32_767;
+const XLSX_TRUNCATION_SUFFIX = '\n\n[Truncated for XLSX export. Export CSV for the full value.]';
+
 const CORE_EXPORT_HEADERS = [
   'name',
   'sku',
@@ -74,7 +77,7 @@ export class ProductsImportExportService {
     });
 
     if (format === 'xlsx') {
-      const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
+      const worksheet = XLSX.utils.json_to_sheet(this.toXlsxSafeRows(headers, rows), { header: headers });
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
       return {
@@ -317,6 +320,20 @@ export class ProductsImportExportService {
     const lines = [headers.join(',')];
     for (const row of rows) lines.push(headers.map((header) => this.csvEscape(row[header])).join(','));
     return lines.join('\n');
+  }
+
+  private toXlsxSafeRows(headers: string[], rows: Record<string, unknown>[]) {
+    return rows.map((row) =>
+      Object.fromEntries(headers.map((header) => [header, this.xlsxSafeCellValue(row[header])])),
+    );
+  }
+
+  private xlsxSafeCellValue(value: unknown) {
+    const text = this.stringifyCellValue(value);
+    if (text.length <= XLSX_CELL_TEXT_LIMIT) return text;
+
+    const maxValueLength = XLSX_CELL_TEXT_LIMIT - XLSX_TRUNCATION_SUFFIX.length;
+    return `${text.slice(0, maxValueLength)}${XLSX_TRUNCATION_SUFFIX}`;
   }
 
   private csvEscape(value: unknown) {
