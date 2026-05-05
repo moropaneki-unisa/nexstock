@@ -14,7 +14,7 @@ import {
 
 export type IntegrationSource = "zoho" | "csv" | "xlsx" | "json" | "wordpress" | "shopify" | "custom";
 export type IntegrationSection = "configuration" | "mapping" | "sync" | "history" | "logs";
-export type MappingStatus = "draft" | "confirmed";
+export type MappingStatus = "not_started" | "draft" | "confirmed";
 
 export type SourceField = {
   key: string;
@@ -127,13 +127,7 @@ export const connectors: ConnectorDefinition[] = [
     route: "/integration/csv",
     requiredTargets: ["core:name", "core:sku"],
     configurationFields: [],
-    defaultFields: [
-      { key: "name", label: "name", sample: "Classic T-Shirt", required: true },
-      { key: "sku", label: "sku", sample: "TSHIRT-001", required: true },
-      { key: "price", label: "price", sample: "29.99" },
-      { key: "quantity", label: "quantity", sample: "42" },
-      { key: "category", label: "category", sample: "Apparel" },
-    ],
+    defaultFields: [],
   },
   {
     id: "xlsx",
@@ -146,13 +140,7 @@ export const connectors: ConnectorDefinition[] = [
     route: "/integration/xlsx",
     requiredTargets: ["core:name", "core:sku"],
     configurationFields: [],
-    defaultFields: [
-      { key: "name", label: "name", sample: "Classic T-Shirt", required: true },
-      { key: "sku", label: "sku", sample: "TSHIRT-001", required: true },
-      { key: "description", label: "description", sample: "Cotton shirt" },
-      { key: "price", label: "price", sample: "29.99" },
-      { key: "stock", label: "stock", sample: "42" },
-    ],
+    defaultFields: [],
   },
   {
     id: "json",
@@ -165,13 +153,7 @@ export const connectors: ConnectorDefinition[] = [
     route: "/integration/json",
     requiredTargets: ["core:name", "core:sku"],
     configurationFields: [],
-    defaultFields: [
-      { key: "id", label: "id", sample: "prod_001" },
-      { key: "title", label: "title", sample: "Classic T-Shirt", required: true },
-      { key: "code", label: "code", sample: "TSHIRT-001", required: true },
-      { key: "price", label: "price", sample: "29.99" },
-      { key: "inventory", label: "inventory", sample: "42" },
-    ],
+    defaultFields: [],
   },
   {
     id: "wordpress",
@@ -238,15 +220,7 @@ export const connectors: ConnectorDefinition[] = [
       { key: "endpoint", label: "Endpoint URL", type: "url", required: true, help: "The API endpoint that returns product records." },
       { key: "apiKey", label: "API key", type: "password", help: "Optional API key for the source system." },
     ],
-    defaultFields: [
-      { key: "id", label: "External ID", sample: "prod_001" },
-      { key: "name", label: "Name", sample: "Classic T-Shirt", required: true },
-      { key: "code", label: "Code / SKU", sample: "TSHIRT-001", required: true },
-      { key: "description", label: "Description", sample: "Cotton shirt" },
-      { key: "price", label: "Price", sample: "29.99" },
-      { key: "stock", label: "Stock", sample: "42" },
-      { key: "category", label: "Category", sample: "Apparel" },
-    ],
+    defaultFields: [],
   },
 ];
 
@@ -259,11 +233,11 @@ export function createDefaultConfiguration(source: IntegrationSource): Integrati
   return {
     source,
     status: "not_configured",
-    detectedFields: connector.defaultFields,
-    mappings: autoMapFields(connector.defaultFields),
-    mappingStatus: "draft",
+    detectedFields: [],
+    mappings: [],
+    mappingStatus: "not_started",
     history: [],
-    logs: [createLog("info", `${connector.title} setup started.`)],
+    logs: [createLog("info", `${connector.title} setup started. Detect fields before mapping.`)],
   };
 }
 
