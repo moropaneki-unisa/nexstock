@@ -3,65 +3,106 @@ import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
-import slugify from 'slugify';
-import { SignupDto } from './dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { SignupDto } from './dto';
+import { EmailService } from '../email/email.service';
 
 export type TokenMeta = { ip?: string; ua?: string };
+
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function hashOtp(otp: string) {
+  return createHash('sha256').update(otp).digest('hex');
+}
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly email: EmailService,
   ) {}
 
-  async signup(dto: SignupDto, meta: TokenMeta) {
+  async signup(dto: SignupDto) {
     const email = dto.email.toLowerCase().trim();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already exists');
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
-    const baseSlug = slugify(dto.orgName, { lower: true, strict: true }) || 'organization';
-    const slug = `${baseSlug}-${randomBytes(3).toString('hex')}`;
 
-    const user = await this.prisma.user.create({
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
+
+    await this.prisma.user.create({
       data: {
         email,
         passwordHash,
         name: dto.name.trim(),
-        memberships: {
-          create: {
-            role: 'admin',
-            organization: {
-              create: {
-                name: dto.orgName.trim(),
-                slug,
-                legalName: dto.legalName?.trim() || null,
-                tradingName: dto.tradingName?.trim() || null,
-                registrationNo: dto.registrationNo?.trim() || null,
-                vatNumber: dto.vatNumber?.trim() || null,
-                industry: dto.industry?.trim() || null,
-                companySize: dto.companySize?.trim() || null,
-                website: dto.website?.trim() || null,
-                phone: dto.phone?.trim() || null,
-                billingEmail: dto.billingEmail?.trim() || email,
-                addressLine1: dto.addressLine1?.trim() || null,
-                addressLine2: dto.addressLine2?.trim() || null,
-                city: dto.city?.trim() || null,
-                province: dto.province?.trim() || null,
-                postalCode: dto.postalCode?.trim() || null,
-                country: dto.country?.trim() || null,
-              },
-            },
-          },
-        },
+        verificationOtpHash: otpHash,
+        verificationOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
       },
-      include: { memberships: true },
     });
 
-    const membership = user.memberships[0];
-    return this.issueTokens(user.id, user.email, membership.organizationId, membership.role, meta);
+    await this.email.sendOtpEmail(email, otp);
+
+    return { requiresVerification: true };
+  }
+
+  async verifyEmail(email: string, otp: string, meta: TokenMeta) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || !user.verificationOtpHash) throw new UnauthorizedException('Invalid request');
+
+    const hashed = hashOtp(otp);
+    if (hashed !== user.verificationOtpHash) throw new UnauthorizedException('Invalid OTP');
+
+    if (user.verificationOtpExpiry! < new Date()) throw new UnauthorizedException('OTP expired');
+
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerifiedAt: new Date(),
+        verificationOtpHash: null,
+        verificationOtpExpiry: null,
+      },
+    });
+
+    const org = await this.prisma.organization.create({
+      data: {
+        name: updated.name || 'My Company',
+        slug: `org-${Date.now()}`,
+      },
+    });
+
+    await this.prisma.membership.create({
+      data: {
+        userId: updated.id,
+        organizationId: org.id,
+        role: 'admin',
+      },
+    });
+
+    return this.issueTokens(updated.id, updated.email, org.id, 'admin', meta);
+  }
+
+  async resendOtp(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return { ok: true };
+
+    const otp = generateOtp();
+    const otpHash = hashOtp(otp);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationOtpHash: otpHash,
+        verificationOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+
+    await this.email.sendOtpEmail(email, otp);
+    return { ok: true };
   }
 
   async login(emailInput: string, password: string, meta: TokenMeta) {
@@ -75,41 +116,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (!user.emailVerifiedAt) {
+      throw new UnauthorizedException('Email not verified');
+    }
+
     const membership = user.memberships[0];
     if (!membership) throw new UnauthorizedException('No organization membership found');
 
     return this.issueTokens(user.id, user.email, membership.organizationId, membership.role, meta);
-  }
-
-  async refresh(refreshRaw: string | undefined, meta: TokenMeta) {
-    if (!refreshRaw) throw new UnauthorizedException('Missing refresh token');
-
-    const tokenHash = createHash('sha256').update(refreshRaw).digest('hex');
-    const stored = await this.prisma.refreshToken.findUnique({
-      where: { tokenHash },
-      include: { user: { include: { memberships: { orderBy: { createdAt: 'asc' } } } } },
-    });
-
-    if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
-
-    const membership = stored.user.memberships[0];
-    if (!membership) throw new UnauthorizedException('No organization membership found');
-
-    return this.issueTokens(stored.user.id, stored.user.email, membership.organizationId, membership.role, meta);
-  }
-
-  async logout(refreshRaw: string | undefined) {
-    if (!refreshRaw) return { ok: true };
-    const tokenHash = createHash('sha256').update(refreshRaw).digest('hex');
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    return { ok: true };
   }
 
   private async issueTokens(
