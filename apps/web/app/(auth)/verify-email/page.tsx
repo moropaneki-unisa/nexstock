@@ -24,7 +24,7 @@ export default function VerifyEmailPage() {
       setLoading(true);
       setError('');
 
-      await apiFetch('/auth/verify-email', {
+      await apiFetch('/api/auth/verify-email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,7 +41,7 @@ export default function VerifyEmailPage() {
   }
 
   async function resend() {
-    await apiFetch('/auth/resend-otp', {
+    await apiFetch('/api/auth/resend-otp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -67,7 +67,11 @@ export default function VerifyEmailPage() {
           className="w-full p-3 rounded bg-black border border-gray-700 mb-4 text-center tracking-widest text-lg"
         />
 
-        {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded mb-3">
+            {error}
+          </div>
+        )}
 
         <button
           onClick={verify}
