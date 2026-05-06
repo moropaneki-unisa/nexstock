@@ -58,17 +58,44 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
+function isFormData(body: any): body is FormData {
+  return typeof FormData !== 'undefined' && body instanceof FormData;
+}
+
+async function parseResponse<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    return res.json() as Promise<T>;
+  }
+  // fallback to text to avoid JSON parse errors (e.g., multipart or HTML)
+  const text = await res.text();
+  // try to JSON.parse if it looks like JSON
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return (text as unknown) as T;
+  }
+}
+
 export async function apiFetch<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
+  const body = options.body as any;
+
+  const headers: Record<string, string> = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  // Only set JSON content-type if NOT FormData and body exists and no content-type already set
+  if (body && !isFormData(body) && !('Content-Type' in headers) && !('content-type' in headers)) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const response = await fetch(`${API_URL}${url}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-    credentials: "include",
+    headers,
+    credentials: 'include',
   });
 
   if (response.status === 401) {
@@ -76,49 +103,52 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
 
     if (!nextToken) {
       clearAccessToken();
-      if (typeof window !== "undefined") window.location.href = "/login";
-      throw new Error("Authentication required");
+      if (typeof window !== 'undefined') window.location.href = '/login';
+      throw new Error('Authentication required');
+    }
+
+    const retryHeaders: Record<string, string> = {
+      ...(options.headers as Record<string, string> || {}),
+      Authorization: `Bearer ${nextToken}`,
+    };
+
+    if (body && !isFormData(body) && !('Content-Type' in retryHeaders) && !('content-type' in retryHeaders)) {
+      retryHeaders['Content-Type'] = 'application/json';
     }
 
     const retry = await fetch(`${API_URL}${url}`, {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${nextToken}`,
-        ...(options.headers || {}),
-      },
-      credentials: "include",
+      headers: retryHeaders,
+      credentials: 'include',
     });
 
     if (!retry.ok) {
-      const body = await retry.json().catch(() => null);
-      throw new Error(body?.message || body?.error || "API request failed");
+      const parsed = await parseResponse<any>(retry).catch(() => null);
+      throw new Error(parsed?.message || parsed?.error || 'API request failed');
     }
 
-    if (retry.status === 204) return undefined as T;
-    return retry.json();
+    return parseResponse<T>(retry);
   }
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.message || body?.error || "API request failed");
+    const parsed = await parseResponse<any>(response).catch(() => null);
+    throw new Error(parsed?.message || parsed?.error || 'API request failed');
   }
 
-  if (response.status === 204) return undefined as T;
-  return response.json();
+  return parseResponse<T>(response);
 }
 
 export async function login(email: string, password: string) {
   const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ email, password }),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || "Login failed");
+    throw new Error(body?.message || 'Login failed');
   }
 
   const data = await response.json();
@@ -128,15 +158,15 @@ export async function login(email: string, password: string) {
 
 export async function signup(payload: Record<string, unknown>) {
   const response = await fetch(`${API_URL}/api/auth/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || "Signup failed");
+    throw new Error(body?.message || 'Signup failed');
   }
 
   const data = await response.json();
@@ -146,10 +176,10 @@ export async function signup(payload: Record<string, unknown>) {
 
 export async function logout() {
   await fetch(`${API_URL}/api/auth/logout`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
   }).catch(() => null);
 
   clearAccessToken();
-  if (typeof window !== "undefined") window.location.href = "/login";
+  if (typeof window !== 'undefined') window.location.href = '/login';
 }
