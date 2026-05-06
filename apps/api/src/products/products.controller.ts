@@ -29,13 +29,6 @@ import {
 import { ProductsImportExportService } from './products-import-export.service';
 import { ProductsService } from './products.service';
 
-type ProductImportFile = {
-  originalname: string;
-  mimetype: string;
-  buffer: Buffer;
-  size: number;
-};
-
 @Controller('products')
 @UseGuards(JwtAuthGuard)
 export class ProductsController {
@@ -44,15 +37,24 @@ export class ProductsController {
     private readonly importExport: ProductsImportExportService,
   ) {}
 
-  @Post('upload-image')
+  // ✅ NEW: upload + attach to product
+  @Post(':id/upload-image')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  uploadImage(@UploadedFile() file: Express.Multer.File) {
-    return this.products.uploadImage(file);
+  uploadProductImage(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') productId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.products.uploadAndAttachImage(
+      user.organizationId,
+      productId,
+      file,
+    );
   }
 
   @Get()
@@ -61,41 +63,6 @@ export class ProductsController {
     @Query() query: ListProductsDto,
   ) {
     return this.products.list(user.organizationId, query);
-  }
-
-  @Get('export/file')
-  async exportProducts(
-    @CurrentUser() user: CurrentUserPayload,
-    @Query('format') format: 'csv' | 'xlsx' | undefined,
-    @Res() response: Response,
-  ) {
-    const file = await this.importExport.exportProducts(
-      user.organizationId,
-      format === 'xlsx' ? 'xlsx' : 'csv',
-    );
-    response.setHeader('Content-Type', file.contentType);
-    response.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${file.fileName}"`,
-    );
-    response.send(file.buffer);
-  }
-
-  @Post('import/file')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-      limits: { fileSize: 10 * 1024 * 1024 },
-    }),
-  )
-  importProducts(
-    @CurrentUser() user: CurrentUserPayload,
-    @UploadedFile() file?: ProductImportFile,
-  ) {
-    return this.importExport.importProducts(
-      user.organizationId,
-      file as ProductImportFile,
-    );
   }
 
   @Get(':id')
