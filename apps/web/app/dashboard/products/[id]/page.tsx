@@ -20,8 +20,7 @@ export default function ProductPage() {
       .then(data => {
         setProduct(data);
         setImages(data.images || []);
-      })
-      .catch(() => {});
+      });
   }, [id]);
 
   const handleUpload = async (file: File) => {
@@ -41,22 +40,31 @@ export default function ProductPage() {
     setUploading(false);
   };
 
+  const handleDelete = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const moveImage = (index: number, dir: number) => {
+    const newArr = [...images];
+    const target = index + dir;
+    if (target < 0 || target >= images.length) return;
+
+    [newArr[index], newArr[target]] = [newArr[target], newArr[index]];
+    setImages(newArr);
+  };
+
   return (
     <div className="p-6 space-y-6 text-white">
 
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">
-            {product?.name || 'Product'}
-          </h1>
+          <h1 className="text-2xl font-semibold">{product?.name || 'Product'}</h1>
           <span className="text-sm text-green-500">● Active</span>
         </div>
 
         <div className="flex gap-3">
           <button className="px-4 py-2 border border-white/20 rounded-lg">Save</button>
-          <button className="px-4 py-2 bg-white text-black rounded-lg">
-            Publish
-          </button>
+          <button className="px-4 py-2 bg-white text-black rounded-lg">Publish</button>
         </div>
       </div>
 
@@ -65,9 +73,7 @@ export default function ProductPage() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`capitalize ${
-              tab === t ? 'text-white border-b-2 border-white' : 'text-gray-500'
-            }`}
+            className={`capitalize ${tab === t ? 'text-white border-b-2 border-white' : 'text-gray-500'}`}
           >
             {t}
           </button>
@@ -77,61 +83,53 @@ export default function ProductPage() {
       <div className="grid grid-cols-3 gap-6">
 
         <div className="col-span-2 space-y-6">
-
           {tab === 'overview' && (
             <Card title="Product Details">
               <input defaultValue={product?.name} className="w-full p-3 rounded bg-black border border-gray-700" />
               <textarea defaultValue={product?.description} className="w-full p-3 rounded bg-black border border-gray-700" />
             </Card>
           )}
-
-          {tab === 'inventory' && (
-            <Card title="Inventory">
-              <input defaultValue={product?.sku} className="p-3 rounded bg-black border border-gray-700 w-full" />
-              <input defaultValue={product?.stock} className="p-3 rounded bg-black border border-gray-700 w-full" />
-            </Card>
-          )}
-
-          {tab === 'pricing' && (
-            <Card title="Pricing">
-              <input defaultValue={product?.price} className="p-3 rounded bg-black border border-gray-700 w-full" />
-            </Card>
-          )}
-
         </div>
 
         <div className="space-y-6">
-
           {tab === 'media' && (
             <Card title="Media">
 
+              <div
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                className="border-2 border-dashed border-gray-600 rounded-xl p-6 text-center cursor-pointer"
+              >
+                Drag & Drop Image
+              </div>
+
               <input
                 type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleUpload(e.target.files[0]);
-                  }
-                }}
+                className="mt-3"
+                onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
               />
 
               {uploading && <p className="text-sm text-gray-400">Uploading...</p>}
 
               <div className="grid grid-cols-3 gap-3 mt-4">
                 {images.map((img, i) => (
-                  <img key={i} src={img} className="h-24 w-full object-cover rounded" />
+                  <div key={i} className="relative">
+                    <img src={img} className="h-24 w-full object-cover rounded" />
+
+                    <div className="absolute top-1 right-1 flex gap-1">
+                      <button onClick={() => moveImage(i, -1)}>⬅</button>
+                      <button onClick={() => moveImage(i, 1)}>➡</button>
+                      <button onClick={() => handleDelete(i)}>❌</button>
+                    </div>
+                  </div>
                 ))}
               </div>
 
             </Card>
           )}
-
-          {tab === 'seo' && (
-            <Card title="SEO">
-              <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Slug" />
-            </Card>
-          )}
-
         </div>
       </div>
     </div>
