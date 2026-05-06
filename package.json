@@ -10,7 +10,10 @@
     "dev": "concurrently \"npm run start:dev -w @inventoryhub/api\" \"npm run dev -w @inventoryhub/web\"",
     "build": "npm run build -w @inventoryhub/api && npm run build -w @inventoryhub/web",
     "api": "npm run start:dev -w @inventoryhub/api",
-    "web": "npm run dev -w @inventoryhub/web"
+    "web": "npm run dev -w @inventoryhub/web",
+    "postinstall": "cd apps/api && npx prisma generate",
+    "migrate:deploy": "cd apps/api && npx prisma migrate deploy",
+    "deploy": "npm install && npm run migrate:deploy && npm run build"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
