@@ -44,6 +44,12 @@ export class ProductsController {
     private readonly importExport: ProductsImportExportService,
   ) {}
 
+  @Post('upload-image')
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
+  uploadImage(@UploadedFile() file: Express.Multer.File) {
+    return this.products.uploadImage(file);
+  }
+
   @Get()
   list(
     @CurrentUser() user: CurrentUserPayload,
@@ -60,7 +66,7 @@ export class ProductsController {
   ) {
     const file = await this.importExport.exportProducts(user.organizationId, format === 'xlsx' ? 'xlsx' : 'csv');
     response.setHeader('Content-Type', file.contentType);
-    response.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    response.setHeader('Content-Disposition', `attachment; filename=\"${file.fileName}\"`);
     response.send(file.buffer);
   }
 
