@@ -1,17 +1,54 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function ProductPage() {
+  const { id } = useParams();
   const [tab, setTab] = useState('overview');
+  const [product, setProduct] = useState<any>(null);
+  const [images, setImages] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+
+    fetch(`${API_URL}/products/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        setProduct(data);
+        setImages(data.images || []);
+      })
+      .catch(() => {});
+  }, [id]);
+
+  const handleUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setUploading(true);
+
+    const res = await fetch(`${API_URL}/products/upload-image`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await res.json();
+
+    setImages(prev => [...prev, data.secure_url]);
+    setUploading(false);
+  };
 
   return (
     <div className="p-6 space-y-6 text-white">
-      
-      {/* HEADER */}
+
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">Product Name</h1>
+          <h1 className="text-2xl font-semibold">
+            {product?.name || 'Product'}
+          </h1>
           <span className="text-sm text-green-500">● Active</span>
         </div>
 
@@ -23,7 +60,6 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* TABS */}
       <div className="flex gap-6 border-b border-gray-800 pb-2">
         {['overview', 'inventory', 'pricing', 'media', 'seo'].map((t) => (
           <button
@@ -38,61 +74,61 @@ export default function ProductPage() {
         ))}
       </div>
 
-      {/* MAIN GRID */}
       <div className="grid grid-cols-3 gap-6">
-        
-        {/* LEFT */}
+
         <div className="col-span-2 space-y-6">
 
           {tab === 'overview' && (
             <Card title="Product Details">
-              <input className="w-full p-3 rounded bg-black border border-gray-700" placeholder="Product name" />
-              <textarea className="w-full p-3 rounded bg-black border border-gray-700" placeholder="Description" />
-
-              <div className="grid grid-cols-2 gap-4">
-                <input className="p-3 rounded bg-black border border-gray-700" placeholder="Category" />
-                <input className="p-3 rounded bg-black border border-gray-700" placeholder="Brand" />
-              </div>
+              <input defaultValue={product?.name} className="w-full p-3 rounded bg-black border border-gray-700" />
+              <textarea defaultValue={product?.description} className="w-full p-3 rounded bg-black border border-gray-700" />
             </Card>
           )}
 
           {tab === 'inventory' && (
             <Card title="Inventory">
-              <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="SKU" />
-              <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Stock Quantity" />
-
-              <label className="flex items-center gap-2 text-sm text-gray-400">
-                <input type="checkbox" /> Track inventory
-              </label>
+              <input defaultValue={product?.sku} className="p-3 rounded bg-black border border-gray-700 w-full" />
+              <input defaultValue={product?.stock} className="p-3 rounded bg-black border border-gray-700 w-full" />
             </Card>
           )}
 
           {tab === 'pricing' && (
             <Card title="Pricing">
-              <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Cost Price" />
-              <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Selling Price" />
-              <p className="text-xs text-gray-500">Margin auto-calculated</p>
+              <input defaultValue={product?.price} className="p-3 rounded bg-black border border-gray-700 w-full" />
             </Card>
           )}
 
         </div>
 
-        {/* RIGHT */}
         <div className="space-y-6">
 
           {tab === 'media' && (
             <Card title="Media">
-              <div className="border-2 border-dashed border-gray-600 rounded-xl p-6 text-center">
-                Drag & drop images
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    handleUpload(e.target.files[0]);
+                  }
+                }}
+              />
+
+              {uploading && <p className="text-sm text-gray-400">Uploading...</p>}
+
+              <div className="grid grid-cols-3 gap-3 mt-4">
+                {images.map((img, i) => (
+                  <img key={i} src={img} className="h-24 w-full object-cover rounded" />
+                ))}
               </div>
+
             </Card>
           )}
 
           {tab === 'seo' && (
             <Card title="SEO">
               <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Slug" />
-              <input className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Meta Title" />
-              <textarea className="p-3 rounded bg-black border border-gray-700 w-full" placeholder="Meta Description" />
             </Card>
           )}
 
