@@ -35,7 +35,13 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      await signup(values);
+      const res: any = await signup(values);
+
+      if (res?.requiresVerification) {
+        router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
+        return;
+      }
+
       router.push("/dashboard");
     } catch (err) {
       setError(getErrorMessage(err));
