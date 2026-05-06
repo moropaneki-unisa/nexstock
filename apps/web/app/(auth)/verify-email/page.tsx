@@ -2,18 +2,22 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const params = useSearchParams();
-  const email = params.get('email') || '';
+  const [email, setEmail] = useState('');
 
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setEmail(params.get('email') || '');
+  }, []);
 
   async function verify() {
     try {
