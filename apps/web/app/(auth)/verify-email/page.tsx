@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -18,7 +18,10 @@ export default function VerifyEmailPage() {
       setLoading(true);
       setError('');
 
-      await api.post('/auth/verify-email', { email, otp });
+      await apiFetch('/auth/verify-email', {
+        method: 'POST',
+        body: { email, otp },
+      });
 
       router.push('/onboarding');
     } catch (err: any) {
@@ -29,7 +32,11 @@ export default function VerifyEmailPage() {
   }
 
   async function resend() {
-    await api.post('/auth/resend-otp', { email });
+    await apiFetch('/auth/resend-otp', {
+      method: 'POST',
+      body: { email },
+    });
+
     alert('OTP sent again');
   }
 
