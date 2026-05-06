@@ -20,7 +20,10 @@ export default function VerifyEmailPage() {
 
       await apiFetch('/auth/verify-email', {
         method: 'POST',
-        body: { email, otp },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, otp }),
       });
 
       router.push('/onboarding');
@@ -34,7 +37,10 @@ export default function VerifyEmailPage() {
   async function resend() {
     await apiFetch('/auth/resend-otp', {
       method: 'POST',
-      body: { email },
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
     });
 
     alert('OTP sent again');
