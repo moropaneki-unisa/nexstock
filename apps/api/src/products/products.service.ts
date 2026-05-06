@@ -51,6 +51,43 @@ export class ProductsService {
     });
   }
 
+  // ✅ NEW: Upload + attach to product
+  async uploadAndAttachImage(
+    organizationId: string,
+    productId: string,
+    file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const uploadResult: any = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'products',
+          resource_type: 'image',
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        },
+      );
+
+      streamifier.createReadStream(file.buffer).pipe(stream);
+    });
+
+    const imageUrl = uploadResult.secure_url;
+
+    const product = await this.get(organizationId, productId);
+
+    return this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        images: [...(product.images || []), imageUrl],
+      },
+    });
+  }
+
   // ===============================
   // LIST
   // ===============================
@@ -210,9 +247,6 @@ export class ProductsService {
     return product;
   }
 
-  // ===============================
-  // UPDATE (restore)
-  // ===============================
   async update(organizationId: string, id: string, dto: UpdateProductDto) {
     return this.prisma.product.update({
       where: { id },
@@ -220,9 +254,6 @@ export class ProductsService {
     });
   }
 
-  // ===============================
-  // ADJUST INVENTORY (restore)
-  // ===============================
   async adjustInventory(
     organizationId: string,
     id: string,
@@ -238,9 +269,6 @@ export class ProductsService {
     });
   }
 
-  // ===============================
-  // SOFT DELETE (restore)
-  // ===============================
   async softDelete(organizationId: string, id: string) {
     return this.prisma.product.update({
       where: { id },
@@ -248,9 +276,6 @@ export class ProductsService {
     });
   }
 
-  // ===============================
-  // HELPERS (restore minimal impls)
-  // ===============================
   private generateSkuPrefix(name: string) {
     return (name || 'ORG').slice(0, 3).toUpperCase();
   }
