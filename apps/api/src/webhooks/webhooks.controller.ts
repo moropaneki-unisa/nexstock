@@ -1,18 +1,26 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { WebhookEvent } from '@prisma/client';
-import { IsArray, IsOptional, IsString, IsUrl } from 'class-validator';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { IsArray, IsIn, IsOptional, IsString, IsUrl } from 'class-validator';
 import { randomBytes } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { WebhookEventsService } from './webhook-events.service';
+import { WebhookEventsService, WebhookEventName } from './webhook-events.service';
+
+const WEBHOOK_EVENTS: WebhookEventName[] = [
+  'product_created',
+  'product_updated',
+  'inventory_updated',
+  'webhook_test',
+];
 
 class CreateWebhookDto {
   @IsUrl({ require_tld: false })
   url!: string;
 
   @IsArray()
-  events!: WebhookEvent[];
+  @IsIn(WEBHOOK_EVENTS, { each: true })
+  events!: WebhookEventName[];
 
   @IsOptional()
   @IsString()
@@ -38,11 +46,13 @@ export class WebhooksController {
 
   @Post()
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateWebhookDto) {
+    const events = this.normalizeEvents(dto.events);
+
     return this.prisma.webhook.create({
       data: {
         organizationId: user.organizationId,
         url: dto.url,
-        events: dto.events,
+        events: events as Prisma.InputJsonValue,
         secret: `whsec_${randomBytes(24).toString('hex')}`,
       },
     });
@@ -62,5 +72,16 @@ export class WebhooksController {
       where: { id, organizationId: user.organizationId },
       data: { isActive: false },
     });
+  }
+
+  private normalizeEvents(events: WebhookEventName[]) {
+    const unique = Array.from(new Set(events ?? []));
+    const invalid = unique.filter((event) => !WEBHOOK_EVENTS.includes(event));
+
+    if (invalid.length) {
+      throw new BadRequestException(`Unsupported webhook event(s): ${invalid.join(', ')}`);
+    }
+
+    return unique;
   }
 }
