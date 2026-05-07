@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CustomField, CustomFieldType, Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CustomField, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhookEventsService } from '../webhooks/webhook-events.service';
 import { v2 as cloudinary } from 'cloudinary';
@@ -27,20 +27,12 @@ export class ProductsService {
     private readonly webhooks: WebhookEventsService,
   ) {}
 
-  // ===============================
-  // IMAGE UPLOAD
-  // ===============================
   async uploadImage(file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
+    if (!file) throw new BadRequestException('No file uploaded');
 
     return new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'products',
-          resource_type: 'image',
-        },
+        { folder: 'products', resource_type: 'image' },
         (error, result) => {
           if (error) return reject(error);
           resolve(result);
@@ -51,22 +43,12 @@ export class ProductsService {
     });
   }
 
-  // ✅ NEW: Upload + attach to product
-  async uploadAndAttachImage(
-    organizationId: string,
-    productId: string,
-    file: Express.Multer.File,
-  ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
+  async uploadAndAttachImage(organizationId: string, productId: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
 
     const uploadResult: any = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'products',
-          resource_type: 'image',
-        },
+        { folder: 'products', resource_type: 'image' },
         (error, result) => {
           if (error) return reject(error);
           resolve(result);
@@ -76,22 +58,15 @@ export class ProductsService {
       streamifier.createReadStream(file.buffer).pipe(stream);
     });
 
-    const imageUrl = uploadResult.secure_url;
-
     const product = await this.get(organizationId, productId);
-    const images = this.asStringArray(product.images);
+    const images = [...this.asStringArray(product.images), uploadResult.secure_url].filter(Boolean);
 
     return this.prisma.product.update({
-      where: { id: productId },
-      data: {
-        images: [...images, imageUrl] as Prisma.InputJsonValue,
-      },
+      where: { id_organizationId: { id: productId, organizationId } },
+      data: { images: images as Prisma.InputJsonValue },
     });
   }
 
-  // ===============================
-  // LIST
-  // ===============================
   async list(organizationId: string, query: ListProductsDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
@@ -120,42 +95,22 @@ export class ProductsService {
         orderBy: { createdAt: 'desc' },
         include: {
           variants: true,
-          customFieldValues: {
-            include: { field: true },
-            orderBy: { field: { order: 'asc' } },
-          },
+          customFieldValues: { include: { field: true }, orderBy: { field: { order: 'asc' } } },
         },
       }),
       this.prisma.product.count({ where }),
     ]);
 
-    return {
-      items,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
+    return { items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
   }
 
-  // ===============================
-  // GET
-  // ===============================
   async get(organizationId: string, id: string) {
     const product = await this.prisma.product.findFirst({
       where: { id, organizationId, deletedAt: null },
       include: {
         variants: true,
-        inventoryLogs: {
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-        },
-        customFieldValues: {
-          include: { field: true },
-          orderBy: { field: { order: 'asc' } },
-        },
+        inventoryLogs: { orderBy: { createdAt: 'desc' }, take: 20 },
+        customFieldValues: { include: { field: true }, orderBy: { field: { order: 'asc' } } },
       },
     });
 
@@ -163,28 +118,17 @@ export class ProductsService {
     return product;
   }
 
-  // ===============================
-  // CREATE
-  // ===============================
   async create(organizationId: string, dto: CreateProductDto) {
     const quantity = dto.quantity ?? 0;
 
     const product = await this.prisma.$transaction(async (tx) => {
       const db = tx as PrismaTransaction;
-      const organization = await db.organization.findUnique({
-        where: { id: organizationId },
-      });
-
-      if (!organization) {
-        throw new NotFoundException('Organization not found');
-      }
+      const organization = await db.organization.findUnique({ where: { id: organizationId } });
+      if (!organization) throw new NotFoundException('Organization not found');
 
       const skuPrefix = organization.skuPrefix ?? this.generateSkuPrefix(organization.name);
       const sku = this.generateSku(skuPrefix, organization.nextSkuNumber);
-
-      const activeFields = await db.customField.findMany({
-        where: { organizationId, isActive: true },
-      });
+      const activeFields = await db.customField.findMany({ where: { organizationId, isActive: true } });
 
       this.validateCustomFieldValues(activeFields, dto.customFieldValues ?? []);
 
@@ -201,25 +145,12 @@ export class ProductsService {
           category: dto.category?.trim(),
           images: (dto.images ?? []) as Prisma.InputJsonValue,
           metadata: dto.metadata === undefined ? undefined : (dto.metadata as Prisma.InputJsonValue),
-          customFieldValues: {
-            create: this.buildCustomFieldValueCreates(activeFields, dto.customFieldValues ?? []),
-          },
+          customFieldValues: { create: this.buildCustomFieldValueCreates(activeFields, dto.customFieldValues ?? []) },
         },
-        include: {
-          customFieldValues: {
-            include: { field: true },
-            orderBy: { field: { order: 'asc' } },
-          },
-        },
+        include: { customFieldValues: { include: { field: true }, orderBy: { field: { order: 'asc' } } } },
       });
 
-      await db.organization.update({
-        where: { id: organizationId },
-        data: {
-          skuPrefix,
-          nextSkuNumber: { increment: 1 },
-        },
-      });
+      await db.organization.update({ where: { id: organizationId }, data: { skuPrefix, nextSkuNumber: { increment: 1 } } });
 
       if (quantity > 0) {
         await db.inventoryLog.create({
@@ -239,49 +170,38 @@ export class ProductsService {
       return created;
     }, PRODUCT_TRANSACTION_OPTIONS);
 
-    await this.webhooks.emit(organizationId, 'product_created', {
-      productId: product.id,
-      sku: product.sku,
-      name: product.name,
-    });
-
+    await this.webhooks.emit(organizationId, 'product_created', { productId: product.id, sku: product.sku, name: product.name });
     return product;
   }
 
   async update(organizationId: string, id: string, dto: UpdateProductDto) {
     await this.get(organizationId, id);
+    const data: Prisma.ProductUpdateInput = {};
 
-    const { customFieldValues: _customFieldValues, ...productData } = dto;
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.description !== undefined) data.description = dto.description?.trim();
+    if (dto.price !== undefined) data.price = dto.price;
+    if (dto.cost !== undefined) data.cost = dto.cost;
+    if (dto.quantity !== undefined) data.quantity = dto.quantity;
+    if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
+    if (dto.category !== undefined) data.category = dto.category?.trim();
+    if (dto.images !== undefined) data.images = dto.images as Prisma.InputJsonValue;
+    if (dto.metadata !== undefined) data.metadata = dto.metadata as Prisma.InputJsonValue;
 
-    return this.prisma.product.update({
-      where: { id },
-      data: {
-        ...productData,
-        ...(dto.images !== undefined ? { images: dto.images as Prisma.InputJsonValue } : {}),
-        ...(dto.metadata !== undefined ? { metadata: dto.metadata as Prisma.InputJsonValue } : {}),
-      },
-    });
+    const updated = await this.prisma.product.update({ where: { id_organizationId: { id, organizationId } }, data });
+    await this.webhooks.emit(organizationId, 'product_updated', { productId: updated.id, sku: updated.sku, name: updated.name });
+    return updated;
   }
 
-  async adjustInventory(
-    organizationId: string,
-    id: string,
-    dto: AdjustInventoryDto,
-  ) {
+  async adjustInventory(organizationId: string, id: string, dto: AdjustInventoryDto) {
     const product = await this.get(organizationId, id);
     const delta = Number(dto.delta ?? 0);
     const next = product.quantity + delta;
 
-    if (next < 0) {
-      throw new BadRequestException('Inventory quantity cannot be negative');
-    }
+    if (next < 0) throw new BadRequestException('Inventory quantity cannot be negative');
 
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.product.update({
-        where: { id },
-        data: { quantity: next },
-      });
-
+      const updated = await tx.product.update({ where: { id_organizationId: { id, organizationId } }, data: { quantity: next } });
       await tx.inventoryLog.create({
         data: {
           organizationId,
@@ -310,11 +230,7 @@ export class ProductsService {
 
   async softDelete(organizationId: string, id: string) {
     await this.get(organizationId, id);
-
-    return this.prisma.product.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    return this.prisma.product.update({ where: { id_organizationId: { id, organizationId } }, data: { deletedAt: new Date() } });
   }
 
   private generateSkuPrefix(name: string) {
