@@ -79,11 +79,12 @@ export class ProductsService {
     const imageUrl = uploadResult.secure_url;
 
     const product = await this.get(organizationId, productId);
+    const images = this.asStringArray(product.images);
 
     return this.prisma.product.update({
       where: { id: productId },
       data: {
-        images: [...(product.images || []), imageUrl],
+        images: [...images, imageUrl] as Prisma.InputJsonValue,
       },
     });
   }
@@ -103,9 +104,9 @@ export class ProductsService {
       ...(query.search
         ? {
             OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { sku: { contains: query.search, mode: 'insensitive' } },
-              { category: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search } },
+              { sku: { contains: query.search } },
+              { category: { contains: query.search } },
             ],
           }
         : {}),
@@ -198,7 +199,7 @@ export class ProductsService {
           quantity,
           lowStockLevel: dto.lowStockLevel ?? 5,
           category: dto.category?.trim(),
-          images: dto.images ?? [],
+          images: (dto.images ?? []) as Prisma.InputJsonValue,
           metadata: dto.metadata === undefined ? undefined : (dto.metadata as Prisma.InputJsonValue),
           customFieldValues: {
             create: this.buildCustomFieldValueCreates(activeFields, dto.customFieldValues ?? []),
@@ -248,9 +249,17 @@ export class ProductsService {
   }
 
   async update(organizationId: string, id: string, dto: UpdateProductDto) {
+    await this.get(organizationId, id);
+
+    const { customFieldValues: _customFieldValues, ...productData } = dto;
+
     return this.prisma.product.update({
       where: { id },
-      data: dto as any,
+      data: {
+        ...productData,
+        ...(dto.images !== undefined ? { images: dto.images as Prisma.InputJsonValue } : {}),
+        ...(dto.metadata !== undefined ? { metadata: dto.metadata as Prisma.InputJsonValue } : {}),
+      },
     });
   }
 
@@ -260,19 +269,51 @@ export class ProductsService {
     dto: AdjustInventoryDto,
   ) {
     const product = await this.get(organizationId, id);
-    const delta = Number((dto as any).quantity ?? 0);
-    const next = (product as any).quantity + delta;
+    const delta = Number(dto.delta ?? 0);
+    const next = product.quantity + delta;
 
-    return this.prisma.product.update({
-      where: { id },
-      data: { quantity: next } as any,
-    });
+    if (next < 0) {
+      throw new BadRequestException('Inventory quantity cannot be negative');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.product.update({
+        where: { id },
+        data: { quantity: next },
+      });
+
+      await tx.inventoryLog.create({
+        data: {
+          organizationId,
+          productId: id,
+          type: 'adjustment',
+          quantityBefore: product.quantity,
+          quantityAfter: next,
+          delta,
+          reason: dto.reason,
+          source: dto.source ?? 'app',
+          referenceId: dto.referenceId,
+        },
+      });
+
+      await this.webhooks.emit(organizationId, 'inventory_updated', {
+        productId: id,
+        sku: product.sku,
+        quantityBefore: product.quantity,
+        quantityAfter: next,
+        delta,
+      });
+
+      return updated;
+    }, PRODUCT_TRANSACTION_OPTIONS);
   }
 
   async softDelete(organizationId: string, id: string) {
+    await this.get(organizationId, id);
+
     return this.prisma.product.update({
       where: { id },
-      data: { deletedAt: new Date() } as any,
+      data: { deletedAt: new Date() },
     });
   }
 
@@ -290,5 +331,9 @@ export class ProductsService {
 
   private buildCustomFieldValueCreates(_fields: CustomField[], _values: ProductCustomFieldValueDto[]) {
     return [] as any[];
+  }
+
+  private asStringArray(value: Prisma.JsonValue | null): string[] {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   }
 }
