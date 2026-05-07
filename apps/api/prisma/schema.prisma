@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -203,7 +203,7 @@ model Product {
   quantity          Int                       @default(0)
   lowStockLevel     Int                       @default(5)
   category          String?
-  images            String[]                  @default([])
+  images            Json                      @default("[]")
   metadata          Json?
   status            ProductStatus             @default(active)
   deletedAt         DateTime?
@@ -229,7 +229,7 @@ model CustomField {
   label          String
   type           CustomFieldType
   required       Boolean                   @default(false)
-  options        String[]                  @default([])
+  options        Json                      @default("[]")
   defaultValue   Json?
   order          Int                       @default(0)
   isActive       Boolean                   @default(true)
@@ -308,7 +308,7 @@ model ApiKey {
   name           String
   keyHash        String       @unique
   keyPrefix      String
-  scopes         String[]     @default(["products:read", "products:write"])
+  scopes         Json         @default("[\"products:read\", \"products:write\"]")
   lastUsedAt     DateTime?
   revokedAt      DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -322,7 +322,7 @@ model Webhook {
   id             String            @id @default(uuid())
   url            String
   secret         String
-  events         WebhookEvent[]
+  events         Json              @default("[]")
   isActive       Boolean           @default(true)
   organizationId String
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
