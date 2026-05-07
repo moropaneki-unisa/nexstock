@@ -66,7 +66,7 @@ export class ProductsImportExportService {
         lowStockLevel: product.lowStockLevel,
         category: product.category ?? '',
         status: product.status,
-        images: product.images.join('|'),
+        images: this.asStringArray(product.images).join('|'),
       };
 
       for (const value of product.customFieldValues) {
@@ -264,7 +264,7 @@ export class ProductsImportExportService {
       lowStockLevel: Math.max(0, Math.round(this.numberValue(get('lowStockLevel', 'low stock level', 'low_stock_level')) || 5)),
       category: this.cleanString(get('category', 'category_name', 'category name')),
       status: this.statusValue(get('status')),
-      images: this.imagesValue(get('images', 'image', 'image url', 'image_url')),
+      images: this.imagesValue(get('images', 'image', 'image url', 'image_url')) as Prisma.InputJsonValue,
       metadata: { source: 'file_import' } as Prisma.InputJsonValue,
       customFieldValues,
     };
@@ -323,15 +323,12 @@ export class ProductsImportExportService {
   }
 
   private toXlsxSafeRows(headers: string[], rows: Record<string, unknown>[]) {
-    return rows.map((row) =>
-      Object.fromEntries(headers.map((header) => [header, this.xlsxSafeCellValue(row[header])])),
-    );
+    return rows.map((row) => Object.fromEntries(headers.map((header) => [header, this.xlsxSafeCellValue(row[header])])));
   }
 
   private xlsxSafeCellValue(value: unknown) {
     const text = this.stringifyCellValue(value);
     if (text.length <= XLSX_CELL_TEXT_LIMIT) return text;
-
     const maxValueLength = XLSX_CELL_TEXT_LIMIT - XLSX_TRUNCATION_SUFFIX.length;
     return `${text.slice(0, maxValueLength)}${XLSX_TRUNCATION_SUFFIX}`;
   }
@@ -382,6 +379,10 @@ export class ProductsImportExportService {
       .split(/[|,]/)
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  private asStringArray(value: Prisma.JsonValue | null): string[] {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   }
 
   private convertCustomValue(field: CustomField, value: unknown): Prisma.InputJsonValue {
