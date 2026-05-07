@@ -1,23 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import { WebhookEvent } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { createHmac } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+
+export type WebhookEventName =
+  | 'product_created'
+  | 'product_updated'
+  | 'inventory_updated'
+  | 'webhook_test';
 
 @Injectable()
 export class WebhookEventsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async emit(organizationId: string, event: WebhookEvent, payload: unknown) {
+  async emit(organizationId: string, event: WebhookEventName, payload: unknown) {
     const hooks = await this.prisma.webhook.findMany({
-      where: { organizationId, isActive: true, events: { has: event } },
+      where: { organizationId, isActive: true },
     });
 
-    for (const hook of hooks) {
+    for (const hook of hooks.filter((hook) => this.hasEvent(hook.events, event))) {
       const delivery = await this.prisma.webhookDelivery.create({
         data: {
           webhookId: hook.id,
           event,
-          payload: payload as object,
+          payload: payload as Prisma.InputJsonValue,
         },
       });
 
@@ -77,5 +83,9 @@ export class WebhookEventsService {
         },
       });
     }
+  }
+
+  private hasEvent(events: Prisma.JsonValue | null, event: WebhookEventName) {
+    return Array.isArray(events) && events.includes(event);
   }
 }
