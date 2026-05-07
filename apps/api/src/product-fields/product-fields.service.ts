@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CustomFieldType } from '@prisma/client';
+import { CustomFieldType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductFieldDto, UpdateProductFieldDto } from './dto';
 
@@ -25,10 +25,9 @@ export class ProductFieldsService {
       throw new BadRequestException('Field label must generate a valid key');
     }
 
-    if (
-      dto.type === CustomFieldType.select &&
-      (!dto.options || dto.options.length === 0)
-    ) {
+    const options = this.asStringArray(dto.options);
+
+    if (dto.type === CustomFieldType.select && options.length === 0) {
       throw new BadRequestException('Select fields require at least one option');
     }
 
@@ -52,8 +51,8 @@ export class ProductFieldsService {
         key,
         type: dto.type,
         required: dto.required ?? false,
-        options: dto.options ?? [],
-        defaultValue: dto.defaultValue as any,
+        options: options as Prisma.InputJsonValue,
+        defaultValue: dto.defaultValue as Prisma.InputJsonValue,
         order: dto.order ?? 0,
         isActive: dto.isActive ?? true,
       },
@@ -101,7 +100,7 @@ export class ProductFieldsService {
     }
 
     const nextType = dto.type ?? existing.type;
-    const nextOptions = dto.options ?? existing.options;
+    const nextOptions = dto.options === undefined ? this.asStringArray(existing.options) : this.asStringArray(dto.options);
 
     if (nextType === CustomFieldType.select && nextOptions.length === 0) {
       throw new BadRequestException('Select fields require at least one option');
@@ -114,8 +113,8 @@ export class ProductFieldsService {
         key: dto.label ? nextKey : undefined,
         type: dto.type,
         required: dto.required,
-        options: dto.options,
-        defaultValue: dto.defaultValue as any,
+        options: dto.options === undefined ? undefined : (nextOptions as Prisma.InputJsonValue),
+        defaultValue: dto.defaultValue === undefined ? undefined : (dto.defaultValue as Prisma.InputJsonValue),
         order: dto.order,
         isActive: dto.isActive,
       },
@@ -145,5 +144,9 @@ export class ProductFieldsService {
       .trim()
       .replace(/\s+/g, '_')
       .replace(/[^a-zA-Z0-9_]/g, '');
+  }
+
+  private asStringArray(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
   }
 }
