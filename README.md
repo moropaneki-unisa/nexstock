@@ -3,7 +3,7 @@
 This is a cleaned full-stack InventoryHub MVP:
 
 - NestJS API
-- Prisma + PostgreSQL
+- Prisma + MySQL
 - JWT auth with refresh cookies
 - Product CRUD
 - Inventory adjustments and logs
@@ -15,7 +15,7 @@ This is a cleaned full-stack InventoryHub MVP:
 ## Requirements
 
 - Node.js 20+
-- Online PostgreSQL database, such as Neon, Supabase, Railway, Render, or RDS
+- MySQL 8+ database
 
 Docker and Redis are not required for this MVP build.
 
@@ -35,10 +35,10 @@ Copy:
 cp apps/api/.env.example apps/api/.env
 ```
 
-Set your online database URL:
+Set your MySQL database URL:
 
 ```env
-DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require"
+DATABASE_URL="mysql://USER:PASSWORD@HOST:3306/DATABASE"
 JWT_ACCESS_SECRET="replace-with-a-long-random-string"
 JWT_REFRESH_SECRET="replace-with-another-long-random-string"
 FRONTEND_URL="http://localhost:3000"
@@ -46,8 +46,6 @@ PORT=4000
 ```
 
 ## 3. Push schema to your database
-
-For development with an online database:
 
 ```bash
 cd apps/api
@@ -58,7 +56,7 @@ npx prisma db push
 For production migrations, use:
 
 ```bash
-npx prisma migrate dev --name init
+npx prisma migrate dev --name init_mysql
 npx prisma migrate deploy
 ```
 
@@ -127,6 +125,13 @@ POST   /api/webhooks/:id/test
 GET    /api/v1/products
 POST   /api/v1/products
 ```
+
+## MySQL Migration Notes
+
+- PostgreSQL array fields were converted to JSON fields for MySQL compatibility.
+- Existing PostgreSQL data should be exported before switching providers.
+- Run a fresh Prisma migration against MySQL before deploying.
+- Recommended providers: PlanetScale, Railway MySQL, Neon MySQL, AWS RDS MySQL.
 
 ## Notes
 
