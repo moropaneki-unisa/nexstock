@@ -11,7 +11,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      'https://product-hub-web.vercel.app',
+      'www.nexstore.co.za',
       'http://localhost:3000',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -28,7 +28,7 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT || 4000, '0.0.0.0');
+  await app.listen(process.env.PORT);
 }
 
 bootstrap();
