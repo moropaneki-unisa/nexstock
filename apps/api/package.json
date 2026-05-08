@@ -1,5 +1,5 @@
 {
-  "name": "@nexstock/api",
+  "name": "@nexstock/apps/api",
   "version": "1.0.0",
   "private": true,
   "scripts": {
