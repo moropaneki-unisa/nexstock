@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build --webpack",
+    "build": "rm -f tsconfig.json && next build --webpack",
     "start": "node server.js",
     "lint": "eslint"
   },
