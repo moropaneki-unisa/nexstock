@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://product-hub-869g.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.nexstock.co.za";
 
 let isRefreshing = false;
 let pendingRequests: Array<() => void> = [];
