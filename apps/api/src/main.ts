@@ -11,7 +11,8 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      'www.nexstore.co.za',
+      'https://www.nexstock.co.za',
+      'https://nexstock.co.za',
       'http://localhost:3000',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -28,7 +29,8 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(process.env.PORT);
+  const port = process.env.PORT || 3000;
+  await app.listen(port);
 }
 
 bootstrap();
