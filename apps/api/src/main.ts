@@ -11,6 +11,8 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
+      'https://nexstock.co.za',
+      'https://www.nexstock.co.za',
       'https://product-hub-web.vercel.app',
       'http://localhost:3000',
     ],
