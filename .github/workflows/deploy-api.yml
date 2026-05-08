@@ -33,4 +33,5 @@ jobs:
             npm run build
             pm2 restart nexstock-api --update-env
             pm2 save
+            sleep 10
             curl -f http://localhost:4000/api/health
