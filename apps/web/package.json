@@ -1,11 +1,11 @@
 {
-  "name": "@inventoryhub/web",
+  "name": "@nexstock/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
+    "build": "next build --webpack",
+    "start": "node server.js",
     "lint": "eslint"
   },
   "dependencies": {
@@ -24,9 +24,9 @@
     "react-dom": "latest",
     "react-hook-form": "latest",
     "tailwind-merge": "latest",
+    "tw-animate-css": "latest",
     "xlsx": "^0.18.5",
     "zod": "latest",
-
     "tailwindcss": "latest",
     "@tailwindcss/postcss": "latest",
     "postcss": "latest"
@@ -37,7 +37,6 @@
     "@types/react-dom": "latest",
     "eslint": "latest",
     "eslint-config-next": "latest",
-    "tw-animate-css": "latest",
     "typescript": "latest"
   }
 }
