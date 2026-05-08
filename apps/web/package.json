@@ -16,6 +16,9 @@
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
     "class-variance-authority": "latest",
     "clsx": "latest",
     "lucide-react": "latest",
@@ -25,6 +28,7 @@
     "react-hook-form": "latest",
     "tailwind-merge": "latest",
     "tw-animate-css": "latest",
+    "typescript": "latest",
     "xlsx": "^0.18.5",
     "zod": "latest",
     "tailwindcss": "latest",
@@ -32,11 +36,7 @@
     "postcss": "latest"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
     "eslint": "latest",
-    "eslint-config-next": "latest",
-    "typescript": "latest"
+    "eslint-config-next": "latest"
   }
 }
