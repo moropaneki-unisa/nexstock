@@ -7,6 +7,7 @@ on:
     paths:
       - 'apps/api/**'
       - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -19,6 +20,9 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          script_stop: true
+          command_timeout: 10m
           script: |
             set -e
             cd /var/www/nexstock
@@ -29,3 +33,4 @@ jobs:
             npm run build
             pm2 restart nexstock-api --update-env
             pm2 save
+            curl -f http://localhost:4000/api/health
