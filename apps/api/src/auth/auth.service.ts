@@ -4,7 +4,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { SignupDto } from './dto';
+import { AcceptInviteDto, SignupDto } from './dto';
 import { EmailService } from '../email/email.service';
 import { requireSecret } from '../common/config/env';
 
@@ -19,6 +19,10 @@ function generateOtp() {
 
 function hashOtp(otp: string) {
   return createHash('sha256').update(otp).digest('hex');
+}
+
+function hashInviteToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
 }
 
 @Injectable()
@@ -93,6 +97,45 @@ export class AuthService {
     return this.issueTokens(updated.id, updated.email, org.id, 'admin', meta);
   }
 
+  async acceptInvite(dto: AcceptInviteDto, meta: TokenMeta) {
+    const email = dto.email.toLowerCase().trim();
+    const tokenHash = hashInviteToken(dto.token.trim());
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { memberships: { orderBy: { createdAt: 'asc' } } },
+    });
+
+    if (!user || !user.verificationOtpHash) {
+      throw new UnauthorizedException('Invalid or expired invitation');
+    }
+
+    if (user.verificationOtpHash !== tokenHash) {
+      throw new UnauthorizedException('Invalid or expired invitation');
+    }
+
+    if (!user.verificationOtpExpiry || user.verificationOtpExpiry < new Date()) {
+      throw new UnauthorizedException('Invitation expired. Ask an admin to send a new invite.');
+    }
+
+    const membership = user.memberships[0];
+    if (!membership) throw new UnauthorizedException('Invitation has no organization access');
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        name: dto.name?.trim() || user.name || email.split('@')[0],
+        emailVerifiedAt: user.emailVerifiedAt || new Date(),
+        verificationOtpHash: null,
+        verificationOtpExpiry: null,
+      },
+    });
+
+    return this.issueTokens(updated.id, updated.email, membership.organizationId, membership.role, meta);
+  }
+
   async resendOtp(emailInput: string) {
     const email = emailInput.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -122,7 +165,7 @@ export class AuthService {
       include: { memberships: { orderBy: { createdAt: 'asc' } } },
     });
 
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user || user.passwordHash === 'temporary' || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
