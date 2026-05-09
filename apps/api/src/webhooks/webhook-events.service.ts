@@ -49,9 +49,9 @@ export class WebhookEventsService {
         body,
         headers: {
           'content-type': 'application/json',
-          'x-inventoryhub-timestamp': timestamp,
-          'x-inventoryhub-signature': `v1=${signature}`,
-          'x-inventoryhub-delivery-id': delivery.id,
+          'x-nexstock-timestamp': timestamp,
+          'x-nexstock-signature': `v1=${signature}`,
+          'x-nexstock-delivery-id': delivery.id,
         },
         signal: AbortSignal.timeout(10000),
       });

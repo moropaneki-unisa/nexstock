@@ -83,14 +83,14 @@ export class ProductsImportExportService {
       return {
         buffer: XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer,
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        fileName: `inventoryhub-products-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        fileName: `nexstock-products-${new Date().toISOString().slice(0, 10)}.xlsx`,
       };
     }
 
     return {
       buffer: Buffer.from(this.toCsv(headers, rows), 'utf8'),
       contentType: 'text/csv; charset=utf-8',
-      fileName: `inventoryhub-products-${new Date().toISOString().slice(0, 10)}.csv`,
+      fileName: `nexstock-products-${new Date().toISOString().slice(0, 10)}.csv`,
     };
   }
 

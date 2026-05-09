@@ -1,23 +1,24 @@
-# InventoryHub Product-Ready MVP
+# NexStock — Connect. Manage. Grow.
 
-This is a cleaned full-stack InventoryHub MVP:
+NexStock is a SaaS platform for product catalog management, inventory operations,
+integrations, APIs, and webhooks.
 
-- NestJS API
-- Prisma + PostgreSQL
-- JWT auth with refresh cookies
-- Product CRUD
-- Inventory adjustments and logs
-- API keys and public `/api/v1/products` endpoints
-- Webhooks without requiring Redis locally
-- Next.js App Router frontend
-- shadcn-style local UI components
+## Stack
+
+- **Frontend:** Next.js 15 (App Router), Tailwind CSS, shadcn-style local UI
+- **Backend:** NestJS 10
+- **Database:** Prisma + PostgreSQL
+- **Auth:** JWT access tokens + httpOnly refresh cookies + email OTP verification
+- **Email:** Resend
+- **Storage:** Cloudinary (product images)
+- **Billing:** Paystack
 
 ## Requirements
 
 - Node.js 20+
-- Online PostgreSQL database, such as Neon, Supabase, Railway, Render, or RDS
+- Hosted PostgreSQL (Neon, Supabase, Railway, Render, or RDS)
 
-Docker and Redis are not required for this MVP build.
+Docker and Redis are not required.
 
 ## 1. Install dependencies
 
@@ -29,37 +30,38 @@ npm install
 
 ## 2. Configure API environment
 
-Copy:
-
 ```bash
 cp apps/api/.env.example apps/api/.env
 ```
 
-Set your online database URL:
+Required environment variables (production fails fast if missing):
 
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?sslmode=require"
 JWT_ACCESS_SECRET="replace-with-a-long-random-string"
 JWT_REFRESH_SECRET="replace-with-another-long-random-string"
+```
+
+Recommended for full functionality:
+
+```env
+RESEND_API_KEY="re_..."
+EMAIL_FROM="onboarding@nexstock.co.za"
 FRONTEND_URL="http://localhost:3000"
+CLOUDINARY_URL="cloudinary://..."
+PAYSTACK_SECRET_KEY="sk_..."
+CORS_ORIGINS="https://nexstock.co.za,https://www.nexstock.co.za,http://localhost:3000"
 PORT=4000
 ```
 
-## 3. Push schema to your database
-
-For development with an online database:
+## 3. Apply database schema
 
 ```bash
 cd apps/api
 npx prisma generate
-npx prisma db push
-```
-
-For production migrations, use:
-
-```bash
-npx prisma migrate dev --name init
-npx prisma migrate deploy
+npx prisma migrate deploy   # production
+# or
+npx prisma db push          # development
 ```
 
 ## 4. Run the API
@@ -69,37 +71,24 @@ cd apps/api
 npm run start:dev
 ```
 
-API runs at:
-
-```txt
-http://localhost:4000/api
-```
-
-Health check:
-
-```txt
-GET http://localhost:4000/api/health
-```
+API base URL: `http://localhost:4000/api`
+Health check: `GET http://localhost:4000/api/health`
 
 ## 5. Run the frontend
 
-Copy:
-
 ```bash
 cp apps/web/.env.example apps/web/.env.local
-```
-
-Then:
-
-```bash
 cd apps/web
 npm run dev
 ```
 
-Frontend runs at:
+Frontend: `http://localhost:3000`
 
-```txt
-http://localhost:3000
+## Build for production
+
+```bash
+npm run build      # builds api and web
+npm run migrate    # applies pending Prisma migrations
 ```
 
 ## Important API routes
@@ -107,29 +96,46 @@ http://localhost:3000
 ```txt
 POST   /api/auth/signup
 POST   /api/auth/login
-POST   /api/auth/refresh
+POST   /api/auth/verify-email
+POST   /api/auth/resend-otp
 POST   /api/auth/logout
+
 GET    /api/dashboard
+GET    /api/organization
+PATCH  /api/organization
+
 GET    /api/products
 POST   /api/products
 GET    /api/products/:id
 PATCH  /api/products/:id
 DELETE /api/products/:id
 POST   /api/products/:id/adjust
+POST   /api/products/:id/upload-image
+
 GET    /api/inventory/logs
+
 GET    /api/api-keys
 POST   /api/api-keys
 DELETE /api/api-keys/:id
+
 GET    /api/webhooks
 POST   /api/webhooks
 DELETE /api/webhooks/:id
 POST   /api/webhooks/:id/test
-GET    /api/v1/products
-POST   /api/v1/products
+
+POST   /api/billing/paystack/initialize
+GET    /api/billing/paystack/verify/:reference
+
+GET    /api/v1/products      # public, API key authenticated
+POST   /api/v1/products      # public, API key authenticated
 ```
 
-## Notes
+## Security notes
 
-- Webhooks deliver directly from the API process in this MVP so Redis is not required.
-- OAuth integration modules are intentionally omitted from this build until the core frontend and API are stable.
 - All tenant-owned records are scoped by `organizationId` server-side.
+- Auth endpoints are rate limited (in-memory) per-IP.
+- Global exception filter hides stack traces and standardizes error shape.
+- Security headers (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
+  are applied to every response.
+- Webhook deliveries are signed with HMAC-SHA256 in `x-nexstock-signature`.
+- API keys are hashed at rest; the secret is shown only at creation time.

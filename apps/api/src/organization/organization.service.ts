@@ -1,6 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Plan, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+
+function requireAdmin(user: CurrentUserPayload) {
+  if (user.role !== 'admin') {
+    throw new ForbiddenException('Admin role required');
+  }
+}
 
 const roleDefinitions: Record<UserRole, { description: string; permissions: string[] }> = {
   admin: {
@@ -17,7 +24,7 @@ const roleDefinitions: Record<UserRole, { description: string; permissions: stri
 export class OrganizationService {
   constructor(private readonly db: PrismaService) {}
 
-  async getOrganization(user: any) {
+  async getOrganization(user: CurrentUserPayload) {
     const org = await this.db.organization.findUnique({
       where: { id: user.organizationId },
       include: {
@@ -69,7 +76,8 @@ export class OrganizationService {
     };
   }
 
-  async updateOrganization(user: any, dto: { name?: string; slug?: string; skuPrefix?: string; industry?: string; onboardingComplete?: boolean }) {
+  async updateOrganization(user: CurrentUserPayload, dto: { name?: string; slug?: string; skuPrefix?: string; industry?: string; onboardingComplete?: boolean }) {
+    requireAdmin(user);
     const data: { name?: string; slug?: string; skuPrefix?: string | null; industry?: string | null; onboardingComplete?: boolean } = {};
     if (dto.name !== undefined) {
       const name = dto.name.trim();
@@ -87,7 +95,8 @@ export class OrganizationService {
     return this.db.organization.update({ where: { id: user.organizationId }, data });
   }
 
-  async inviteUser(user: any, emailInput: string, roleInput: string) {
+  async inviteUser(user: CurrentUserPayload, emailInput: string, roleInput: string) {
+    requireAdmin(user);
     const email = emailInput?.toLowerCase().trim();
     if (!email) throw new BadRequestException('Email is required');
     const role = this.normalizeRole(roleInput);
@@ -108,21 +117,30 @@ export class OrganizationService {
     return { message: 'User added to organization', userId: existing.id };
   }
 
-  async updateMemberRole(user: any, memberId: string, roleInput: string) {
+  async updateMemberRole(user: CurrentUserPayload, memberId: string, roleInput: string) {
+    requireAdmin(user);
+    if (memberId === user.id) {
+      throw new BadRequestException('You cannot change your own role');
+    }
     const role = this.normalizeRole(roleInput);
     const membership = await this.db.membership.findFirst({ where: { userId: memberId, organizationId: user.organizationId } });
     if (!membership) throw new NotFoundException('Member not found');
     return this.db.membership.update({ where: { id: membership.id }, data: { role } });
   }
 
-  async removeMember(user: any, memberId: string) {
+  async removeMember(user: CurrentUserPayload, memberId: string) {
+    requireAdmin(user);
+    if (memberId === user.id) {
+      throw new BadRequestException('You cannot remove yourself from the organization');
+    }
     const membership = await this.db.membership.findFirst({ where: { userId: memberId, organizationId: user.organizationId } });
     if (!membership) throw new NotFoundException('Member not found');
     await this.db.membership.delete({ where: { id: membership.id } });
     return { ok: true };
   }
 
-  async updatePlan(user: any, planInput: string) {
+  async updatePlan(user: CurrentUserPayload, planInput: string) {
+    requireAdmin(user);
     if (!['free', 'pro', 'business'].includes(planInput)) throw new BadRequestException('Invalid plan');
     return this.db.organization.update({ where: { id: user.organizationId }, data: { plan: planInput as Plan } });
   }

@@ -112,7 +112,7 @@ export const connectors: ConnectorDefinition[] = [
       { key: "purchase_rate", label: "Purchase rate / cost", sample: "12.50" },
       { key: "stock_on_hand", label: "Stock on hand", sample: "42" },
       { key: "category_name", label: "Category", sample: "Apparel" },
-      { key: "brand", label: "Brand", sample: "InventoryHub" },
+      { key: "brand", label: "Brand", sample: "NexStock" },
       { key: "upc", label: "UPC", sample: "012345678905" },
     ],
   },
@@ -199,7 +199,7 @@ export const connectors: ConnectorDefinition[] = [
       { key: "id", label: "Product ID", sample: "gid://shopify/Product/1" },
       { key: "title", label: "Title", sample: "Classic T-Shirt", required: true },
       { key: "body_html", label: "Description HTML", sample: "<p>Cotton shirt</p>" },
-      { key: "vendor", label: "Vendor", sample: "InventoryHub" },
+      { key: "vendor", label: "Vendor", sample: "NexStock" },
       { key: "product_type", label: "Product type", sample: "Apparel" },
       { key: "variants.sku", label: "Variant SKU", sample: "TSHIRT-001", required: true },
       { key: "variants.price", label: "Variant price", sample: "29.99" },
@@ -278,7 +278,7 @@ export function createHistory(action: string, status: string, detail: string) {
 }
 
 export function storageKey(source: IntegrationSource) {
-  return `inventoryhub_integration_${source}`;
+  return `nexstock_integration_${source}`;
 }
 
 export function normalizeSource(value: string): IntegrationSource | null {

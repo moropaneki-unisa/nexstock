@@ -52,7 +52,7 @@ export class WebhooksController {
   async test(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     const hook = await this.prisma.webhook.findFirst({ where: { id, organizationId: user.organizationId } });
     if (!hook) return { ok: false, message: 'Webhook not found' };
-    await this.webhookEvents.emit(user.organizationId, 'webhook_test', { message: 'InventoryHub webhook test' });
+    await this.webhookEvents.emit(user.organizationId, 'webhook_test', { message: 'NexStock webhook test' });
     return { ok: true };
   }
 

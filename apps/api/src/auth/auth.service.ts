@@ -6,6 +6,7 @@ import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SignupDto } from './dto';
 import { EmailService } from '../email/email.service';
+import { requireSecret } from '../common/config/env';
 
 export type TokenMeta = { ip?: string; ua?: string };
 
@@ -153,7 +154,7 @@ export class AuthService {
   ) {
     const payload = { sub: userId, email, organizationId, role };
     const accessToken = await this.jwt.signAsync(payload, {
-      secret: process.env.JWT_ACCESS_SECRET ?? 'dev-access-secret-change-me',
+      secret: requireSecret('JWT_ACCESS_SECRET', 'dev-access-secret-change-me'),
       expiresIn: '15m',
     });
 

@@ -1,19 +1,26 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 @Controller('billing/paystack')
+@UseGuards(JwtAuthGuard)
 export class BillingController {
   constructor(private readonly service: BillingService) {}
 
-  @UseGuards(JwtAuthGuard)
   @Post('initialize')
-  initialize(@Req() req: any, @Body() body: { plan: string }) {
-    return this.service.initialize(req.user, body.plan);
+  initialize(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { plan: string },
+  ) {
+    return this.service.initialize(user, body.plan);
   }
 
   @Get('verify/:reference')
-  verify(@Param('reference') reference: string) {
-    return this.service.verify(reference);
+  verify(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('reference') reference: string,
+  ) {
+    return this.service.verify(user, reference);
   }
 }

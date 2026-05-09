@@ -8,7 +8,16 @@ export class EmailService {
 
   async sendOtpEmail(email: string, otp: string, expiryMinutes = 5) {
     if (!process.env.RESEND_API_KEY) {
-      this.logger.warn(`RESEND_API_KEY missing. OTP for ${email}: ${otp}`);
+      const isProd = process.env.NODE_ENV === 'production';
+      if (isProd) {
+        this.logger.error(
+          `RESEND_API_KEY missing. Cannot send OTP to ${email}. Email verification will fail.`,
+        );
+      } else {
+        this.logger.warn(
+          `RESEND_API_KEY missing (dev fallback). OTP for ${email}: ${otp}`,
+        );
+      }
       return;
     }
 

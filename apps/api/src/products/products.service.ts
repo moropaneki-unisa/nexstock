@@ -248,10 +248,37 @@ export class ProductsService {
   }
 
   async update(organizationId: string, id: string, dto: UpdateProductDto) {
-    return this.prisma.product.update({
+    await this.get(organizationId, id);
+
+    const data: Prisma.ProductUpdateInput = {};
+    if (dto.name !== undefined) data.name = dto.name.trim();
+    if (dto.description !== undefined) data.description = dto.description?.trim();
+    if (dto.price !== undefined) data.price = dto.price;
+    if (dto.cost !== undefined) data.cost = dto.cost;
+    if (dto.quantity !== undefined) data.quantity = dto.quantity;
+    if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
+    if (dto.category !== undefined) data.category = dto.category?.trim();
+    if (dto.images !== undefined) data.images = dto.images;
+    if (dto.metadata !== undefined) {
+      data.metadata = dto.metadata as Prisma.InputJsonValue;
+    }
+
+    const updated = await this.prisma.product.update({
       where: { id },
-      data: dto as any,
+      data,
+      include: {
+        variants: true,
+        customFieldValues: { include: { field: true }, orderBy: { field: { order: 'asc' } } },
+      },
     });
+
+    await this.webhooks.emit(organizationId, 'product_updated', {
+      productId: updated.id,
+      sku: updated.sku,
+      name: updated.name,
+    });
+
+    return updated;
   }
 
   async adjustInventory(
@@ -260,20 +287,54 @@ export class ProductsService {
     dto: AdjustInventoryDto,
   ) {
     const product = await this.get(organizationId, id);
-    const delta = Number((dto as any).quantity ?? 0);
-    const next = (product as any).quantity + delta;
+    const delta = Number(dto.delta ?? 0);
+    if (!Number.isFinite(delta) || delta === 0) {
+      throw new BadRequestException('Inventory delta must be a non-zero integer');
+    }
+    const before = product.quantity;
+    const after = before + delta;
+    if (after < 0) {
+      throw new BadRequestException('Inventory cannot go below zero');
+    }
 
-    return this.prisma.product.update({
-      where: { id },
-      data: { quantity: next } as any,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.product.update({
+        where: { id },
+        data: { quantity: after },
+      });
+      await tx.inventoryLog.create({
+        data: {
+          organizationId,
+          productId: id,
+          type: 'manual',
+          quantityBefore: before,
+          quantityAfter: after,
+          delta,
+          reason: dto.reason?.trim(),
+          source: dto.source?.trim() ?? 'app',
+          referenceId: dto.referenceId?.trim(),
+        },
+      });
+      return next;
     });
+
+    await this.webhooks.emit(organizationId, 'inventory_updated', {
+      productId: updated.id,
+      sku: updated.sku,
+      delta,
+      quantity: after,
+    });
+
+    return updated;
   }
 
   async softDelete(organizationId: string, id: string) {
-    return this.prisma.product.update({
+    await this.get(organizationId, id);
+    await this.prisma.product.update({
       where: { id },
-      data: { deletedAt: new Date() } as any,
+      data: { deletedAt: new Date() },
     });
+    return { ok: true, id };
   }
 
   private generateSkuPrefix(name: string) {

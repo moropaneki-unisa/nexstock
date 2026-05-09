@@ -545,7 +545,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
             <p className="mt-2 text-sm leading-6 text-white/70">
               {isEdit
                 ? "Changes are saved through the API and keep the product ready for integrations, imports, and customer-facing views."
-                : "InventoryHub will generate the SKU, create the product, and log the starting inventory value."}
+                : "NexStock will generate the SKU, create the product, and log the starting inventory value."}
             </p>
             <div className="mt-5 grid gap-2 text-sm">
               <SideFact label="Margin" value={calculateMargin(price, cost)} />

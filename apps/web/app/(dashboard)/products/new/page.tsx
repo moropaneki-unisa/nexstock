@@ -18,7 +18,7 @@ export default function NewProductPage() {
       <PageHeader
         eyebrow="Products"
         title="Create product"
-        description="Add a clean product record with pricing, stock, images, and custom schema values. InventoryHub will generate the SKU and create the initial stock log."
+        description="Add a clean product record with pricing, stock, images, and custom schema values. NexStock will generate the SKU and create the initial stock log."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">

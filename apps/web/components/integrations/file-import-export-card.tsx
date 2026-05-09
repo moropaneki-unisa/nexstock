@@ -43,7 +43,7 @@ export function FileImportExportCard() {
 
       const blob = await response.blob();
       const disposition = response.headers.get("content-disposition") ?? "";
-      const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `inventoryhub-products.${format}`;
+      const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `nexstock-products.${format}`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;

@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { Throttle, ThrottleGuard } from '../common/guards/throttle.guard';
 import { LoginDto, SignupDto } from './dto';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -61,15 +62,18 @@ function getRefreshToken(request: Request, body?: { refreshToken?: string }) {
 }
 
 @Controller('auth')
+@UseGuards(ThrottleGuard)
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('signup')
+  @Throttle(10, 60_000)
   async signup(@Body() dto: SignupDto) {
     return this.auth.signup(dto);
   }
 
   @Post('login')
+  @Throttle(10, 60_000)
   async login(@Body() dto: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
     const tokens = await this.auth.login(dto.email, dto.password, getRequestMeta(request));
     setAuthCookies(response, tokens);
@@ -77,6 +81,7 @@ export class AuthController {
   }
 
   @Post('verify-email')
+  @Throttle(15, 60_000)
   async verifyEmail(
     @Body() body: { email: string; otp: string },
     @Req() request: Request,
@@ -88,6 +93,7 @@ export class AuthController {
   }
 
   @Post('resend-otp')
+  @Throttle(5, 60_000)
   async resend(@Body() body: { email: string }) {
     return this.auth.resendOtp(body.email);
   }

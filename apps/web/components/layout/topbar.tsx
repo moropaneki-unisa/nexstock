@@ -56,7 +56,7 @@ export function Topbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const route = routeCopy.find((item) => item.match(pathname)) ?? { title: "Workspace", description: "InventoryHub operations" };
+  const route = routeCopy.find((item) => item.match(pathname)) ?? { title: "Workspace", description: "NexStock operations" };
 
   async function handleLogout() {
     await logout();

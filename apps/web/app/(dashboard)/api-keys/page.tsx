@@ -95,7 +95,7 @@ export default function ApiKeysPage() {
       <PageHeader
         eyebrow="Developer platform"
         title="API keys"
-        description="Create organization-scoped keys for the public InventoryHub API. Keys are hashed in the backend and the secret is only shown once."
+        description="Create organization-scoped keys for the public NexStock API. Keys are hashed in the backend and the secret is only shown once."
         actions={
           <Button onClick={createKey} disabled={creating}>
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

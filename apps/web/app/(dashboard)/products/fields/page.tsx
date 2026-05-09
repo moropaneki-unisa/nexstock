@@ -10,7 +10,7 @@ export default function ProductFieldsPage() {
       <PageHeader
         eyebrow="Product setup"
         title="Product fields"
-        description="Manage one unified product field system: default InventoryHub fields plus additional business fields for imports, integrations, APIs, and product forms."
+        description="Manage one unified product field system: default NexStock fields plus additional business fields for imports, integrations, APIs, and product forms."
         actions={
           <Button disabled variant="outline" className="rounded-xl bg-background/70">
             <Plus className="h-4 w-4" />

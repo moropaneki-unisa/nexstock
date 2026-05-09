@@ -101,7 +101,7 @@ export default function WebhooksPage() {
       <PageHeader
         eyebrow="Developer platform"
         title="Webhooks"
-        description="Register webhook endpoints for product and inventory events so external apps stay synchronized with InventoryHub."
+        description="Register webhook endpoints for product and inventory events so external apps stay synchronized with NexStock."
         actions={
           <Button onClick={createHook} disabled={creating}>
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

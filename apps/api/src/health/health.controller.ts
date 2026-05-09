@@ -6,7 +6,7 @@ export class HealthController {
   health() {
     return {
       ok: true,
-      service: 'inventoryhub-api',
+      service: 'nexstock-api',
       message: 'Everything runs well',
       status: 'healthy',
       timestamp: new Date().toISOString(),
