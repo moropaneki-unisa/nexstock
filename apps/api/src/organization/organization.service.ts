@@ -1,12 +1,31 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Plan, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { EmailService } from '../email/email.service';
+
+const INVITE_EXPIRY_DAYS = 7;
+const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
 function requireAdmin(user: CurrentUserPayload) {
   if (user.role !== 'admin') {
     throw new ForbiddenException('Admin role required');
   }
+}
+
+function frontendUrl(path = '') {
+  const base = process.env.FRONTEND_URL || 'https://www.nexstock.co.za';
+  return `${base.replace(/\/$/, '')}${path}`;
+}
+
+function hashInviteToken(token: string) {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function generateInviteToken() {
+  return randomBytes(32).toString('hex');
 }
 
 const roleDefinitions: Record<UserRole, { description: string; permissions: string[] }> = {
@@ -22,7 +41,10 @@ const roleDefinitions: Record<UserRole, { description: string; permissions: stri
 
 @Injectable()
 export class OrganizationService {
-  constructor(private readonly db: PrismaService) {}
+  constructor(
+    private readonly db: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   async getOrganization(user: CurrentUserPayload) {
     const org = await this.db.organization.findUnique({
@@ -45,7 +67,20 @@ export class OrganizationService {
       industry: org.industry,
       onboardingComplete: org.onboardingComplete,
       skuPrefix: org.skuPrefix,
-      nextSkuNumber: org.nextSkuNumber,
+      legalName: org.legalName,
+      tradingName: org.tradingName,
+      registrationNo: org.registrationNo,
+      vatNumber: org.vatNumber,
+      companySize: org.companySize,
+      website: org.website,
+      phone: org.phone,
+      billingEmail: org.billingEmail,
+      addressLine1: org.addressLine1,
+      addressLine2: org.addressLine2,
+      city: org.city,
+      province: org.province,
+      postalCode: org.postalCode,
+      country: org.country,
       stats: {
         members: org.memberships.length,
         apiKeys: org.apiKeys.filter((key) => !key.revokedAt).length,
@@ -58,7 +93,7 @@ export class OrganizationService {
         email: m.user.email,
         name: m.user.name,
         role: m.role,
-        status: m.user.passwordHash === 'temporary' ? 'invited' : 'active',
+        status: !m.user.emailVerifiedAt || m.user.passwordHash === 'temporary' ? 'invited' : 'active',
         joinedAt: m.createdAt,
       })),
       roles: Object.entries(roleDefinitions).map(([name, definition]) => ({ name, ...definition })),
@@ -100,12 +135,40 @@ export class OrganizationService {
     const email = emailInput?.toLowerCase().trim();
     if (!email) throw new BadRequestException('Email is required');
     const role = this.normalizeRole(roleInput);
+
+    const org = await this.db.organization.findUnique({ where: { id: user.organizationId } });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const inviter = await this.db.user.findUnique({ where: { id: user.id }, select: { email: true } });
+    const inviterEmail = inviter?.email || user.email;
+
     const existing = await this.db.user.findUnique({ where: { email } });
 
     if (!existing) {
-      const newUser = await this.db.user.create({ data: { email, passwordHash: 'temporary', name: email.split('@')[0] } });
+      const inviteToken = generateInviteToken();
+      const newUser = await this.db.user.create({
+        data: {
+          email,
+          passwordHash: 'temporary',
+          name: email.split('@')[0],
+          verificationOtpHash: hashInviteToken(inviteToken),
+          verificationOtpExpiry: new Date(Date.now() + INVITE_EXPIRY_MS),
+        },
+      });
+
       await this.db.membership.create({ data: { userId: newUser.id, organizationId: user.organizationId, role } });
-      return { message: 'User invited', userId: newUser.id };
+
+      const inviteUrl = frontendUrl(`/invite/accept?token=${inviteToken}&email=${encodeURIComponent(email)}`);
+      await this.email.sendOrganizationInviteEmail({
+        email,
+        organizationName: org.name,
+        inviterEmail,
+        role,
+        inviteUrl,
+        expiresInDays: INVITE_EXPIRY_DAYS,
+      });
+
+      return { message: 'Invitation email sent', userId: newUser.id };
     }
 
     const membership = await this.db.membership.findUnique({
@@ -114,7 +177,38 @@ export class OrganizationService {
     if (membership) throw new BadRequestException('User is already a member of this organization');
 
     await this.db.membership.create({ data: { userId: existing.id, organizationId: user.organizationId, role } });
-    return { message: 'User added to organization', userId: existing.id };
+
+    if (!existing.emailVerifiedAt || existing.passwordHash === 'temporary') {
+      const inviteToken = generateInviteToken();
+      await this.db.user.update({
+        where: { id: existing.id },
+        data: {
+          verificationOtpHash: hashInviteToken(inviteToken),
+          verificationOtpExpiry: new Date(Date.now() + INVITE_EXPIRY_MS),
+        },
+      });
+
+      const inviteUrl = frontendUrl(`/invite/accept?token=${inviteToken}&email=${encodeURIComponent(email)}`);
+      await this.email.sendOrganizationInviteEmail({
+        email,
+        organizationName: org.name,
+        inviterEmail,
+        role,
+        inviteUrl,
+        expiresInDays: INVITE_EXPIRY_DAYS,
+      });
+
+      return { message: 'Invitation email sent', userId: existing.id };
+    }
+
+    await this.email.sendOrganizationAddedEmail({
+      email,
+      organizationName: org.name,
+      inviterEmail,
+      loginUrl: frontendUrl('/login'),
+    });
+
+    return { message: 'User added and notified', userId: existing.id };
   }
 
   async updateMemberRole(user: CurrentUserPayload, memberId: string, roleInput: string) {
