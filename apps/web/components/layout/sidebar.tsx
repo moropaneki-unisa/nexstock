@@ -10,7 +10,6 @@ import {
   DatabaseZap,
   Home,
   KeyRound,
-  PackageSearch,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -52,14 +51,8 @@ export function Sidebar() {
 
   return (
     <aside className="hidden h-screen w-[18.5rem] shrink-0 overflow-y-auto border-r border-border/70 bg-card/95 p-4 shadow-[12px_0_40px_rgba(15,23,42,0.045)] backdrop-blur-xl md:block">
-      <Link href="/dashboard" className="mb-6 flex items-center gap-3 rounded-[1.35rem] border bg-background/85 p-3 shadow-sm transition hover:bg-background">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-          <PackageSearch className="h-5 w-5" />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold leading-5 tracking-tight">InventoryHub</span>
-          <span className="block truncate text-xs text-muted-foreground">Product data command center</span>
-        </span>
+      <Link href="/dashboard" className="mb-6 flex items-center rounded-[1.35rem] border bg-background/85 px-4 py-3 shadow-sm transition hover:bg-background" aria-label="NexStock dashboard">
+        <img src="/nexstock-logo.svg" alt="NexStock" className="h-14 w-full object-contain object-left" />
       </Link>
 
       <div className="mb-5 rounded-[1.25rem] border bg-muted/25 p-3">
