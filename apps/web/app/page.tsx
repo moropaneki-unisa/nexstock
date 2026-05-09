@@ -114,9 +114,9 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section className="border-b bg-[radial-gradient(circle_at_15%_0%,hsl(var(--primary)/0.10),transparent_34rem),linear-gradient(180deg,hsl(var(--card)/0.42),transparent)] px-4 py-24 sm:px-6 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
-          <div className="flex min-h-[560px] flex-col justify-center">
+      <section className="border-b bg-[radial-gradient(circle_at_15%_0%,hsl(var(--primary)/0.10),transparent_34rem),linear-gradient(180deg,hsl(var(--card)/0.42),transparent)] px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_0.92fr] lg:items-center">
+          <div className="flex min-h-[440px] flex-col justify-center">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-background/80 px-3 py-2 text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground shadow-sm">
               <Sparkles className="h-3.5 w-3.5 text-primary" /> Product data · Inventory · Integrations
             </div>
@@ -218,63 +218,31 @@ export default function LandingPage() {
 
 function HeroVisual() {
   return (
-    <section className="grid min-h-[560px] grid-rows-[auto_1fr_auto] overflow-hidden rounded-2xl border bg-card/95 shadow-2xl shadow-primary/10">
-      <div className="flex items-center justify-between border-b px-5 py-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">NexStock workspace</p>
-          <p className="mt-1 text-sm text-muted-foreground">Products · Imports · Mapping · Sync</p>
-        </div>
-        <div className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-          <span className="h-2.5 w-2.5 rounded-full bg-cyan-500" />
-          <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
-        </div>
+    <section className="border bg-card/95 shadow-sm">
+      <SectionHeader icon={BarChart3} title="NexStock workspace" description="A cleaner operating view for products, imports, mappings, and sync readiness." />
+      <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <Metric icon={Boxes} label="Catalog" value="Products" helper="Central product records" />
+        <Metric icon={PlugZap} label="Sources" value="Files + APIs" helper="CSV, XLSX, JSON and integrations" />
       </div>
-
-      <div className="grid gap-4 p-5 lg:grid-cols-[0.92fr_1.08fr]">
-        <div className="flex flex-col justify-between gap-4 rounded-xl border bg-muted/20 p-4">
-          <img src="/landing/nexstock-brand-strip.svg" alt="NexStock brand identity" className="aspect-[1200/260] w-full rounded-lg object-cover" />
-          <div className="grid grid-cols-2 gap-3">
-            <DashboardMetric label="Catalog" value="Products" />
-            <DashboardMetric label="Sources" value="Files + APIs" />
-          </div>
-        </div>
-
-        <div className="grid gap-4">
-          <div className="rounded-xl border bg-background p-4">
-            <SectionHeader icon={BarChart3} title="Operational readiness" description="Everything your team checks before syncing product data." />
-            <div className="grid gap-2 border-t pt-4">
-              <HealthLine label="Products ready for review" value="Mapped" />
-              <HealthLine label="Import queue" value="Tracked" />
-              <HealthLine label="Webhook delivery" value="Configurable" />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <MiniPanel icon={DatabaseZap} title="Field mapping" value="Reusable" />
-            <MiniPanel icon={Cloud} title="Workspace" value="Cloud SaaS" />
-          </div>
-        </div>
+      <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <Metric icon={DatabaseZap} label="Mapping" value="Reusable" helper="Field templates for every source" />
+        <Metric icon={Cloud} label="Workspace" value="Cloud SaaS" helper="Secure organization access" />
       </div>
-
-      <div className="border-t bg-muted/20 px-5 py-4">
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
-          <div className="h-full w-[82%] rounded-full bg-gradient-to-r from-blue-600 via-cyan-500 to-emerald-400" />
-        </div>
+      <div className="divide-y border-t">
+        <ReadinessLine label="Product records ready for review" value="Mapped" />
+        <ReadinessLine label="Import and sync activity" value="Tracked" />
+        <ReadinessLine label="API keys and webhooks" value="Configurable" />
       </div>
     </section>
   );
 }
 
-function DashboardMetric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border bg-background p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 text-xl font-black tracking-tight">{value}</p></div>;
+function Metric({ icon: Icon, label, value, helper }: { icon: LucideIcon; label: string; value: string; helper: string }) {
+  return <div className="flex items-center justify-between gap-4 p-4"><div className="min-w-0"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 truncate text-xl font-semibold">{value}</p><p className="mt-1 truncate text-xs text-muted-foreground">{helper}</p></div><span className="flex h-10 w-10 shrink-0 items-center justify-center bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span></div>;
 }
 
-function HealthLine({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/35 px-3 py-2 text-sm"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" />{label}</span><span className="font-medium">{value}</span></div>;
-}
-
-function MiniPanel({ icon: Icon, title, value }: { icon: LucideIcon; title: string; value: string }) {
-  return <div className="rounded-xl border bg-background p-4"><Icon className="h-4 w-4 text-primary" /><p className="mt-3 text-sm text-muted-foreground">{title}</p><p className="mt-1 text-xl font-bold">{value}</p></div>;
+function ReadinessLine({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" />{label}</span><span className="font-medium text-muted-foreground">{value}</span></div>;
 }
 
 function SectionIntro({ eyebrow, title, description, icon: Icon }: { eyebrow: string; title: string; description: string; icon?: LucideIcon }) {
