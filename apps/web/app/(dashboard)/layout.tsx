@@ -1,4 +1,5 @@
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 
@@ -12,6 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth">
             <div className="pointer-events-none fixed inset-x-0 top-[4.25rem] h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
             {children}
+            <AppFooter compact />
           </main>
         </div>
       </div>
