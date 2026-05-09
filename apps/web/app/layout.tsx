@@ -3,16 +3,17 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "InventoryHub",
-    template: "%s | InventoryHub",
+    default: "NexStock",
+    template: "%s | NexStock",
   },
-  description: "Zoho-first inventory, product API, and webhook platform for growing teams.",
+  description: "Modern SaaS platform for inventory, product operations, integrations, and automation.",
+  keywords: ["inventory", "saas", "products", "warehouse", "ecommerce", "integrations", "nexstock"],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="bg-[#050505] text-white antialiased">{children}</body>
     </html>
   );
 }
