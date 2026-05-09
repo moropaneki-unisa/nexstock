@@ -35,6 +35,8 @@ export class OrganizationService {
       name: org.name,
       slug: org.slug,
       plan: org.plan,
+      industry: org.industry,
+      onboardingComplete: org.onboardingComplete,
       skuPrefix: org.skuPrefix,
       nextSkuNumber: org.nextSkuNumber,
       stats: {
@@ -67,8 +69,8 @@ export class OrganizationService {
     };
   }
 
-  async updateOrganization(user: any, dto: { name?: string; slug?: string; skuPrefix?: string }) {
-    const data: { name?: string; slug?: string; skuPrefix?: string | null } = {};
+  async updateOrganization(user: any, dto: { name?: string; slug?: string; skuPrefix?: string; industry?: string; onboardingComplete?: boolean }) {
+    const data: { name?: string; slug?: string; skuPrefix?: string | null; industry?: string | null; onboardingComplete?: boolean } = {};
     if (dto.name !== undefined) {
       const name = dto.name.trim();
       if (!name) throw new BadRequestException('Organization name is required');
@@ -80,6 +82,8 @@ export class OrganizationService {
       data.slug = slug;
     }
     if (dto.skuPrefix !== undefined) data.skuPrefix = dto.skuPrefix?.trim().toUpperCase() || null;
+    if (dto.industry !== undefined) data.industry = dto.industry?.trim() || null;
+    if (dto.onboardingComplete !== undefined) data.onboardingComplete = dto.onboardingComplete;
     return this.db.organization.update({ where: { id: user.organizationId }, data });
   }
 
