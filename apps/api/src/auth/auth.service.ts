@@ -4,7 +4,7 @@ import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { AcceptInviteDto, SignupDto } from './dto';
+import { AcceptInviteDto, ResetPasswordDto, SignupDto } from './dto';
 import { EmailService } from '../email/email.service';
 import { requireSecret } from '../common/config/env';
 
@@ -12,6 +12,8 @@ export type TokenMeta = { ip?: string; ua?: string };
 
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_EXPIRY_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
+const PASSWORD_RESET_EXPIRY_MINUTES = 30;
+const PASSWORD_RESET_EXPIRY_MS = PASSWORD_RESET_EXPIRY_MINUTES * 60 * 1000;
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -23,6 +25,11 @@ function hashOtp(otp: string) {
 
 function hashInviteToken(token: string) {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function appUrl(path = '') {
+  const base = process.env.FRONTEND_URL || 'https://www.nexstock.co.za';
+  return `${base.replace(/\/$/, '')}${path}`;
 }
 
 @Injectable()
@@ -155,6 +162,52 @@ export class AuthService {
     });
 
     await this.email.sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+    return { ok: true };
+  }
+
+  async forgotPassword(emailInput: string) {
+    const email = emailInput.toLowerCase().trim();
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.passwordHash === 'temporary') return { ok: true };
+
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationOtpHash: hashInviteToken(token),
+        verificationOtpExpiry: new Date(Date.now() + PASSWORD_RESET_EXPIRY_MS),
+      },
+    });
+
+    const resetUrl = appUrl(`/reset-password?token=${token}&email=${encodeURIComponent(email)}`);
+    await this.email.sendPasswordResetEmail({ email, resetUrl, expiresInMinutes: PASSWORD_RESET_EXPIRY_MINUTES });
+    return { ok: true };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const email = dto.email.toLowerCase().trim();
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || !user.verificationOtpHash) throw new UnauthorizedException('Invalid or expired reset link');
+
+    if (!user.verificationOtpExpiry || user.verificationOtpExpiry < new Date()) {
+      throw new UnauthorizedException('Reset link expired. Request a new one.');
+    }
+
+    const tokenHash = hashInviteToken(dto.token.trim());
+    if (tokenHash !== user.verificationOtpHash) throw new UnauthorizedException('Invalid or expired reset link');
+
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        emailVerifiedAt: user.emailVerifiedAt || new Date(),
+        verificationOtpHash: null,
+        verificationOtpExpiry: null,
+      },
+    });
+
+    await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
     return { ok: true };
   }
 
