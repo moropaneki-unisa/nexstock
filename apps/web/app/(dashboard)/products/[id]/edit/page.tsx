@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Eye, Loader2, PackageSearch, Save } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, PackageSearch } from "lucide-react";
 
 import { ProductForm } from "@/components/products/product-form";
 import { Button } from "@/components/ui/button";
@@ -42,13 +42,6 @@ export default function EditProductPage() {
 
   return (
     <PageShell className="space-y-6 pb-10">
-      <Button asChild variant="ghost" className="w-fit rounded-xl px-0 text-muted-foreground hover:text-foreground">
-        <Link href="/products">
-          <ArrowLeft className="h-4 w-4" />
-          Back to products
-        </Link>
-      </Button>
-
       <PageHeader
         eyebrow="Products"
         title={product ? `Edit ${product.name}` : "Edit product"}
@@ -57,8 +50,8 @@ export default function EditProductPage() {
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
               <Link href="/products">
-                <PackageSearch className="h-4 w-4" />
-                Catalog
+                <ArrowLeft className="h-4 w-4" />
+                Back to products
               </Link>
             </Button>
             {product && (
@@ -74,28 +67,41 @@ export default function EditProductPage() {
       />
 
       {loading ? (
-        <div className="rounded-[2rem] border bg-card/95 p-8 shadow-xl shadow-slate-950/5">
+        <div className="border bg-card/95 p-8">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading product editor...
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="h-24 animate-pulse rounded-2xl bg-muted" />
+              <div key={index} className="h-24 animate-pulse bg-muted" />
             ))}
           </div>
         </div>
       ) : error ? (
-        <div className="rounded-[1.5rem] border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
+        <div className="border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
           {error}
         </div>
       ) : product ? (
-        <ProductForm mode="edit" product={product} />
+        <>
+          <section className="border bg-card/95">
+            <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <Metric label="SKU" value={product.sku} />
+              <Metric label="Stock" value={`${product.quantity} units`} />
+              <Metric label="Status" value={product.status ?? "active"} />
+            </div>
+          </section>
+          <ProductForm mode="edit" product={product} />
+        </>
       ) : (
-        <div className="rounded-[1.5rem] border bg-card/95 p-6 text-sm text-muted-foreground shadow-sm">
+        <div className="border bg-card/95 p-6 text-sm text-muted-foreground">
           Product not found.
         </div>
       )}
     </PageShell>
   );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return <div className="p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 truncate text-xl font-semibold capitalize">{value}</p></div>;
 }
