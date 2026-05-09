@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { AccountRecoveryController } from './account-recovery.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -17,7 +18,7 @@ import { ThrottleGuard } from '../common/guards/throttle.guard';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AccountRecoveryController],
   providers: [AuthService, JwtAuthGuard, ThrottleGuard],
   exports: [AuthService, JwtAuthGuard, ThrottleGuard, JwtModule],
 })
