@@ -14,7 +14,6 @@ function parseAllowedOrigins() {
   const defaults = [
     'https://nexstock.co.za',
     'https://www.nexstock.co.za',
-    'https://product-hub-web.vercel.app',
     'http://localhost:3000',
     'http://localhost:3001',
   ];
@@ -25,22 +24,6 @@ function parseAllowedOrigins() {
     .filter(Boolean);
 
   return Array.from(new Set([...defaults, ...configured]));
-}
-
-function isAllowedVercelPreview(origin: string) {
-  try {
-    const { protocol, hostname } = new URL(origin);
-    if (protocol !== 'https:') return false;
-
-    const allowedProjects = ['product-hub-web', 'nexstock'];
-    return allowedProjects.some(
-      (project) =>
-        hostname === `${project}.vercel.app` ||
-        (hostname.startsWith(`${project}-`) && hostname.endsWith('.vercel.app')),
-    );
-  } catch {
-    return false;
-  }
 }
 
 async function bootstrap() {
@@ -61,7 +44,7 @@ async function bootstrap() {
       }
 
       const normalizedOrigin = normalizeOrigin(origin);
-      const isAllowed = allowedOrigins.includes(normalizedOrigin) || isAllowedVercelPreview(normalizedOrigin);
+      const isAllowed = allowedOrigins.includes(normalizedOrigin);
 
       if (!isAllowed) {
         logger.warn(`Blocked CORS origin: ${normalizedOrigin}`);
