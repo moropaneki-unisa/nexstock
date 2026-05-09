@@ -22,6 +22,7 @@ import {
   Webhook,
 } from "lucide-react";
 
+import { AdminRouteGuard } from "@/components/auth/admin-route-guard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,14 @@ const defaultSettings: SettingsForm = {
 };
 
 export default function SettingsPage() {
+  return (
+    <AdminRouteGuard>
+      <SettingsContent />
+    </AdminRouteGuard>
+  );
+}
+
+function SettingsContent() {
   const [settings, setSettings] = useState<SettingsForm>(defaultSettings);
   const [savedSettings, setSavedSettings] = useState<SettingsForm>(defaultSettings);
   const [saving, setSaving] = useState(false);
