@@ -26,35 +26,51 @@ const navLinks = [
 ];
 
 const pillars = [
-  { icon: Boxes, title: "Product catalog", text: "Manage SKUs, variants, stock levels, categories, images, and custom product data from one place." },
-  { icon: Link2, title: "Connected systems", text: "Bring together stores, spreadsheets, ERP tools, POS platforms, warehouses, and custom apps." },
-  { icon: BarChart3, title: "Operational insight", text: "Spot product issues, sync gaps, stock risks, and growth opportunities before they become problems." },
-  { icon: Cloud, title: "Cloud workflows", text: "Use secure APIs, webhooks, imports, and automation-ready workflows built for real operations." },
+  {
+    icon: Boxes,
+    title: "Central product catalog",
+    text: "Create one reliable source of truth for product names, SKUs, categories, prices, stock levels, images, and custom attributes.",
+  },
+  {
+    icon: Link2,
+    title: "Multi-source integrations",
+    text: "Connect CSV, XLSX, JSON, Zoho, WooCommerce, Shopify, and custom API sources without rebuilding your product data manually.",
+  },
+  {
+    icon: BarChart3,
+    title: "Inventory visibility",
+    text: "Track stock movement, sync status, import history, and operational gaps so your team knows what needs attention.",
+  },
+  {
+    icon: Cloud,
+    title: "Cloud-ready operations",
+    text: "Manage product data from a secure SaaS workspace with user roles, API keys, webhooks, and scalable cloud storage.",
+  },
 ];
 
 const workflow = [
-  { icon: PlugZap, title: "Connect", text: "Import files or connect your product sources." },
-  { icon: DatabaseZap, title: "Structure", text: "Map fields, clean data, and standardize records." },
-  { icon: RefreshCw, title: "Sync", text: "Keep product and inventory updates moving." },
-  { icon: BarChart3, title: "Grow", text: "Use reliable product data to make better decisions." },
+  { icon: PlugZap, title: "Connect your sources", text: "Upload files or configure API credentials for the systems where your product data already lives." },
+  { icon: DatabaseZap, title: "Map product fields", text: "Match source columns to NexStock fields such as SKU, name, stock, price, images, and custom attributes." },
+  { icon: RefreshCw, title: "Preview and sync", text: "Review mapped records before pushing updates, then sync products and inventory into your workspace." },
+  { icon: BarChart3, title: "Operate with confidence", text: "Use history, logs, webhooks, and API access to keep your storefronts and operations aligned." },
 ];
 
 const platformItems = [
-  "Product catalog API",
-  "Webhook event delivery",
-  "Custom field mapping",
-  "Cloud image storage",
-  "Inventory movement logs",
-  "Integration sync history",
+  "Product catalog and stock management",
+  "CSV, XLSX, JSON, Zoho, Shopify, and WooCommerce imports",
+  "Custom product fields and reusable mapping templates",
+  "API keys for external systems and internal tools",
+  "Webhook events for product and inventory changes",
+  "Sync history, logs, and operational readiness checks",
 ];
 
 const securityItems = [
-  "Role-based workspace access",
-  "Secure API keys",
-  "Webhook controls",
-  "Cloud-ready infrastructure",
-  "Audit-ready product operations",
-  "Production deployment pipeline",
+  "Organization-based workspaces",
+  "Admin-only organization and settings areas",
+  "Hashed API keys with revocation controls",
+  "Credential-safe integration configuration",
+  "Email verification and password recovery flows",
+  "Production deployment with environment-based configuration",
 ];
 
 export default function LandingPage() {
@@ -78,7 +94,7 @@ export default function LandingPage() {
             <div className="hidden items-center gap-3 text-sm md:flex">
               <Link href="/login" className="rounded-full px-3 py-2 font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">Sign in</Link>
               <Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">
-                Start free <ArrowRight className="h-4 w-4" />
+                Create workspace <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
@@ -102,13 +118,13 @@ export default function LandingPage() {
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-stretch">
           <div className="flex min-h-[560px] flex-col justify-center">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border bg-background/80 px-3 py-2 text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground shadow-sm">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> Connect · Manage · Grow
+              <Sparkles className="h-3.5 w-3.5 text-primary" /> Product data · Inventory · Integrations
             </div>
             <h1 className="mt-7 max-w-4xl text-5xl font-black tracking-[-0.06em] sm:text-6xl lg:text-7xl">
-              Product operations built for connected businesses.
+              Run your product catalog and inventory from one SaaS workspace.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-              NexStock helps teams centralize product data, automate inventory workflows, connect business systems, and launch with clean operational visibility.
+              NexStock helps growing retailers, suppliers, and ecommerce teams centralize product records, import inventory from multiple systems, map messy data, and keep connected channels updated.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Create workspace <ArrowRight className="h-4 w-4" /></Link>
@@ -128,7 +144,7 @@ export default function LandingPage() {
 
       <section id="features" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
-          <SectionIntro eyebrow="Product" title="One operating layer for product data." description="NexStock gives your team the core tools needed to manage catalog data, stock workflows, and connected systems." />
+          <SectionIntro eyebrow="Product" title="A practical operating layer for product data." description="NexStock is built around the daily work your team already does: adding products, cleaning fields, importing stock, managing images, and preparing data for sales channels." />
           <div className="mt-10 overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
             <div className="grid auto-rows-fr divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
               {pillars.map((item) => <FeaturePanel key={item.title} {...item} />)}
@@ -140,7 +156,7 @@ export default function LandingPage() {
       <section className="px-4 py-24 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
           <div className="flex min-h-[440px] flex-col justify-center">
-            <SectionIntro eyebrow="Brand system" title="A polished product identity for every touchpoint." description="The NexStock identity now supports the product UI instead of overpowering it: bold gradients for key brand moments, clean panels for the workspace experience." />
+            <SectionIntro eyebrow="Who it is for" title="Built for businesses that manage product data in more than one place." description="Use NexStock when your product information is split between spreadsheets, online stores, supplier files, Zoho, Shopify, WooCommerce, or custom tools. The goal is simple: make your product data easier to control and safer to sync." />
           </div>
           <section className="flex min-h-[440px] items-center overflow-hidden rounded-2xl border bg-card/95 p-4 shadow-sm">
             <img src="/landing/nexstock-feature-grid.svg" alt="NexStock feature grid" className="h-full w-full rounded-xl object-contain" />
@@ -150,7 +166,7 @@ export default function LandingPage() {
 
       <section id="workflow" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
-          <SectionIntro eyebrow="How it works" title="Connect your stack, structure your data, and grow with confidence." description="NexStock turns disconnected stock and product data into a clean, automated operating layer." />
+          <SectionIntro eyebrow="Workflow" title="From messy source data to clean product operations." description="NexStock gives teams a repeatable process for importing, mapping, reviewing, and syncing product information without losing control of the data." />
           <div className="mt-10 overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
             <div className="grid auto-rows-fr divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
               {workflow.map((step, index) => <WorkflowPanel key={step.title} index={index} {...step} />)}
@@ -162,10 +178,10 @@ export default function LandingPage() {
       <section id="platform" className="px-4 py-24 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
           <div className="flex min-h-[320px] flex-col justify-center">
-            <SectionIntro eyebrow="Platform ready" title="Built for integrations, APIs, imports, and cloud workflows." description="Whether your products live in spreadsheets, online stores, ERP systems, or custom apps, NexStock gives your team one reliable layer to connect, manage, and grow." />
+            <SectionIntro eyebrow="Platform" title="Everything needed to launch a product operations SaaS." description="The platform covers core product records, import workflows, integration configuration, API access, webhook delivery, and the operational history teams need when data changes." />
           </div>
           <section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
-            <SectionHeader icon={DatabaseZap} title="Platform capabilities" description="Core capabilities for connected product operations." />
+            <SectionHeader icon={DatabaseZap} title="What NexStock includes" description="Core SaaS capabilities for connected product operations." />
             <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               {platformItems.map((item) => <ListItem key={item} label={item} />)}
             </div>
@@ -176,10 +192,10 @@ export default function LandingPage() {
       <section id="security" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
           <div className="flex min-h-[320px] flex-col justify-center">
-            <SectionIntro eyebrow="Security" title="Professional enough for real business operations." description="Designed for launch with secure access, API controls, operational monitoring, and a scalable cloud foundation." icon={LockKeyhole} />
+            <SectionIntro eyebrow="Security" title="Designed for real teams, not just single-user spreadsheets." description="NexStock separates users by organization, protects sensitive integration details, restricts administrative areas, and gives teams safer ways to connect external systems." icon={LockKeyhole} />
           </div>
           <section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
-            <SectionHeader icon={ShieldCheck} title="Operational controls" description="Security and infrastructure foundations for production teams." />
+            <SectionHeader icon={ShieldCheck} title="Workspace controls" description="Security and account controls built into the SaaS experience." />
             <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               {securityItems.map((item) => <ListItem key={item} label={item} icon={ShieldCheck} />)}
             </div>
@@ -189,9 +205,9 @@ export default function LandingPage() {
 
       <section className="border-t bg-card/40 px-4 py-24 text-center sm:px-6 lg:px-10">
         <div className="mx-auto max-w-4xl">
-          <h2 className="text-4xl font-black tracking-[-0.05em] md:text-6xl">Ready to connect, manage, and grow?</h2>
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">Launch your NexStock workspace and start building a cleaner product operating system for your company.</p>
-          <div className="mt-8"><Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Start free today <Zap className="h-4 w-4" /></Link></div>
+          <h2 className="text-4xl font-black tracking-[-0.05em] md:text-6xl">Bring your product data under control.</h2>
+          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">Create a NexStock workspace, configure your first source, map your fields, and start building cleaner product operations for your business.</p>
+          <div className="mt-8"><Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Create your workspace <Zap className="h-4 w-4" /></Link></div>
         </div>
       </section>
 
@@ -205,8 +221,8 @@ function HeroVisual() {
     <section className="grid min-h-[560px] grid-rows-[auto_1fr_auto] overflow-hidden rounded-2xl border bg-card/95 shadow-2xl shadow-primary/10">
       <div className="flex items-center justify-between border-b px-5 py-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">NexStock live command</p>
-          <p className="mt-1 text-sm text-muted-foreground">Catalog · Integrations · Webhooks</p>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">NexStock workspace</p>
+          <p className="mt-1 text-sm text-muted-foreground">Products · Imports · Mapping · Sync</p>
         </div>
         <div className="flex gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -219,23 +235,23 @@ function HeroVisual() {
         <div className="flex flex-col justify-between gap-4 rounded-xl border bg-muted/20 p-4">
           <img src="/landing/nexstock-brand-strip.svg" alt="NexStock brand identity" className="aspect-[1200/260] w-full rounded-lg object-cover" />
           <div className="grid grid-cols-2 gap-3">
-            <DashboardMetric label="Products" value="12,480" />
-            <DashboardMetric label="Sync events" value="1.8M" />
+            <DashboardMetric label="Catalog" value="Products" />
+            <DashboardMetric label="Sources" value="Files + APIs" />
           </div>
         </div>
 
         <div className="grid gap-4">
           <div className="rounded-xl border bg-background p-4">
-            <SectionHeader icon={BarChart3} title="Operations health" description="Real-time readiness for launch." />
+            <SectionHeader icon={BarChart3} title="Operational readiness" description="Everything your team checks before syncing product data." />
             <div className="grid gap-2 border-t pt-4">
-              <HealthLine label="API health" value="Operational" />
-              <HealthLine label="Import queue" value="Clear" />
-              <HealthLine label="Webhook delivery" value="Monitoring" />
+              <HealthLine label="Products ready for review" value="Mapped" />
+              <HealthLine label="Import queue" value="Tracked" />
+              <HealthLine label="Webhook delivery" value="Configurable" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <MiniPanel icon={DatabaseZap} title="Fields mapped" value="98%" />
-            <MiniPanel icon={Cloud} title="Cloud ready" value="Online" />
+            <MiniPanel icon={DatabaseZap} title="Field mapping" value="Reusable" />
+            <MiniPanel icon={Cloud} title="Workspace" value="Cloud SaaS" />
           </div>
         </div>
       </div>
@@ -250,7 +266,7 @@ function HeroVisual() {
 }
 
 function DashboardMetric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border bg-background p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-black tracking-tight">{value}</p></div>;
+  return <div className="rounded-xl border bg-background p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 text-xl font-black tracking-tight">{value}</p></div>;
 }
 
 function HealthLine({ label, value }: { label: string; value: string }) {
