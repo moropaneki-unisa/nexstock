@@ -10,6 +10,7 @@ function parseAllowedOrigins() {
   const defaults = [
     'https://nexstock.co.za',
     'https://www.nexstock.co.za',
+    'https://product-hub-web.vercel.app',
     'http://localhost:3000',
     'http://localhost:3001',
   ];
