@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Building2, CheckCircle2, CreditCard, Edit3, KeyRound, Loader2, LockKeyhole, ShieldCheck, Users, Webhook } from "lucide-react";
 
+import { AdminRouteGuard } from "@/components/auth/admin-route-guard";
 import { OrganizationBillingSection } from "@/components/organization/billing-section";
 import { OrganizationUsersSection } from "@/components/organization/users-section";
 import { Organization } from "@/components/organization/types";
@@ -13,6 +14,14 @@ import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
 
 export default function OrganizationPage() {
+  return (
+    <AdminRouteGuard>
+      <OrganizationContent />
+    </AdminRouteGuard>
+  );
+}
+
+function OrganizationContent() {
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
