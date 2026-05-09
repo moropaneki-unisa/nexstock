@@ -24,13 +24,6 @@ import { apiFetch } from "@/lib/api";
 import type { Product, ProductField } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -41,7 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 type FormValues = {
   name: string;
@@ -88,7 +80,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
       id: `existing-${index}-${url}`,
       name: `Image ${index + 1}`,
       url,
-    }))
+    })),
   );
 
   const existingCustomValues = useMemo(() => {
@@ -159,7 +151,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
         id: `existing-${index}-${url}`,
         name: `Image ${index + 1}`,
         url,
-      }))
+      })),
     );
   }, [product, reset, existingCustomValues]);
 
@@ -308,121 +300,67 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[1fr_22rem]">
+    <form onSubmit={handleSubmit(onSubmit)} className="grid gap-6 xl:grid-cols-[1fr_22rem]">
       <div className="space-y-6">
         {error && (
-          <div className="rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             <AlertCircle className="mr-2 inline h-4 w-4" />
             {error}
           </div>
         )}
 
-        <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
-          <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <PackagePlus className="h-5 w-5" />
-                  Product details
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Add the main information customers, integrations, and inventory tools will use.
-                </CardDescription>
-              </div>
-
-              <Badge variant="secondary" className="rounded-full">Required</Badge>
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-5 p-5">
-            {isEdit && product?.sku && (
-              <div className="rounded-2xl border bg-muted/30 px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Generated SKU</p>
-                <p className="mt-1 font-mono text-sm font-semibold">{product.sku}</p>
-              </div>
-            )}
-
-            <div className="grid gap-4 md:grid-cols-2">
+        <section className="border bg-card/95">
+          <SectionHeader icon={PackagePlus} title="Product details" description="Main information used by customers, integrations, and inventory tools." badge="Required" />
+          <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+            <div className="divide-y">
+              {isEdit && product?.sku && <ReadOnlyItem label="Generated SKU" value={product.sku} />}
               <Field label="Product name" required error={errors.name ? "Product name is required" : undefined}>
                 <Input className="rounded-xl" placeholder="Classic cotton t-shirt" {...register("name", { required: true })} />
               </Field>
-
               <Field label="Category">
                 <Input className="rounded-xl" placeholder="Apparel" {...register("category")} />
               </Field>
             </div>
+            <div>
+              <Field label="Description">
+                <Textarea
+                  placeholder="Describe the product, material, usage, supplier notes, or anything important."
+                  className="min-h-40 resize-none rounded-xl"
+                  {...register("description")}
+                />
+              </Field>
+            </div>
+          </div>
+        </section>
 
-            <Field label="Description">
-              <Textarea
-                placeholder="Describe the product, material, usage, supplier notes, or anything important."
-                className="min-h-32 resize-none rounded-xl"
-                {...register("description")}
-              />
-            </Field>
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-6 lg:grid-cols-5">
-          <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5 lg:col-span-2">
-            <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
-              <CardTitle className="flex items-center gap-2">
-                <CircleDollarSign className="h-5 w-5" />
-                Pricing
-              </CardTitle>
-              <CardDescription>Set the selling price and optional internal cost.</CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-4 p-5">
+        <section className="border bg-card/95">
+          <SectionHeader icon={CircleDollarSign} title="Pricing and inventory" description="Selling price, internal cost, available stock, and low-stock threshold." />
+          <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+            <div className="divide-y">
               <Field label="Price" required error={errors.price ? "Price is required" : undefined}>
                 <Input className="rounded-xl" type="number" step="0.01" min={0} placeholder="299.99" {...register("price", { required: true, valueAsNumber: true })} />
               </Field>
-
               <Field label="Cost">
                 <Input className="rounded-xl" type="number" step="0.01" min={0} placeholder="120.00" {...register("cost")} />
               </Field>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5 lg:col-span-3">
-            <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
-              <CardTitle className="flex items-center gap-2">
-                <Warehouse className="h-5 w-5" />
-                Inventory
-              </CardTitle>
-              <CardDescription>Set stock quantity and the low-stock threshold used by the dashboard.</CardDescription>
-            </CardHeader>
-
-            <CardContent className="grid gap-4 p-5 md:grid-cols-2">
+            </div>
+            <div className="divide-y">
               <Field label="Quantity" required error={errors.quantity ? "Quantity is required" : undefined}>
                 <Input className="rounded-xl" type="number" min={0} placeholder="0" {...register("quantity", { required: true, valueAsNumber: true })} />
               </Field>
-
               <Field label="Low stock alert" required error={errors.lowStockLevel ? "Low stock alert is required" : undefined}>
                 <Input className="rounded-xl" type="number" min={0} placeholder="5" {...register("lowStockLevel", { required: true, valueAsNumber: true })} />
               </Field>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </section>
 
-        <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
-          <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
-            <CardTitle className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5" />
-              Product images
-            </CardTitle>
-            <CardDescription>
-              Upload images to the API or paste image URLs. The first image becomes the primary product image.
-            </CardDescription>
-          </CardHeader>
+        <section className="border bg-card/95">
+          <SectionHeader icon={ImageIcon} title="Product images" description="Upload images to the API or paste image URLs. The first image becomes the primary product image." />
+          <div className="space-y-5 border-t p-5">
+            {imageError && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{imageError}</div>}
 
-          <CardContent className="space-y-5 p-5">
-            {imageError && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {imageError}
-              </div>
-            )}
-
-            <label className="flex cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed bg-muted/20 p-8 text-center transition hover:bg-muted/45">
+            <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed bg-muted/20 p-8 text-center transition hover:bg-muted/45">
               {uploading ? <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground" /> : <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />}
               <span className="text-sm font-medium">{uploading ? "Uploading images..." : "Upload product images"}</span>
               <span className="mt-1 text-xs text-muted-foreground">JPG, PNG, WEBP, GIF. Max 5MB per file.</span>
@@ -448,15 +386,15 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
             {images.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 {images.map((image, index) => (
-                  <div key={image.id} className="group relative overflow-hidden rounded-2xl border bg-muted/30 shadow-sm">
+                  <div key={image.id} className="group relative overflow-hidden border bg-muted/30">
                     <img src={image.url} alt={image.name} className="h-44 w-full object-cover transition group-hover:scale-105" />
                     <div className="absolute left-2 top-2">
-                      <Badge className="rounded-full bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge>
+                      <Badge className="bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge>
                     </div>
                     <button
                       type="button"
                       onClick={() => removeImage(image.id)}
-                      className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 shadow-sm transition hover:bg-background"
+                      className="absolute right-2 top-2 bg-background/90 p-1.5 shadow-sm transition hover:bg-background"
                       aria-label="Remove image"
                     >
                       <X className="h-4 w-4" />
@@ -468,39 +406,31 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
                 ))}
               </div>
             ) : (
-              <div className="rounded-[1.5rem] border border-dashed bg-muted/20 p-8 text-center">
+              <div className="border border-dashed bg-muted/20 p-8 text-center">
                 <ImageIcon className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
                 <p className="text-sm font-medium">No images added yet</p>
                 <p className="mt-1 text-xs text-muted-foreground">Products look more complete with at least one image.</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
-          <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <DatabaseZap className="h-5 w-5" />
-                  Product schema fields
-                </CardTitle>
-                <CardDescription>
-                  Custom fields from your organization schema are saved through the backend customFieldValues API.
-                </CardDescription>
-              </div>
-              {requiredSchemaFields.length > 0 && <Badge variant="secondary" className="rounded-full">{completedRequiredSchemaFields}/{requiredSchemaFields.length} required</Badge>}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 p-5">
+        <section className="border bg-card/95">
+          <SectionHeader
+            icon={DatabaseZap}
+            title="Product schema fields"
+            description="Custom fields from your organization schema are saved through the backend customFieldValues API."
+            badge={requiredSchemaFields.length > 0 ? `${completedRequiredSchemaFields}/${requiredSchemaFields.length} required` : undefined}
+          />
+          <div className="border-t p-5">
             {schemaLoading ? (
-              <div className="flex items-center gap-2 rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 border bg-muted/20 p-4 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading product schema...
               </div>
             ) : schemaFields.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-                No product schema fields yet. Add fields under Products → Product schema to capture custom product attributes.
+              <div className="border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                No product schema fields yet. Add fields under Products → Product fields to capture custom product attributes.
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
@@ -515,97 +445,76 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
 
       <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
-        <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
-          <CardHeader className="border-b bg-gradient-to-br from-card to-muted/35">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ShieldCheck className="h-5 w-5" />
-              Product readiness
-            </CardTitle>
-            <CardDescription>Complete the essentials before saving.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 p-5">
-            {readiness.map((item) => (
-              <ReadinessLine key={item.label} ready={item.ready} label={item.label} />
-            ))}
-            {requiredSchemaFields.length > 0 && (
-              <ReadinessLine ready={completedRequiredSchemaFields === requiredSchemaFields.length} label="Required schema fields" />
-            )}
-          </CardContent>
-        </Card>
+        <section className="border bg-card/95">
+          <SectionHeader icon={ShieldCheck} title="Product readiness" description="Complete the essentials before saving." />
+          <div className="divide-y border-t">
+            {readiness.map((item) => <ReadinessLine key={item.label} ready={item.ready} label={item.label} />)}
+            {requiredSchemaFields.length > 0 && <ReadinessLine ready={completedRequiredSchemaFields === requiredSchemaFields.length} label="Required schema fields" />}
+          </div>
+        </section>
 
-        <Card className="overflow-hidden rounded-[2rem] border-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white shadow-xl shadow-slate-950/10">
-          <CardContent className="p-6">
-            <PackagePlus className="h-7 w-7 text-white/80" />
-            <h3 className="mt-5 text-xl font-semibold tracking-[-0.03em]">{isEdit ? "Update confidently" : "Create clean data"}</h3>
-            <p className="mt-2 text-sm leading-6 text-white/70">
+        <section className="border bg-card/95">
+          <SectionHeader icon={Warehouse} title={isEdit ? "Update summary" : "Create summary"} />
+          <div className="divide-y border-t">
+            <SideFact label="Margin" value={calculateMargin(price, cost)} />
+            <SideFact label="Stock status" value={quantity <= lowStockLevel ? "Needs review" : "Healthy"} />
+            <SideFact label="Images" value={`${images.length}`} />
+          </div>
+        </section>
+
+        <section className="border bg-card/95">
+          <div className="p-5">
+            <p className="text-sm font-medium">{isEdit ? "Ready to update this product?" : "Ready to create this product?"}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {isEdit
-                ? "Changes are saved through the API and keep the product ready for integrations, imports, and customer-facing views."
-                : "NexStock will generate the SKU, create the product, and log the starting inventory value."}
+                ? "Save only when the product data is accurate for customers, APIs, and integrations."
+                : "The backend will generate the SKU and create the initial inventory log."}
             </p>
-            <div className="mt-5 grid gap-2 text-sm">
-              <SideFact label="Margin" value={calculateMargin(price, cost)} />
-              <SideFact label="Stock status" value={quantity <= lowStockLevel ? "Needs review" : "Healthy"} />
-              <SideFact label="Images" value={`${images.length}`} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="sticky bottom-4 z-10 border bg-background/95 shadow-xl shadow-slate-950/10 backdrop-blur">
-          <CardContent className="space-y-4 p-4">
-            <div>
-              <p className="text-sm font-medium">{isEdit ? "Ready to update this product?" : "Ready to create this product?"}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                {isEdit
-                  ? "Save only when the product data is accurate for customers, APIs, and integrations."
-                  : "The backend will generate the SKU and create the initial inventory log."}
-              </p>
-              {isDirty && <Badge variant="secondary" className="mt-3 rounded-full">Unsaved changes</Badge>}
-            </div>
-
-            <div className="grid gap-2">
-              <Button type="submit" disabled={isSubmitting || uploading} className="rounded-xl">
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : isEdit ? (
-                  <>
-                    <Save className="h-4 w-4" />
-                    Update product
-                  </>
-                ) : (
-                  <>
-                    <PackagePlus className="h-4 w-4" />
-                    Save product
-                  </>
-                )}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={isSubmitting} className="rounded-xl bg-background/70">
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            {isDirty && <Badge variant="secondary" className="mt-3">Unsaved changes</Badge>}
+          </div>
+          <div className="grid gap-2 border-t p-4">
+            <Button type="submit" disabled={isSubmitting || uploading} className="rounded-xl">
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : isEdit ? (
+                <>
+                  <Save className="h-4 w-4" />
+                  Update product
+                </>
+              ) : (
+                <>
+                  <PackagePlus className="h-4 w-4" />
+                  Save product
+                </>
+              )}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={isSubmitting} className="rounded-xl bg-background/70">
+              Cancel
+            </Button>
+          </div>
+        </section>
       </aside>
     </form>
   );
 }
 
-function SchemaFieldInput({
-  field,
-  value,
-  onChange,
-}: {
-  field: ProductField;
-  value: string;
-  onChange: (value: string) => void;
-}) {
+function SectionHeader({ icon: Icon, title, description, badge }: { icon: any; title: string; description?: string; badge?: string }) {
+  return <div className="flex flex-row items-start justify-between gap-4 p-5"><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Icon className="h-5 w-5" />{title}</h2>{description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div>{badge && <Badge variant="secondary">{badge}</Badge>}</div>;
+}
+
+function ReadOnlyItem({ label, value }: { label: string; value: string }) {
+  return <div className="p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 font-mono text-sm font-semibold">{value}</p></div>;
+}
+
+function SchemaFieldInput({ field, value, onChange }: { field: ProductField; value: string; onChange: (value: string) => void }) {
   if (field.type === "select") {
     return (
       <Select value={value} onValueChange={onChange}>
@@ -613,9 +522,7 @@ function SchemaFieldInput({
           <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
         </SelectTrigger>
         <SelectContent>
-          {(field.options ?? []).map((option) => (
-            <SelectItem key={option} value={option}>{option}</SelectItem>
-          ))}
+          {(field.options ?? []).map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
         </SelectContent>
       </Select>
     );
@@ -636,14 +543,7 @@ function SchemaFieldInput({
   }
 
   if (field.type === "json") {
-    return (
-      <Textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="min-h-24 resize-none rounded-xl font-mono text-sm"
-        placeholder='{ "supplier": "Acme" }'
-      />
-    );
+    return <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 resize-none rounded-xl font-mono text-sm" placeholder='{ "supplier": "Acme" }' />;
   }
 
   return (
@@ -658,37 +558,15 @@ function SchemaFieldInput({
 }
 
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <Label className="text-sm font-medium">
-        {label}
-        {required && <span className="ml-1 text-destructive">*</span>}
-      </Label>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
+  return <div className="p-4"><Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}{required && <span className="ml-1 text-destructive">*</span>}</Label><div className="mt-3">{children}</div>{error && <p className="mt-2 text-xs text-destructive">{error}</p>}</div>;
 }
 
 function ReadinessLine({ ready, label }: { ready: boolean; label: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border bg-background/70 p-3">
-      <span className="flex items-center gap-2 text-sm font-medium">
-        {ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}
-        {label}
-      </span>
-      <Badge variant={ready ? "default" : "secondary"} className="rounded-full">{ready ? "Ready" : "Needed"}</Badge>
-    </div>
-  );
+  return <div className="flex items-center justify-between gap-3 px-4 py-3"><span className="flex items-center gap-2 text-sm font-medium">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}{label}</span><Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Needed"}</Badge></div>;
 }
 
 function SideFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl bg-white/10 px-3 py-2.5">
-      <span className="text-white/70">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
-  );
+  return <div className="flex items-center justify-between px-4 py-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="font-medium">{value}</span></div>;
 }
 
 function calculateMargin(price: number, cost?: number) {
