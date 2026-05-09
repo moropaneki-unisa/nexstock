@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Boxes,
   Building2,
@@ -25,10 +25,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { logout } from "@/lib/api";
+import { apiFetch, logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+type NavItem = { href: string; label: string; icon: LucideIcon; activePrefixes?: string[]; adminOnly?: boolean };
+type UserProfile = { organization?: { role?: string } | null };
+
+const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/products", label: "Products", icon: Boxes },
   { href: "/products/fields", label: "Product fields", icon: DatabaseZap },
@@ -37,8 +40,8 @@ const navItems = [
   { href: "/api-keys", label: "API keys", icon: KeyRound },
   { href: "/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/profile", label: "My profile", icon: UserRound },
-  { href: "/organization", label: "Organization", icon: Building2 },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/organization", label: "Organization", icon: Building2, adminOnly: true },
+  { href: "/settings", label: "Settings", icon: Settings, adminOnly: true },
 ];
 
 const routeCopy = [
@@ -58,7 +61,24 @@ export function Topbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const route = routeCopy.find((item) => item.match(pathname)) ?? { title: "Workspace", description: "NexStock operations" };
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<UserProfile>("/api/users/me")
+      .then((profile) => {
+        if (active) setIsAdmin(profile.organization?.role === "admin");
+      })
+      .catch(() => {
+        if (active) setIsAdmin(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   async function handleLogout() {
     await logout();
@@ -82,12 +102,12 @@ export function Topbar() {
         <div className="hidden w-full max-w-md items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 shadow-sm lg:flex"><Search className="h-4 w-4 text-muted-foreground" /><Input aria-label="Global product search" placeholder="Search products, SKUs, categories..." className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter") handleSearch(event.currentTarget.value); }} /></div>
         <div className="flex shrink-0 items-center gap-2"><Button asChild size="sm" variant="outline" className="hidden rounded-xl bg-background/70 sm:inline-flex"><Link href="/profile"><UserRound className="h-4 w-4" />My profile</Link></Button><Button asChild size="sm" className="hidden rounded-xl shadow-sm sm:inline-flex"><Link href="/products/new"><Plus className="h-4 w-4" />New product</Link></Button><Button variant="outline" size="sm" onClick={handleLogout} className="rounded-xl bg-background/70"><LogOut className="h-4 w-4" /><span className="hidden sm:inline">Logout</span></Button></div>
       </div>
-      {mobileOpen && <div className="border-t bg-card/95 p-4 shadow-lg backdrop-blur-xl md:hidden"><div className="mb-4 flex items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 shadow-sm"><Search className="h-4 w-4 text-muted-foreground" /><Input aria-label="Mobile product search" placeholder="Search products..." className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter") handleSearch(event.currentTarget.value); }} /></div><nav className="grid gap-1.5">{navItems.map((item) => <MobileNavItem key={item.href} item={item} pathname={pathname} onClick={() => setMobileOpen(false)} />)}</nav></div>}
+      {mobileOpen && <div className="border-t bg-card/95 p-4 shadow-lg backdrop-blur-xl md:hidden"><div className="mb-4 flex items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 shadow-sm"><Search className="h-4 w-4 text-muted-foreground" /><Input aria-label="Mobile product search" placeholder="Search products..." className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter") handleSearch(event.currentTarget.value); }} /></div><nav className="grid gap-1.5">{visibleNavItems.map((item) => <MobileNavItem key={item.href} item={item} pathname={pathname} onClick={() => setMobileOpen(false)} />)}</nav></div>}
     </header>
   );
 }
 
-function MobileNavItem({ item, pathname, onClick }: { item: { href: string; label: string; icon: LucideIcon; activePrefixes?: string[] }; pathname: string; onClick: () => void }) {
+function MobileNavItem({ item, pathname, onClick }: { item: NavItem; pathname: string; onClick: () => void }) {
   const Icon = item.icon;
   const active = pathname === item.href || pathname.startsWith(`${item.href}/`) || item.activePrefixes?.some((prefix) => pathname.startsWith(prefix));
   return <Link href={item.href} onClick={onClick} className={cn("flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground", active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground")}><Icon className="h-4 w-4" />{item.label}</Link>;
