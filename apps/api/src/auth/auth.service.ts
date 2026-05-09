@@ -9,6 +9,9 @@ import { EmailService } from '../email/email.service';
 
 export type TokenMeta = { ip?: string; ua?: string };
 
+const OTP_EXPIRY_MINUTES = 5;
+const OTP_EXPIRY_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
+
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -41,23 +44,26 @@ export class AuthService {
         passwordHash,
         name: dto.name.trim(),
         verificationOtpHash: otpHash,
-        verificationOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        verificationOtpExpiry: new Date(Date.now() + OTP_EXPIRY_MS),
       },
     });
 
-    await this.email.sendOtpEmail(email, otp);
+    await this.email.sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
 
     return { requiresVerification: true };
   }
 
-  async verifyEmail(email: string, otp: string, meta: TokenMeta) {
+  async verifyEmail(emailInput: string, otp: string, meta: TokenMeta) {
+    const email = emailInput.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.verificationOtpHash) throw new UnauthorizedException('Invalid request');
 
-    const hashed = hashOtp(otp);
+    const hashed = hashOtp(otp.trim());
     if (hashed !== user.verificationOtpHash) throw new UnauthorizedException('Invalid OTP');
 
-    if (user.verificationOtpExpiry! < new Date()) throw new UnauthorizedException('OTP expired');
+    if (!user.verificationOtpExpiry || user.verificationOtpExpiry < new Date()) {
+      throw new UnauthorizedException('OTP expired. Please request a new code.');
+    }
 
     const updated = await this.prisma.user.update({
       where: { id: user.id },
@@ -86,9 +92,12 @@ export class AuthService {
     return this.issueTokens(updated.id, updated.email, org.id, 'admin', meta);
   }
 
-  async resendOtp(email: string) {
+  async resendOtp(emailInput: string) {
+    const email = emailInput.toLowerCase().trim();
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return { ok: true };
+
+    if (user.emailVerifiedAt) return { ok: true, alreadyVerified: true };
 
     const otp = generateOtp();
     const otpHash = hashOtp(otp);
@@ -97,11 +106,11 @@ export class AuthService {
       where: { id: user.id },
       data: {
         verificationOtpHash: otpHash,
-        verificationOtpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        verificationOtpExpiry: new Date(Date.now() + OTP_EXPIRY_MS),
       },
     });
 
-    await this.email.sendOtpEmail(email, otp);
+    await this.email.sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
     return { ok: true };
   }
 
