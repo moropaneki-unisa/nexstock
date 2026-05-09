@@ -12,7 +12,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Topbar />
           <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth">
             <div className="pointer-events-none fixed inset-x-0 top-[4.25rem] h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-            {children}
+            <div className="min-h-[calc(100dvh-4rem)]">
+              {children}
+            </div>
             <AppFooter compact />
           </main>
         </div>
