@@ -60,22 +60,22 @@ const securityItems = [
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-card/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
-          <Link href="/" aria-label="NexStock home" className="shrink-0 border bg-background/70 px-3 py-2 transition hover:bg-muted/45">
-            <NexstockLogo tagline={false} className="px-1 py-0" />
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
+          <Link href="/" aria-label="NexStock home" className="flex shrink-0 items-center">
+            <NexstockLogo tagline={false} className="px-0 py-0" />
           </Link>
 
-          <nav className="hidden items-center border bg-background/60 text-sm font-medium text-muted-foreground lg:flex">
+          <nav className="hidden items-center gap-1 text-sm font-medium text-muted-foreground lg:flex">
             {navLinks.map((item) => (
-              <a key={item.href} href={item.href} className="border-r px-4 py-2.5 transition last:border-r-0 hover:bg-muted/45 hover:text-foreground">
+              <a key={item.href} href={item.href} className="px-3 py-2 transition hover:text-foreground">
                 {item.label}
               </a>
             ))}
           </nav>
 
-          <div className="hidden items-center gap-2 text-sm md:flex">
-            <Link href="/login" className="border bg-background/70 px-4 py-2.5 font-semibold transition hover:bg-muted/45">Sign in</Link>
+          <div className="hidden items-center gap-3 text-sm md:flex">
+            <Link href="/login" className="font-semibold text-muted-foreground transition hover:text-foreground">Sign in</Link>
             <Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-4 py-2.5 font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">
               Start free <ArrowRight className="h-4 w-4" />
             </Link>
@@ -86,14 +86,14 @@ export default function LandingPage() {
           </Link>
         </div>
 
-        <div className="border-t bg-muted/15 px-4 py-2 sm:px-6 lg:hidden">
-          <nav className="mx-auto flex max-w-7xl gap-2 overflow-x-auto text-xs font-medium text-muted-foreground">
+        <div className="border-t bg-card/70 px-4 py-2 sm:px-6 lg:hidden">
+          <nav className="mx-auto flex max-w-7xl gap-4 overflow-x-auto text-xs font-semibold text-muted-foreground">
             {navLinks.map((item) => (
-              <a key={item.href} href={item.href} className="shrink-0 border bg-background/70 px-3 py-2 transition hover:bg-muted/45 hover:text-foreground">
+              <a key={item.href} href={item.href} className="shrink-0 py-1.5 transition hover:text-foreground">
                 {item.label}
               </a>
             ))}
-            <Link href="/login" className="shrink-0 border bg-background/70 px-3 py-2 transition hover:bg-muted/45 hover:text-foreground">Sign in</Link>
+            <Link href="/login" className="shrink-0 py-1.5 transition hover:text-foreground">Sign in</Link>
           </nav>
         </div>
       </header>
