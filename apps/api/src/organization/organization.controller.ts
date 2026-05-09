@@ -23,6 +23,20 @@ export class OrganizationController {
       skuPrefix?: string;
       industry?: string;
       onboardingComplete?: boolean;
+      legalName?: string;
+      tradingName?: string;
+      registrationNo?: string;
+      vatNumber?: string;
+      companySize?: string;
+      website?: string;
+      phone?: string;
+      billingEmail?: string;
+      addressLine1?: string;
+      addressLine2?: string;
+      city?: string;
+      province?: string;
+      postalCode?: string;
+      country?: string;
     },
   ) {
     return this.service.updateOrganization(user, body);
