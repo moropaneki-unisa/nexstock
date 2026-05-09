@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2, Loader2, LockKeyhole } from "lucide-react";
 
@@ -15,6 +15,14 @@ import { resetPassword } from "@/lib/api";
 type ResetPasswordValues = { password: string; confirmPassword: string };
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordShell />}>
+      <ResetPasswordForm />
+    </Suspense>
+  );
+}
+
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = useMemo(() => searchParams.get("email") ?? "", [searchParams]);
@@ -48,6 +56,52 @@ export default function ResetPasswordPage() {
   }
 
   return (
+    <ResetPasswordLayout>
+      <section className="border bg-card/95 shadow-sm">
+        <div className="p-6 text-center lg:text-left">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center bg-primary/10 text-primary lg:mx-0">
+            <LockKeyhole className="h-5 w-5" />
+          </div>
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Account recovery</p>
+          <h2 className="mt-2 text-4xl font-black tracking-[-0.05em]">Create new password</h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Enter and confirm your new password for {email || "your account"}.</p>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-0 border-t">
+          {error && <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+          {done && <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Password updated. Redirecting to sign in...</div>}
+          <Field label="New password">
+            <Input type="password" {...register("password", { required: true })} className="rounded-xl" placeholder="Create a secure password" />
+          </Field>
+          <Field label="Confirm password">
+            <Input type="password" {...register("confirmPassword", { required: true })} className="rounded-xl" placeholder="Confirm your password" />
+          </Field>
+          <div className="border-t p-4">
+            <Button className="w-full rounded-xl py-6 font-semibold" disabled={isSubmitting || done}>{isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Updating...</> : "Update password"}</Button>
+          </div>
+        </form>
+
+        <div className="border-t bg-muted/20 px-5 py-4 text-center text-sm text-muted-foreground">
+          Need a new link? <Link href="/forgot-password" className="font-medium text-foreground hover:underline">Request reset</Link>
+        </div>
+      </section>
+    </ResetPasswordLayout>
+  );
+}
+
+function ResetPasswordShell() {
+  return (
+    <ResetPasswordLayout>
+      <section className="border bg-card/95 p-10 text-center text-sm text-muted-foreground shadow-sm">
+        <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
+        Loading password reset form...
+      </section>
+    </ResetPasswordLayout>
+  );
+}
+
+function ResetPasswordLayout({ children }: { children: React.ReactNode }) {
+  return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-card/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
@@ -76,34 +130,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="mx-auto w-full max-w-md lg:mx-0">
-          <section className="border bg-card/95 shadow-sm">
-            <div className="p-6 text-center lg:text-left">
-              <div className="mx-auto flex h-11 w-11 items-center justify-center bg-primary/10 text-primary lg:mx-0">
-                <LockKeyhole className="h-5 w-5" />
-              </div>
-              <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Account recovery</p>
-              <h2 className="mt-2 text-4xl font-black tracking-[-0.05em]">Create new password</h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">Enter and confirm your new password for {email || "your account"}.</p>
-            </div>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-0 border-t">
-              {error && <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
-              {done && <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">Password updated. Redirecting to sign in...</div>}
-              <Field label="New password">
-                <Input type="password" {...register("password", { required: true })} className="rounded-xl" placeholder="Create a secure password" />
-              </Field>
-              <Field label="Confirm password">
-                <Input type="password" {...register("confirmPassword", { required: true })} className="rounded-xl" placeholder="Confirm your password" />
-              </Field>
-              <div className="border-t p-4">
-                <Button className="w-full rounded-xl py-6 font-semibold" disabled={isSubmitting || done}>{isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Updating...</> : "Update password"}</Button>
-              </div>
-            </form>
-
-            <div className="border-t bg-muted/20 px-5 py-4 text-center text-sm text-muted-foreground">
-              Need a new link? <Link href="/forgot-password" className="font-medium text-foreground hover:underline">Request reset</Link>
-            </div>
-          </section>
+          {children}
         </div>
       </section>
     </main>
