@@ -19,25 +19,41 @@ export default function ProductFieldsPage() {
         }
       />
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-[1.5rem] border bg-card/95 p-5 shadow-sm">
-          <PackageSearch className="h-5 w-5 text-primary" />
-          <p className="mt-4 text-sm font-semibold">Default fields</p>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">Name, SKU, price, quantity, low-stock level, category, description, and images are built into every product.</p>
-        </div>
-        <div className="rounded-[1.5rem] border bg-card/95 p-5 shadow-sm">
-          <DatabaseZap className="h-5 w-5 text-primary" />
-          <p className="mt-4 text-sm font-semibold">Additional fields</p>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">Add business-specific fields like brand, supplier code, color, material, warranty, or external category.</p>
-        </div>
-        <div className="rounded-[1.5rem] border bg-card/95 p-5 shadow-sm">
-          <ShieldCheck className="h-5 w-5 text-primary" />
-          <p className="mt-4 text-sm font-semibold">Used everywhere</p>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground">Fields are available in product forms, import/export files, integrations, mapping, and developer APIs.</p>
+      <section className="border bg-card/95">
+        <div className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+          <IntroMetric
+            icon={PackageSearch}
+            title="Default fields"
+            description="Name, SKU, price, quantity, low-stock level, category, description, and images are built into every product."
+          />
+          <IntroMetric
+            icon={DatabaseZap}
+            title="Additional fields"
+            description="Add business-specific fields like brand, supplier code, color, material, warranty, or external category."
+          />
+          <IntroMetric
+            icon={ShieldCheck}
+            title="Used everywhere"
+            description="Fields are available in product forms, import/export files, integrations, mapping, and developer APIs."
+          />
         </div>
       </section>
 
       <ProductFieldsManager />
     </PageShell>
+  );
+}
+
+function IntroMetric({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
+  return (
+    <div className="flex gap-4 p-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center bg-primary/10 text-primary">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+    </div>
   );
 }
