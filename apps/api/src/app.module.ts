@@ -12,6 +12,7 @@ import { OrganizationModule } from './organization/organization.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { PublicApiModule } from './public-api/public-api.module';
+import { UsersModule } from './users/users.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
@@ -29,6 +30,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     WebhooksModule,
     IntegrationsModule,
     OrganizationModule,
+    UsersModule,
   ],
 })
 export class AppModule implements NestModule {
