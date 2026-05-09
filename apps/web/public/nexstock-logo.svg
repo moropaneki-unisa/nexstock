@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360" role="img" aria-labelledby="title desc">
+  <title id="title">NexStock logo</title>
+  <desc id="desc">Vector recreation of the NexStock logo with gradient N icon, wordmark, and tagline Connect Manage Grow.</desc>
+  <defs>
+    <linearGradient id="ribbon" x1="72" y1="72" x2="298" y2="274" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3e73ff"/>
+      <stop offset="0.38" stop-color="#7150ff"/>
+      <stop offset="0.63" stop-color="#16c7d0"/>
+      <stop offset="1" stop-color="#44f0b4"/>
+    </linearGradient>
+    <linearGradient id="ribbon2" x1="75" y1="278" x2="180" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7d45ff"/>
+      <stop offset="0.5" stop-color="#326fff"/>
+      <stop offset="1" stop-color="#11ddd0"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="232" y1="72" x2="308" y2="172" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4ef2bd"/>
+      <stop offset="1" stop-color="#10b9cc"/>
+    </linearGradient>
+    <linearGradient id="tagline" x1="458" y1="267" x2="900" y2="267" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4775ff"/>
+      <stop offset="0.5" stop-color="#26e5bd"/>
+      <stop offset="1" stop-color="#884cff"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#071326" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Icon -->
+  <g transform="translate(74 48)" filter="url(#softShadow)">
+    <!-- Left upright stroke -->
+    <path d="M22 224 L22 94 Q22 76 37 66 L71 44 Q84 36 98 45 L98 230 L65 252 Q50 262 36 253 L22 244 Z" fill="url(#ribbon2)"/>
+
+    <!-- Main diagonal N ribbon -->
+    <path d="M72 41 Q89 29 105 45 L245 187 Q258 200 275 188 L299 170 L299 223 L267 246 Q244 262 223 241 L87 103 Q74 90 61 99 L37 116 L37 63 Z" fill="url(#ribbon)"/>
+
+    <!-- Right teal bars -->
+    <path d="M259 76 L297 52 L297 132 L259 156 Z" fill="url(#teal)"/>
+    <path d="M312 42 L351 18 L351 136 L312 160 Z" fill="url(#teal)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(424 0)">
+    <text x="0" y="172" font-family="Inter, Avenir Next, Montserrat, Arial, sans-serif" font-size="104" font-weight="800" letter-spacing="-4" fill="#071326">Nex</text>
+    <text x="184" y="172" font-family="Inter, Avenir Next, Montserrat, Arial, sans-serif" font-size="104" font-weight="300" letter-spacing="-4" fill="#071326">Stock</text>
+
+    <!-- Tagline -->
+    <text x="6" y="245" font-family="Inter, Montserrat, Arial, sans-serif" font-size="25" font-weight="500" letter-spacing="13" fill="url(#tagline)">CONNECT · MANAGE · GROW</text>
+  </g>
+</svg>
