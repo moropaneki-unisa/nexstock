@@ -98,10 +98,10 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-4 pb-14 pt-14 sm:px-6 lg:px-10 lg:pb-16 lg:pt-20">
-        <div className="grid gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div>
-            <div className="inline-flex items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
+        <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+          <div className="flex min-h-[520px] flex-col justify-center">
+            <div className="inline-flex w-fit items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-primary" /> Connect · Manage · Grow
             </div>
             <h1 className="mt-7 max-w-5xl text-5xl font-black tracking-[-0.06em] sm:text-6xl lg:text-7xl">
@@ -116,11 +116,11 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <section className="overflow-hidden border bg-card/95 shadow-sm">
+          <section className="flex min-h-[520px] items-center overflow-hidden border bg-card/95 shadow-sm">
             <img
               src="/landing/nexstock-hero-visual.svg"
               alt="NexStock product operations dashboard visual"
-              className="h-full w-full object-cover"
+              className="h-full min-h-[520px] w-full object-cover"
             />
           </section>
         </div>
@@ -128,66 +128,72 @@ export default function LandingPage() {
 
       <section className="px-4 pb-16 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl overflow-hidden border bg-card/95">
-          <img src="/landing/nexstock-brand-strip.svg" alt="NexStock brand strip" className="w-full object-cover" />
+          <img src="/landing/nexstock-brand-strip.svg" alt="NexStock brand strip" className="aspect-[1200/260] w-full object-cover" />
         </div>
       </section>
 
-      <section id="features" className="border-y bg-card/40 px-4 py-16 sm:px-6 lg:px-10">
+      <section id="features" className="border-y bg-card/40 px-4 py-20 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <SectionIntro eyebrow="Product" title="One operating layer for product data." description="NexStock gives your team the core tools needed to manage catalog data, stock workflows, and connected systems." />
           <div className="mt-10 border bg-card/95">
-            <div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+            <div className="grid auto-rows-fr divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
               {pillars.map((item) => <FeaturePanel key={item.title} {...item} />)}
             </div>
           </div>
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <SectionIntro eyebrow="Brand system" title="A polished product identity for every touchpoint." description="The new NexStock assets give the landing page a stronger visual system while keeping the clean Organization-style product UI." />
-          <section className="overflow-hidden border bg-card/95">
-            <img src="/landing/nexstock-feature-grid.svg" alt="NexStock feature grid" className="w-full object-cover" />
+      <section className="px-4 py-20 sm:px-6 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
+          <div className="flex min-h-[430px] flex-col justify-center">
+            <SectionIntro eyebrow="Brand system" title="A polished product identity for every touchpoint." description="The new NexStock assets give the landing page a stronger visual system while keeping the clean Organization-style product UI." />
+          </div>
+          <section className="flex min-h-[430px] items-center overflow-hidden border bg-card/95">
+            <img src="/landing/nexstock-feature-grid.svg" alt="NexStock feature grid" className="h-full min-h-[430px] w-full object-cover" />
           </section>
         </div>
       </section>
 
-      <section id="workflow" className="border-y bg-card/40 px-4 py-16 sm:px-6 lg:px-10">
+      <section id="workflow" className="border-y bg-card/40 px-4 py-20 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <SectionIntro eyebrow="How it works" title="Connect your stack, structure your data, and grow with confidence." description="NexStock turns disconnected stock and product data into a clean, automated operating layer." />
           <div className="mt-10 border bg-card/95">
-            <div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+            <div className="grid auto-rows-fr divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
               {workflow.map((step, index) => <WorkflowPanel key={step.title} index={index} {...step} />)}
             </div>
           </div>
         </div>
       </section>
 
-      <section id="platform" className="px-4 py-16 sm:px-6 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          <SectionIntro eyebrow="Platform ready" title="Built for integrations, APIs, imports, and cloud workflows." description="Whether your products live in spreadsheets, online stores, ERP systems, or custom apps, NexStock gives your team one reliable layer to connect, manage, and grow." />
-          <section className="border bg-card/95">
+      <section id="platform" className="px-4 py-20 sm:px-6 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-stretch">
+          <div className="flex min-h-[360px] flex-col justify-center">
+            <SectionIntro eyebrow="Platform ready" title="Built for integrations, APIs, imports, and cloud workflows." description="Whether your products live in spreadsheets, online stores, ERP systems, or custom apps, NexStock gives your team one reliable layer to connect, manage, and grow." />
+          </div>
+          <section className="flex min-h-[360px] flex-col border bg-card/95">
             <SectionHeader icon={DatabaseZap} title="Platform capabilities" description="Core capabilities for connected product operations." />
-            <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <div className="grid flex-1 auto-rows-fr divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               {platformItems.map((item) => <ListItem key={item} label={item} />)}
             </div>
           </section>
         </div>
       </section>
 
-      <section id="security" className="border-y bg-card/40 px-4 py-16 sm:px-6 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          <SectionIntro eyebrow="Security" title="Professional enough for real business operations." description="Designed for launch with secure access, API controls, operational monitoring, and a scalable cloud foundation." icon={LockKeyhole} />
-          <section className="border bg-card/95">
+      <section id="security" className="border-y bg-card/40 px-4 py-20 sm:px-6 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-stretch">
+          <div className="flex min-h-[360px] flex-col justify-center">
+            <SectionIntro eyebrow="Security" title="Professional enough for real business operations." description="Designed for launch with secure access, API controls, operational monitoring, and a scalable cloud foundation." icon={LockKeyhole} />
+          </div>
+          <section className="flex min-h-[360px] flex-col border bg-card/95">
             <SectionHeader icon={ShieldCheck} title="Operational controls" description="Security and infrastructure foundations for production teams." />
-            <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <div className="grid flex-1 auto-rows-fr divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               {securityItems.map((item) => <ListItem key={item} label={item} icon={ShieldCheck} />)}
             </div>
           </section>
         </div>
       </section>
 
-      <section className="border-t bg-card/40 px-4 py-16 text-center sm:px-6 lg:px-10">
+      <section className="border-t bg-card/40 px-4 py-20 text-center sm:px-6 lg:px-10">
         <div className="mx-auto max-w-4xl">
           <h2 className="text-4xl font-black tracking-[-0.05em] md:text-6xl">Ready to connect, manage, and grow?</h2>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">Launch your NexStock workspace and start building a cleaner product operating system for your company.</p>
@@ -215,13 +221,13 @@ function SectionHeader({ icon: Icon, title, description, badge }: { icon: Lucide
 }
 
 function FeaturePanel({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
-  return <div className="p-5"><span className="flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
+  return <div className="flex min-h-[230px] flex-col p-5"><span className="flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
 }
 
 function WorkflowPanel({ icon: Icon, title, text, index }: { icon: LucideIcon; title: string; text: string; index: number }) {
-  return <div className="p-5"><span className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">0{index + 1}</span><span className="mt-4 flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
+  return <div className="flex min-h-[230px] flex-col p-5"><span className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">0{index + 1}</span><span className="mt-4 flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
 }
 
 function ListItem({ label, icon: Icon = CheckCircle2 }: { label: string; icon?: LucideIcon }) {
-  return <div className="flex items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium">{label}</span></div>;
+  return <div className="flex min-h-[86px] items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium">{label}</span></div>;
 }
