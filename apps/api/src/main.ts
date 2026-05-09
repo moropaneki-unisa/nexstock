@@ -6,6 +6,22 @@ import { validateEnv } from './common/config/env';
 
 const cookieParser = require('cookie-parser');
 
+function parseAllowedOrigins() {
+  const defaults = [
+    'https://nexstock.co.za',
+    'https://www.nexstock.co.za',
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ];
+
+  const configured = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/^['"]|['"]$/g, '').replace(/\/$/, ''))
+    .filter(Boolean);
+
+  return Array.from(new Set([...defaults, ...configured]));
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   validateEnv(logger);
@@ -14,19 +30,22 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  const allowedOrigins = (
-    process.env.CORS_ORIGINS ??
-    'https://nexstock.co.za'
-  )
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const allowedOrigins = parseAllowedOrigins();
 
   app.enableCors({
-    origin: allowedOrigins,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Content-Disposition'],
+    optionsSuccessStatus: 204,
   });
 
   app.setGlobalPrefix('api');
@@ -45,6 +64,7 @@ async function bootstrap() {
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;
   await app.listen(port);
   logger.log(`NexStock API listening on port ${port}`);
+  logger.log(`CORS enabled for: ${allowedOrigins.join(', ')}`);
 }
 
 bootstrap();
