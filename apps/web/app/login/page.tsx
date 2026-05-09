@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login } from "@/lib/api";
-import { AuthVisual } from "@/components/auth/auth-visual";
 import { NexstockLogo } from "@/components/brand/nexstock-logo";
 
 type LoginValues = { email: string; password: string };
@@ -35,40 +34,42 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="grid min-h-screen lg:grid-cols-2">
-        <AuthVisual mode="login" />
-        <section className="flex items-center justify-center px-6 py-12">
-          <div className="w-full max-w-md">
-            <div className="mb-8 lg:hidden"><NexstockLogo /></div>
-            <section className="border bg-card/95">
-              <div className="p-6">
-                <div className="flex h-11 w-11 items-center justify-center bg-primary/10 text-primary">
-                  <LockKeyhole className="h-5 w-5" />
-                </div>
-                <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Welcome back</p>
-                <h1 className="mt-2 text-4xl font-black tracking-[-0.05em]">Sign in to NexStock</h1>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">Access your product, inventory, integrations, and automation workspace.</p>
-              </div>
-
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-0 border-t">
-                {error && <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
-                <Field label="Email">
-                  <Input {...register("email", { required: true })} className="rounded-xl" placeholder="you@company.com" />
-                </Field>
-                <Field label="Password">
-                  <Input type="password" {...register("password", { required: true })} className="rounded-xl" placeholder="Enter your password" />
-                </Field>
-                <div className="border-t p-4">
-                  <Button className="w-full rounded-xl py-6 font-semibold" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</> : "Sign in"}</Button>
-                </div>
-              </form>
-
-              <div className="border-t bg-muted/20 px-5 py-4 text-center text-sm text-muted-foreground">
-                No account? <Link href="/signup" className="font-medium text-foreground hover:underline">Create one</Link>
-              </div>
-            </section>
+      <div className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
+        <div className="w-full max-w-md space-y-6">
+          <div className="flex justify-center">
+            <Link href="/" aria-label="NexStock home">
+              <NexstockLogo tagline={false} className="px-2 py-1" />
+            </Link>
           </div>
-        </section>
+
+          <section className="border bg-card/95">
+            <div className="p-6 text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center bg-primary/10 text-primary">
+                <LockKeyhole className="h-5 w-5" />
+              </div>
+              <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Welcome back</p>
+              <h1 className="mt-2 text-4xl font-black tracking-[-0.05em]">Sign in to NexStock</h1>
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">Access your product, inventory, integrations, and automation workspace.</p>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-0 border-t">
+              {error && <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+              <Field label="Email">
+                <Input {...register("email", { required: true })} className="rounded-xl" placeholder="you@company.com" />
+              </Field>
+              <Field label="Password">
+                <Input type="password" {...register("password", { required: true })} className="rounded-xl" placeholder="Enter your password" />
+              </Field>
+              <div className="border-t p-4">
+                <Button className="w-full rounded-xl py-6 font-semibold" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</> : "Sign in"}</Button>
+              </div>
+            </form>
+
+            <div className="border-t bg-muted/20 px-5 py-4 text-center text-sm text-muted-foreground">
+              No account? <Link href="/signup" className="font-medium text-foreground hover:underline">Create one</Link>
+            </div>
+          </section>
+        </div>
       </div>
     </main>
   );
