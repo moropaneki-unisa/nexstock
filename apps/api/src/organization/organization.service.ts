@@ -9,6 +9,28 @@ import { EmailService } from '../email/email.service';
 const INVITE_EXPIRY_DAYS = 7;
 const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
+type OrganizationUpdateDto = {
+  name?: string;
+  slug?: string;
+  skuPrefix?: string;
+  industry?: string;
+  onboardingComplete?: boolean;
+  legalName?: string;
+  tradingName?: string;
+  registrationNo?: string;
+  vatNumber?: string;
+  companySize?: string;
+  website?: string;
+  phone?: string;
+  billingEmail?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  country?: string;
+};
+
 function requireAdmin(user: CurrentUserPayload) {
   if (user.role !== 'admin') {
     throw new ForbiddenException('Admin role required');
@@ -26,6 +48,12 @@ function hashInviteToken(token: string) {
 
 function generateInviteToken() {
   return randomBytes(32).toString('hex');
+}
+
+function optionalText(value: string | undefined) {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed || null;
 }
 
 const roleDefinitions: Record<UserRole, { description: string; permissions: string[] }> = {
@@ -111,22 +139,38 @@ export class OrganizationService {
     };
   }
 
-  async updateOrganization(user: CurrentUserPayload, dto: { name?: string; slug?: string; skuPrefix?: string; industry?: string; onboardingComplete?: boolean }) {
+  async updateOrganization(user: CurrentUserPayload, dto: OrganizationUpdateDto) {
     requireAdmin(user);
-    const data: { name?: string; slug?: string; skuPrefix?: string | null; industry?: string | null; onboardingComplete?: boolean } = {};
+    const data: Record<string, string | boolean | null> = {};
+
     if (dto.name !== undefined) {
       const name = dto.name.trim();
       if (!name) throw new BadRequestException('Organization name is required');
       data.name = name;
     }
     if (dto.slug !== undefined) {
-      const slug = dto.slug.trim().toLowerCase();
+      const slug = dto.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
       if (!slug) throw new BadRequestException('Workspace slug is required');
       data.slug = slug;
     }
     if (dto.skuPrefix !== undefined) data.skuPrefix = dto.skuPrefix?.trim().toUpperCase() || null;
-    if (dto.industry !== undefined) data.industry = dto.industry?.trim() || null;
+    if (dto.industry !== undefined) data.industry = optionalText(dto.industry);
     if (dto.onboardingComplete !== undefined) data.onboardingComplete = dto.onboardingComplete;
+    if (dto.legalName !== undefined) data.legalName = optionalText(dto.legalName);
+    if (dto.tradingName !== undefined) data.tradingName = optionalText(dto.tradingName);
+    if (dto.registrationNo !== undefined) data.registrationNo = optionalText(dto.registrationNo);
+    if (dto.vatNumber !== undefined) data.vatNumber = optionalText(dto.vatNumber);
+    if (dto.companySize !== undefined) data.companySize = optionalText(dto.companySize);
+    if (dto.website !== undefined) data.website = optionalText(dto.website);
+    if (dto.phone !== undefined) data.phone = optionalText(dto.phone);
+    if (dto.billingEmail !== undefined) data.billingEmail = optionalText(dto.billingEmail);
+    if (dto.addressLine1 !== undefined) data.addressLine1 = optionalText(dto.addressLine1);
+    if (dto.addressLine2 !== undefined) data.addressLine2 = optionalText(dto.addressLine2);
+    if (dto.city !== undefined) data.city = optionalText(dto.city);
+    if (dto.province !== undefined) data.province = optionalText(dto.province);
+    if (dto.postalCode !== undefined) data.postalCode = optionalText(dto.postalCode);
+    if (dto.country !== undefined) data.country = optionalText(dto.country);
+
     return this.db.organization.update({ where: { id: user.organizationId }, data });
   }
 
