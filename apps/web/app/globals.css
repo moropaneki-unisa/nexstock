@@ -58,10 +58,12 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   min-height: 100vh;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 10% 0%, oklch(0.82 0.09 252 / 0.28), transparent 30rem),
     radial-gradient(circle at 90% 10%, oklch(0.70 0.15 155 / 0.18), transparent 28rem),
@@ -82,6 +84,43 @@ select {
 
 ::selection {
   background: oklch(0.80 0.10 252 / 0.35);
+}
+
+/* Landing page guard rails: prevent feature cards from pushing the page horizontally on narrow laptops/zoomed browsers. */
+#platform,
+#security {
+  overflow-x: hidden;
+}
+
+#platform > div,
+#security > div {
+  width: 100%;
+  min-width: 0;
+}
+
+#platform > div > *,
+#security > div > * {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  #platform > div,
+  #security > div {
+    grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  }
+}
+
+@media (max-width: 1280px) {
+  #platform h2,
+  #security h2 {
+    font-size: clamp(2.25rem, 4vw, 3rem);
+    line-height: 1;
+  }
+
+  #platform [class*="min-h-[86px]"],
+  #security [class*="min-h-[86px]"] {
+    min-height: 74px;
+  }
 }
 
 @layer utilities {
