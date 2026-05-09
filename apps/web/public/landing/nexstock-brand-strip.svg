@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
+  <title id="title">NexStock brand strip</title>
+  <desc id="desc">A professional NexStock brand strip with logo variations and product operation pillars.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#3e73ff"/><stop offset="0.55" stop-color="#16c7d0"/><stop offset="1" stop-color="#44f0b4"/></linearGradient>
+    <linearGradient id="p" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#7d45ff"/><stop offset="1" stop-color="#44f0b4"/></linearGradient>
+  </defs>
+  <rect width="1200" height="260" fill="#020617"/>
+  <g opacity="0.18" stroke="#ffffff"><path d="M0 48H1200M0 130H1200M0 212H1200"/><path d="M180 0V260M420 0V260M660 0V260M900 0V260"/></g>
+  <g transform="translate(70 58)">
+    <path d="M0 106V28L34 0v120L18 132Z" fill="url(#p)"/>
+    <path d="M28 0l126 126q18 18 38 3l26-20v46l-33 25q-28 21-54-5L12 54Q2 44 0 46V0Z" fill="url(#g)"/>
+    <path d="M206 20l38-23v78l-38 24Z" fill="#44f0b4"/>
+    <path d="M258 0l42-25v110l-42 26Z" fill="#20d3c6"/>
+    <text x="350" y="76" font-family="Inter, Arial" font-size="64" font-weight="800" fill="#fff">Nex<tspan font-weight="300">Stock</tspan></text>
+    <text x="354" y="114" font-family="Inter, Arial" font-size="15" font-weight="700" letter-spacing="9" fill="url(#g)">CONNECT · MANAGE · GROW</text>
+  </g>
+  <g transform="translate(70 205)" font-family="Inter, Arial" fill="#e5e7eb" font-size="15">
+    <text x="0" y="0">□ Product Management</text>
+    <text x="310" y="0">◇ Seamless Integrations</text>
+    <text x="635" y="0">▥ Data Driven Growth</text>
+    <text x="930" y="0">☁ Cloud Powered</text>
+  </g>
+</svg>
