@@ -65,12 +65,8 @@ function isFormData(body: any): body is FormData {
 async function parseResponse<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
   const ct = res.headers.get('content-type') || '';
-  if (ct.includes('application/json')) {
-    return res.json() as Promise<T>;
-  }
-  // fallback to text to avoid JSON parse errors (e.g., multipart or HTML)
+  if (ct.includes('application/json')) return res.json() as Promise<T>;
   const text = await res.text();
-  // try to JSON.parse if it looks like JSON
   try {
     return JSON.parse(text) as T;
   } catch {
@@ -87,7 +83,6 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
     ...(options.headers as Record<string, string> || {}),
   };
 
-  // Only set JSON content-type if NOT FormData and body exists and no content-type already set
   if (body && !isFormData(body) && !('Content-Type' in headers) && !('content-type' in headers)) {
     headers['Content-Type'] = 'application/json';
   }
@@ -172,6 +167,38 @@ export async function signup(payload: Record<string, unknown>) {
   const data = await response.json();
   if (data.accessToken) setAccessToken(data.accessToken);
   return data;
+}
+
+export async function requestPasswordReset(email: string) {
+  const response = await fetch(`${API_URL}/api/auth/account-recovery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || 'Could not send reset link');
+  }
+
+  return response.json();
+}
+
+export async function resetPassword(payload: { email: string; token: string; password: string }) {
+  const response = await fetch(`${API_URL}/api/auth/account-recovery/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || 'Could not reset password');
+  }
+
+  return response.json();
 }
 
 export async function logout() {
