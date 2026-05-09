@@ -1,4 +1,4 @@
-import { ArrowRight, Boxes, CheckCircle2, DatabaseZap, PackageSearch, ShieldCheck, Workflow } from "lucide-react";
+import { ArrowRight, Boxes, CheckCircle2, DatabaseZap, ShieldCheck, Workflow } from "lucide-react";
 
 export function AuthVisual({ mode }: { mode: "login" | "signup" }) {
   const isSignup = mode === "signup";
@@ -9,14 +9,8 @@ export function AuthVisual({ mode }: { mode: "login" | "signup" }) {
       <div className="absolute inset-0 opacity-[0.35] [background-image:linear-gradient(rgba(23,23,23,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(23,23,23,.06)_1px,transparent_1px)] [background-size:56px_56px]" />
 
       <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-12">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-neutral-950 text-white shadow-sm">
-            <PackageSearch className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-sm font-semibold tracking-tight text-neutral-950">InventoryHub</p>
-            <p className="text-xs text-neutral-500">Product data command center</p>
-          </div>
+        <div className="flex items-center">
+          <img src="/nexstock-logo.svg" alt="NexStock" className="h-16 w-72 object-contain object-left" />
         </div>
 
         <div className="max-w-xl">
@@ -29,7 +23,7 @@ export function AuthVisual({ mode }: { mode: "login" | "signup" }) {
           </h1>
           <p className="mt-6 max-w-md text-base leading-8 text-neutral-600">
             {isSignup
-              ? "InventoryHub keeps product records, custom fields, inventory activity, imports, APIs, and integrations aligned in one focused SaaS workspace."
+              ? "NexStock keeps product records, custom fields, inventory activity, imports, APIs, and integrations aligned in one focused SaaS workspace."
               : "Manage product data, field mapping, Cloudinary images, API access, and operational readiness without switching between disconnected tools."}
           </p>
         </div>
