@@ -16,7 +16,7 @@ async function bootstrap() {
 
   const allowedOrigins = (
     process.env.CORS_ORIGINS ??
-    'https://nexstock.co.za,https://www.nexstock.co.za,https://product-hub-web.vercel.app,http://localhost:3000'
+    'https://nexstock.co.za'
   )
     .split(',')
     .map((origin) => origin.trim())
