@@ -169,6 +169,40 @@ export async function signup(payload: Record<string, unknown>) {
   return data;
 }
 
+export async function verifyEmail(payload: { email: string; otp: string }) {
+  const response = await fetch(`${API_URL}/api/auth/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || 'Verification failed');
+  }
+
+  const data = await response.json();
+  if (data.accessToken) setAccessToken(data.accessToken);
+  return data;
+}
+
+export async function resendVerificationOtp(email: string) {
+  const response = await fetch(`${API_URL}/api/auth/resend-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.message || 'Could not resend code');
+  }
+
+  return response.json();
+}
+
 export async function requestPasswordReset(email: string) {
   const response = await fetch(`${API_URL}/api/auth/account-recovery`, {
     method: 'POST',
