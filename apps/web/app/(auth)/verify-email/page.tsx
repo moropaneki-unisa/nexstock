@@ -1,137 +1,152 @@
-'use client';
+"use client";
 
-export const dynamic = 'force-dynamic';
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { CheckCircle2, Loader2, MailCheck, ShieldCheck } from "lucide-react";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/lib/api';
+import { NexstockLogo } from "@/components/brand/nexstock-logo";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { resendVerificationOtp, verifyEmail } from "@/lib/api";
+
+type VerifyEmailValues = { email: string; otp: string };
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const initialEmail = useMemo(() => searchParams.get("email") ?? "", [searchParams]);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [verified, setVerified] = useState(false);
+  const { register, handleSubmit, setValue, watch, formState: { isSubmitting } } = useForm<VerifyEmailValues>({
+    defaultValues: { email: initialEmail, otp: "" },
+  });
+
+  const email = watch("email");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setEmail(params.get('email') || '');
-  }, []);
+    if (initialEmail) setValue("email", initialEmail);
+  }, [initialEmail, setValue]);
 
-  async function verify() {
+  async function onSubmit(values: VerifyEmailValues) {
+    setError(null);
+    setNotice(null);
+
+    if (!values.email.trim()) {
+      setError("Email address is required.");
+      return;
+    }
+
+    if (!values.otp.trim()) {
+      setError("Verification code is required.");
+      return;
+    }
+
     try {
-      setLoading(true);
-      setError('');
-      setMessage('');
-
-      await apiFetch('/api/auth/verify-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, otp }),
-      });
-
-      router.push('/onboarding');
-    } catch (err: any) {
-      setError(err.message || 'Invalid code');
-    } finally {
-      setLoading(false);
+      await verifyEmail({ email: values.email.trim(), otp: values.otp.trim() });
+      setVerified(true);
+      setNotice("Email verified. Redirecting to your dashboard...");
+      window.setTimeout(() => router.push("/dashboard"), 900);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed");
     }
   }
 
-  async function resend() {
+  async function resendCode() {
+    setError(null);
+    setNotice(null);
+
+    if (!email?.trim()) {
+      setError("Enter your email address before requesting a new code.");
+      return;
+    }
+
+    setResending(true);
     try {
-      setResending(true);
-      setError('');
-      setMessage('');
-
-      await apiFetch('/api/auth/resend-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      setMessage('A new verification code has been sent to your email.');
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend code');
+      await resendVerificationOtp(email.trim());
+      setNotice("A new verification code has been sent if the account exists.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not resend code");
     } finally {
       setResending(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center px-4 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.15),transparent_40%)]" />
+    <main className="min-h-screen bg-background text-foreground">
+      <header className="border-b bg-card/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+          <Link href="/" aria-label="NexStock home">
+            <NexstockLogo tagline={false} className="px-2 py-1" />
+          </Link>
+          <Link href="/login" className="rounded-xl border bg-background/70 px-4 py-2 text-sm font-semibold transition hover:bg-muted">Sign in</Link>
+        </div>
+      </header>
 
-      <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950/80 backdrop-blur-xl shadow-2xl p-8">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/20 border border-indigo-500/30">
-            <span className="text-2xl">✉️</span>
-          </div>
-
-          <h1 className="text-3xl font-bold tracking-tight">Verify your email</h1>
-
-          <p className="mt-3 text-sm text-zinc-400 leading-6">
-            Enter the 6-digit verification code sent to
-            <br />
-            <span className="text-white font-medium">{email}</span>
+      <section className="mx-auto grid min-h-[calc(100vh-73px)] max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_28rem]">
+        <div className="hidden lg:block">
+          <p className="inline-flex items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Email verification
           </p>
+          <h1 className="mt-6 max-w-2xl text-5xl font-black tracking-[-0.06em] xl:text-6xl">Secure your product workspace before launch.</h1>
+          <p className="mt-5 max-w-xl text-base leading-8 text-muted-foreground">Verify your email address to activate your NexStock workspace, create your organization, and access product operations.</p>
+
+          <section className="mt-8 border bg-card/95">
+            <div className="divide-y">
+              <InfoLine label="Confirm account ownership" />
+              <InfoLine label="Activate organization workspace" />
+              <InfoLine label="Unlock dashboard access" />
+            </div>
+          </section>
         </div>
 
-        <div className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Verification Code
-            </label>
-
-            <input
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              inputMode="numeric"
-              maxLength={6}
-              className="w-full rounded-2xl border border-zinc-800 bg-black/60 px-4 py-4 text-center text-2xl tracking-[0.5em] outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-            />
-
-            <p className="mt-2 text-xs text-zinc-500">
-              The verification code expires in 5 minutes.
-            </p>
-          </div>
-
-          {error && (
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {error}
+        <div className="mx-auto w-full max-w-md lg:mx-0">
+          <section className="border bg-card/95 shadow-sm">
+            <div className="p-6 text-center lg:text-left">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center bg-primary/10 text-primary lg:mx-0">
+                <MailCheck className="h-5 w-5" />
+              </div>
+              <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Verify email</p>
+              <h2 className="mt-2 text-4xl font-black tracking-[-0.05em]">Enter your code</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">We sent a 6-digit verification code to your email address.</p>
             </div>
-          )}
 
-          {message && (
-            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-              {message}
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-0 border-t">
+              {error && <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+              {notice && <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div>}
+              <Field label="Email">
+                <Input type="email" {...register("email", { required: true })} className="rounded-sm" placeholder="you@company.com" />
+              </Field>
+              <Field label="Verification code">
+                <Input {...register("otp", { required: true })} inputMode="numeric" maxLength={6} className="rounded-sm text-center font-mono text-lg tracking-[0.4em]" placeholder="000000" />
+              </Field>
+              <div className="border-t p-4">
+                <Button className="w-full rounded-xl py-6 font-semibold" disabled={isSubmitting || verified}>{isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</> : verified ? "Verified" : "Verify email"}</Button>
+                <Button type="button" variant="ghost" onClick={resendCode} disabled={resending || isSubmitting} className="mt-2 w-full rounded-xl">
+                  {resending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Resend code
+                </Button>
+              </div>
+            </form>
+
+            <div className="border-t bg-muted/20 px-5 py-4 text-center text-sm text-muted-foreground">
+              Wrong account? <Link href="/signup" className="font-medium text-foreground hover:underline">Create a new account</Link>
             </div>
-          )}
-
-          <button
-            onClick={verify}
-            disabled={loading || otp.length !== 6}
-            className="w-full rounded-2xl bg-white text-black py-4 font-semibold transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? 'Verifying...' : 'Verify Email'}
-          </button>
-
-          <button
-            onClick={resend}
-            disabled={resending}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 py-4 text-sm font-medium text-zinc-300 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
-          >
-            {resending ? 'Sending...' : 'Resend verification code'}
-          </button>
+          </section>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="border-b p-4"><Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</Label><div className="mt-3">{children}</div></div>;
+}
+
+function InfoLine({ label }: { label: string }) {
+  return <div className="flex items-center justify-between px-4 py-3 text-sm"><span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />{label}</span><span className="text-xs text-muted-foreground">Ready</span></div>;
 }
