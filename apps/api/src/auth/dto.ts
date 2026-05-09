@@ -96,6 +96,22 @@ export class ResendOtpDto {
   email!: string;
 }
 
+export class AcceptInviteDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  token!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+}
+
 export class SwitchOrganizationDto {
   @IsString()
   organizationId!: string;
