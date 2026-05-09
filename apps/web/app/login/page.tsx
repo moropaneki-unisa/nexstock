@@ -92,6 +92,9 @@ export default function LoginPage() {
               </Field>
               <Field label="Password">
                 <Input type="password" {...register("password", { required: true })} className="rounded-xl" placeholder="Enter your password" />
+                <div className="mt-3 text-right">
+                  <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link>
+                </div>
               </Field>
               <div className="border-t p-4">
                 <Button className="w-full rounded-xl py-6 font-semibold" disabled={isSubmitting}>{isSubmitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in...</> : "Sign in"}</Button>
