@@ -1,208 +1,78 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  Boxes,
-  CheckCircle2,
-  Code2,
-  PackageSearch,
-  ShieldCheck,
-  Webhook,
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, Globe2, Layers3, ShieldCheck, Sparkles, Webhook } from "lucide-react";
+import { NexstockLogo } from "@/components/brand/nexstock-logo";
 
 const features = [
-  {
-    title: "Product source of truth",
-    description: "Manage product records, generated SKUs, pricing, stock levels, images, categories, and organization-specific metadata.",
-    icon: Boxes,
-  },
-  {
-    title: "Developer-first API",
-    description: "Issue organization API keys, expose product data, and let custom websites or internal tools consume inventory safely.",
-    icon: Code2,
-  },
-  {
-    title: "Webhooks and sync",
-    description: "Emit product and inventory events so connected systems can react as soon as catalog data changes.",
-    icon: Webhook,
-  },
+  { icon: Layers3, title: "Unified product operations", description: "Manage inventory, catalogs, warehouses, SKUs, and pricing from a single modern workspace." },
+  { icon: Globe2, title: "Platform integrations", description: "Connect ecommerce, ERP, POS, and logistics platforms through scalable APIs and webhooks." },
+  { icon: ShieldCheck, title: "Enterprise-ready architecture", description: "Role-based access, API security, audit readiness, and high-performance backend infrastructure." },
+  { icon: Webhook, title: "Automation workflows", description: "Trigger events, sync inventory in real time, and automate operational pipelines." },
 ];
 
-const stats = [
-  { value: "1", label: "Source of truth" },
-  { value: "3", label: "Core events" },
-  { value: "Zoho", label: "First integration" },
-];
-
-const roadmap = [
-  ["MVP", "Auth, products, schema fields, API keys, webhooks"],
-  ["Next", "Zoho OAuth, import/export, sync jobs, conflict review"],
-  ["Scale", "Rate limiting, billing, queues, audit logs, team roles"],
-];
-
-export default function HomePage() {
+export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-white text-neutral-950">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-        <Link href="/" className="flex items-center gap-2 text-base font-semibold tracking-tight">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-950 text-white">
-            <PackageSearch className="h-4 w-4" />
-          </span>
-          InventoryHub
-        </Link>
+    <main className="relative min-h-screen overflow-hidden bg-[#050505] text-white">
+      <div className="absolute inset-0 hero-grid opacity-30" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.05),transparent_24%)]" />
 
-        <nav className="hidden items-center gap-8 text-sm text-neutral-600 md:flex">
-          <a href="#features" className="transition hover:text-neutral-950">Features</a>
-          <a href="#platform" className="transition hover:text-neutral-950">Platform</a>
-          <a href="#roadmap" className="transition hover:text-neutral-950">Roadmap</a>
-        </nav>
-
-        <div className="flex items-center gap-3">
-          <Link href="/login" className="hidden text-sm font-medium text-neutral-600 transition hover:text-neutral-950 sm:block">
-            Login
-          </Link>
-          <Link href="/signup" className="rounded-full bg-neutral-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800">
-            Start free
-          </Link>
+      <header className="relative z-10 border-b border-white/10 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
+          <NexstockLogo light />
+          <nav className="hidden items-center gap-8 text-sm text-white/65 md:flex">
+            <a href="#features" className="transition hover:text-white">Features</a>
+            <a href="#platform" className="transition hover:text-white">Platform</a>
+            <a href="#security" className="transition hover:text-white">Security</a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <Link href="/login" className="rounded-2xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/85 transition hover:bg-white/10">Sign in</Link>
+            <Link href="/signup" className="rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-zinc-200">Start free</Link>
+          </div>
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-6xl items-center gap-14 px-6 pb-24 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:pt-24">
-        <div className="text-center lg:text-left">
-          <div className="mx-auto mb-6 inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-sm text-neutral-600 lg:mx-0">
-            Zoho-first inventory and product sync SaaS
-          </div>
-
-          <h1 className="mx-auto max-w-4xl text-5xl font-semibold tracking-[-0.04em] text-neutral-950 sm:text-6xl lg:mx-0">
-            The single source of truth for products, inventory, and connected apps.
-          </h1>
-
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-neutral-600 lg:mx-0">
-            InventoryHub helps businesses manage catalog data, expose clean APIs, register webhooks, and prepare for reliable Zoho product synchronization from one focused workspace.
-          </p>
-
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
-            <Link href="/signup" className="inline-flex items-center justify-center gap-2 rounded-full bg-neutral-950 px-6 py-3 text-sm font-medium text-white transition hover:bg-neutral-800">
-              Create workspace <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link href="/login" className="inline-flex items-center justify-center rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-neutral-700 transition hover:border-neutral-300 hover:bg-neutral-50">
-              Open dashboard
-            </Link>
-          </div>
+      <section className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-6 pb-28 pt-24 text-center lg:px-10 lg:pt-32">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-white/70 backdrop-blur-xl">
+          <Sparkles className="h-3.5 w-3.5" /> Next generation inventory SaaS
         </div>
-
-        <div className="mx-auto w-full max-w-xl rounded-[2rem] border border-neutral-200 bg-neutral-50 p-3 shadow-sm">
-          <div className="rounded-[1.5rem] border border-neutral-200 bg-white p-5">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-5">
-              <div>
-                <p className="text-sm font-medium text-neutral-950">InventoryHub overview</p>
-                <p className="mt-1 text-sm text-neutral-500">Catalog, API, and sync readiness</p>
+        <h1 className="mt-8 max-w-5xl text-5xl font-black tracking-[-0.06em] text-white md:text-7xl">Modern inventory and product operations for growing companies.</h1>
+        <p className="mt-8 max-w-3xl text-lg leading-8 text-zinc-400 md:text-xl">NexStock helps businesses connect platforms, automate inventory workflows, manage products, and scale operations with a clean modern SaaS experience.</p>
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <Link href="/signup" className="inline-flex items-center gap-2 rounded-2xl bg-white px-7 py-4 text-sm font-semibold text-black transition hover:bg-zinc-200">Launch workspace <ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/login" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-7 py-4 text-sm font-medium text-white/80 backdrop-blur-xl transition hover:bg-white/10 hover:text-white">Existing workspace</Link>
+        </div>
+        <div className="mt-20 grid w-full gap-5 lg:grid-cols-4" id="features">
+          {features.map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <div key={feature.title} className="group rounded-[2rem] border border-white/10 bg-white/[0.03] p-7 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.05]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-2xl"><Icon className="h-6 w-6" /></div>
+                <h3 className="mt-6 text-xl font-semibold tracking-tight">{feature.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-zinc-400">{feature.description}</p>
               </div>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">MVP ready</span>
-            </div>
-
-            <div className="grid gap-3 py-5 sm:grid-cols-3">
-              {stats.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
-                  <p className="text-2xl font-semibold tracking-tight">{stat.value}</p>
-                  <p className="mt-1 text-xs text-neutral-500">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-3">
-              {[
-                ["Product CRUD", "Live"],
-                ["API keys", "Live"],
-                ["Webhooks", "Live"],
-                ["Zoho sync", "Next"],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between rounded-2xl border border-neutral-100 bg-white px-4 py-3">
-                  <span className="text-sm text-neutral-600">{label}</span>
-                  <span className="text-sm font-medium text-neutral-950">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+            );
+          })}
         </div>
       </section>
 
-      <section id="features" className="border-y border-neutral-100 bg-neutral-50 px-6 py-24">
-        <div className="mx-auto max-w-6xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-medium text-neutral-500">Core SaaS features</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-              Built for businesses and developers.
-            </h2>
-            <p className="mt-4 text-neutral-600">
-              The app now reflects the actual InventoryHub product direction: multi-tenant inventory, public APIs, webhooks, and Zoho-first integrations.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <article key={feature.title} className="rounded-[1.5rem] border border-neutral-200 bg-white p-6">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-950 text-white"><Icon className="h-4 w-4" /></span>
-                  <h3 className="mt-5 text-lg font-semibold tracking-tight">{feature.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-neutral-600">{feature.description}</p>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section id="platform" className="px-6 py-24">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-2 lg:items-center">
+      <section id="platform" className="relative z-10 border-y border-white/10 bg-white/[0.03]">
+        <div className="mx-auto grid max-w-7xl gap-14 px-6 py-24 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
           <div>
-            <p className="text-sm font-medium text-neutral-500">Platform architecture</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-              A real SaaS monorepo foundation.
-            </h2>
-            <p className="mt-4 leading-7 text-neutral-600">
-              The web app in <span className="font-medium text-neutral-950">apps/web</span> connects to the NestJS backend in <span className="font-medium text-neutral-950">apps/api</span> through JWT auth, organization-scoped data, API keys, and webhook endpoints.
-            </p>
-          </div>
-
-          <div className="rounded-[1.5rem] border border-neutral-200 bg-white p-6">
-            <div className="grid gap-3">
-              {[
-                ["Next.js App Router", "Dashboard, products, API keys, webhooks"],
-                ["NestJS + Prisma", "Products, inventory logs, API keys, webhooks"],
-                ["Zoho sync engine", "OAuth and BullMQ worker roadmap"],
-              ].map(([path, label]) => (
-                <div key={path} className="flex items-center justify-between gap-4 rounded-2xl bg-neutral-50 px-4 py-3">
-                  <span className="text-sm font-medium text-neutral-950">{path}</span>
-                  <span className="text-right text-sm text-neutral-500">{label}</span>
-                </div>
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white/45">Built for scale</p>
+            <h2 className="mt-5 text-4xl font-black tracking-[-0.05em] md:text-5xl">Professional SaaS infrastructure designed for real businesses.</h2>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">From APIs and webhooks to inventory syncs and multi-platform integrations, NexStock gives teams the tools to manage operations from one elegant dashboard.</p>
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
+              {["Real-time inventory sync", "Secure API access", "Webhook automations", "Multi-platform integrations", "Role-based access control", "Scalable architecture"].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-4"><CheckCircle2 className="h-5 w-5 text-white" /><span className="text-sm text-zinc-200">{item}</span></div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      <section id="roadmap" className="px-6 pb-24">
-        <div className="mx-auto max-w-6xl rounded-[2rem] bg-neutral-950 px-6 py-14 text-white">
-          <ShieldCheck className="h-8 w-8 text-neutral-300" />
-          <h2 className="mt-5 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">
-            Ship the MVP, then build the sync moat.
-          </h2>
-          <p className="mt-4 max-w-2xl text-neutral-300">
-            Win the first version with product CRUD, custom schemas, API keys, and webhooks. Then add Zoho sync, imports, exports, queues, conflict resolution, and billing.
-          </p>
-          <div className="mt-8 grid gap-3 md:grid-cols-3">
-            {roadmap.map(([phase, detail]) => (
-              <div key={phase} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm font-semibold">{phase}</p>
-                <p className="mt-2 text-sm leading-6 text-neutral-300">{detail}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-8">
-            <Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-medium text-neutral-950 transition hover:bg-neutral-100">
-              Start building <CheckCircle2 className="h-4 w-4" />
-            </Link>
+          <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-8 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-5"><NexstockLogo light /><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">Live sync</span></div>
+            <div className="mt-8 space-y-4">
+              {[["Products synced", "12,480"], ["Webhook deliveries", "1.8M"], ["Connected platforms", "14"], ["Inventory accuracy", "99.98%"]].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"><span className="text-sm text-zinc-400">{label}</span><span className="text-lg font-semibold tracking-tight">{value}</span></div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
