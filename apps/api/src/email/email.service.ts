@@ -17,25 +17,31 @@ export class EmailService {
     const resend = this.resendClient();
 
     if (!resend) {
-      this.logger.error(`RESEND_API_KEY missing. Cannot send email to ${payload.to}.`);
-      throw new Error('Email service is not configured');
+      this.logger.error(`RESEND_API_KEY missing. Skipping email to ${payload.to}.`);
+      return null;
     }
 
-    const response = await resend.emails.send({
-      from: this.fromAddress(),
-      to: payload.to,
-      subject: payload.subject,
-      html: payload.html,
-    });
+    try {
+      const response = await resend.emails.send({
+        from: this.fromAddress(),
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+      });
 
-    if (response.error) {
-      this.logger.error(`Email provider rejected message to ${payload.to}: ${payload.subject}`);
-      this.logger.error(JSON.stringify(response.error));
-      throw new Error(response.error.message || 'Email provider rejected the message');
+      if (response.error) {
+        this.logger.error(`Email provider rejected message to ${payload.to}: ${payload.subject}`);
+        this.logger.error(JSON.stringify(response.error));
+        return null;
+      }
+
+      this.logger.log(`Email sent to ${payload.to}: ${payload.subject} (${response.data?.id ?? 'no-id'})`);
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Email send failed for ${payload.to}: ${payload.subject}`);
+      this.logger.error(error instanceof Error ? error.message : String(error));
+      return null;
     }
-
-    this.logger.log(`Email sent to ${payload.to}: ${payload.subject} (${response.data?.id ?? 'no-id'})`);
-    return response.data;
   }
 
   async sendOtpEmail(email: string, otp: string, expiryMinutes = 5) {
