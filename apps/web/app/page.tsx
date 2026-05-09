@@ -6,8 +6,11 @@ import {
   CheckCircle2,
   Cloud,
   DatabaseZap,
+  ExternalLink,
   Link2,
   LockKeyhole,
+  Mail,
+  MapPin,
   PlugZap,
   RefreshCw,
   ShieldCheck,
@@ -16,6 +19,43 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { NexstockLogo } from "@/components/brand/nexstock-logo";
+
+const navLinks = [
+  { href: "#features", label: "Product" },
+  { href: "#workflow", label: "Workflow" },
+  { href: "#platform", label: "Platform" },
+  { href: "#security", label: "Security" },
+];
+
+const footerGroups = [
+  {
+    title: "Product",
+    links: [
+      { href: "#features", label: "Catalog management" },
+      { href: "#workflow", label: "Integration workflow" },
+      { href: "#platform", label: "Developer platform" },
+      { href: "#security", label: "Security controls" },
+    ],
+  },
+  {
+    title: "Workspace",
+    links: [
+      { href: "/login", label: "Sign in" },
+      { href: "/signup", label: "Create workspace" },
+      { href: "/forgot-password", label: "Recover account" },
+      { href: "/dashboard", label: "Dashboard" },
+    ],
+  },
+  {
+    title: "Connectors",
+    links: [
+      { href: "/integration/csv/configuration", label: "CSV import" },
+      { href: "/integration/xlsx/configuration", label: "XLSX import" },
+      { href: "/integration/wordpress/configuration", label: "WooCommerce" },
+      { href: "/integration/shopify/configuration", label: "Shopify" },
+    ],
+  },
+];
 
 const pillars = [
   { icon: Boxes, title: "Product catalog", text: "Manage SKUs, variants, stock levels, categories, images, and custom product data from one place." },
@@ -52,21 +92,41 @@ const securityItems = [
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-card/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-10">
-          <Link href="/" aria-label="NexStock home" className="shrink-0">
-            <NexstockLogo tagline={false} className="px-2 py-1" />
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-card/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-10">
+          <Link href="/" aria-label="NexStock home" className="shrink-0 border bg-background/70 px-3 py-2 transition hover:bg-muted/45">
+            <NexstockLogo tagline={false} className="px-1 py-0" />
           </Link>
-          <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
-            <a href="#features" className="transition hover:text-foreground">Product</a>
-            <a href="#workflow" className="transition hover:text-foreground">Workflow</a>
-            <a href="#platform" className="transition hover:text-foreground">Platform</a>
-            <a href="#security" className="transition hover:text-foreground">Security</a>
+
+          <nav className="hidden items-center border bg-background/60 text-sm font-medium text-muted-foreground lg:flex">
+            {navLinks.map((item) => (
+              <a key={item.href} href={item.href} className="border-r px-4 py-2.5 transition last:border-r-0 hover:bg-muted/45 hover:text-foreground">
+                {item.label}
+              </a>
+            ))}
           </nav>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/login" className="rounded-xl border bg-background/70 px-4 py-2.5 text-sm font-semibold transition hover:bg-muted sm:px-5">Sign in</Link>
-            <Link href="/signup" className="rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90 sm:px-5">Start free</Link>
+
+          <div className="hidden items-center gap-2 text-sm md:flex">
+            <Link href="/login" className="border bg-background/70 px-4 py-2.5 font-semibold transition hover:bg-muted/45">Sign in</Link>
+            <Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-4 py-2.5 font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">
+              Start free <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
+
+          <Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90 md:hidden">
+            Start <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="border-t bg-muted/15 px-4 py-2 sm:px-6 lg:hidden">
+          <nav className="mx-auto flex max-w-7xl gap-2 overflow-x-auto text-xs font-medium text-muted-foreground">
+            {navLinks.map((item) => (
+              <a key={item.href} href={item.href} className="shrink-0 border bg-background/70 px-3 py-2 transition hover:bg-muted/45 hover:text-foreground">
+                {item.label}
+              </a>
+            ))}
+            <Link href="/login" className="shrink-0 border bg-background/70 px-3 py-2 transition hover:bg-muted/45 hover:text-foreground">Sign in</Link>
+          </nav>
         </div>
       </header>
 
@@ -83,8 +143,8 @@ export default function LandingPage() {
               NexStock helps teams centralize product data, automate inventory workflows, connect business systems, and launch with clean operational visibility.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/signup" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Create workspace <ArrowRight className="h-4 w-4" /></Link>
-              <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border bg-card/95 px-6 py-3 text-sm font-semibold transition hover:bg-muted">Open dashboard</Link>
+              <Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Create workspace <ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/login" className="inline-flex items-center gap-2 border bg-card/95 px-6 py-3 text-sm font-semibold transition hover:bg-muted">Open dashboard</Link>
             </div>
           </div>
 
@@ -157,14 +217,49 @@ export default function LandingPage() {
         <div className="mx-auto max-w-4xl">
           <h2 className="text-4xl font-black tracking-[-0.05em] md:text-6xl">Ready to connect, manage, and grow?</h2>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">Launch your NexStock workspace and start building a cleaner product operating system for your company.</p>
-          <div className="mt-8"><Link href="/signup" className="inline-flex items-center gap-2 rounded-xl bg-primary px-8 py-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Start free today <Zap className="h-4 w-4" /></Link></div>
+          <div className="mt-8"><Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-8 py-4 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Start free today <Zap className="h-4 w-4" /></Link></div>
         </div>
       </section>
 
-      <footer className="border-t px-4 py-8 sm:px-6 lg:px-10">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 text-sm text-muted-foreground md:flex-row">
-          <NexstockLogo tagline={false} className="px-2 py-1" />
-          <p>© 2026 NexStock. Connect. Manage. Grow.</p>
+      <footer className="border-t bg-card/95 px-4 sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <section className="grid gap-0 border-x lg:grid-cols-[1.1fr_2fr]">
+            <div className="border-b p-6 lg:border-b-0 lg:border-r lg:p-8">
+              <NexstockLogo tagline={false} className="px-1 py-0" />
+              <p className="mt-5 max-w-sm text-sm leading-6 text-muted-foreground">
+                NexStock is a product operations workspace for teams that need cleaner catalog data, inventory visibility, integrations, APIs, and webhook-ready automation.
+              </p>
+              <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+                <FooterContact icon={Mail} label="support@nexstock.co.za" />
+                <FooterContact icon={MapPin} label="South Africa" />
+              </div>
+            </div>
+
+            <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {footerGroups.map((group) => (
+                <div key={group.title} className="p-6 lg:p-8">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">{group.title}</p>
+                  <div className="mt-5 grid gap-3">
+                    {group.links.map((item) => (
+                      <Link key={item.href} href={item.href} className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground">
+                        {item.label}
+                        {item.href.startsWith("/") && <ExternalLink className="h-3 w-3" />}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-4 border-x border-t px-6 py-5 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <p>© 2026 NexStock. Connect. Manage. Grow.</p>
+            <div className="flex flex-wrap gap-4">
+              <span>Production-ready product operations</span>
+              <span className="hidden md:inline">·</span>
+              <span>Secure APIs and webhooks</span>
+            </div>
+          </section>
         </div>
       </footer>
     </main>
@@ -203,4 +298,8 @@ function HealthLine({ label, value }: { label: string; value: string }) {
 
 function ListItem({ label, icon: Icon = CheckCircle2 }: { label: string; icon?: LucideIcon }) {
   return <div className="flex items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium">{label}</span></div>;
+}
+
+function FooterContact({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return <div className="flex items-center gap-2"><Icon className="h-4 w-4 text-primary" /><span>{label}</span></div>;
 }
