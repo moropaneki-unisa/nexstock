@@ -13,22 +13,22 @@ type OrganizationUpdateDto = {
   name?: string;
   slug?: string;
   skuPrefix?: string;
-  industry?: string;
+  industry?: string | null;
   onboardingComplete?: boolean;
-  legalName?: string;
-  tradingName?: string;
-  registrationNo?: string;
-  vatNumber?: string;
-  companySize?: string;
-  website?: string;
-  phone?: string;
-  billingEmail?: string;
-  addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  province?: string;
-  postalCode?: string;
-  country?: string;
+  legalName?: string | null;
+  tradingName?: string | null;
+  registrationNo?: string | null;
+  vatNumber?: string | null;
+  companySize?: string | null;
+  website?: string | null;
+  phone?: string | null;
+  billingEmail?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
 };
 
 function requireAdmin(user: CurrentUserPayload) {
@@ -50,8 +50,8 @@ function generateInviteToken() {
   return randomBytes(32).toString('hex');
 }
 
-function optionalText(value: string | undefined) {
-  if (value === undefined) return undefined;
+function optionalText(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) return null;
   const trimmed = value.trim();
   return trimmed || null;
 }
