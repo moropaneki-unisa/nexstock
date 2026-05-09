@@ -1,81 +1,106 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Globe2, Layers3, ShieldCheck, Sparkles, Webhook } from "lucide-react";
+import { ArrowRight, BarChart3, Boxes, CheckCircle2, Cloud, Code2, DatabaseZap, Globe2, Layers3, Link2, LockKeyhole, PackageCheck, PlugZap, RefreshCw, ShieldCheck, Sparkles, Webhook, Zap } from "lucide-react";
 import { NexstockLogo } from "@/components/brand/nexstock-logo";
 
-const features = [
-  { icon: Layers3, title: "Unified product operations", description: "Manage inventory, catalogs, warehouses, SKUs, and pricing from a single modern workspace." },
-  { icon: Globe2, title: "Platform integrations", description: "Connect ecommerce, ERP, POS, and logistics platforms through scalable APIs and webhooks." },
-  { icon: ShieldCheck, title: "Enterprise-ready architecture", description: "Role-based access, API security, audit readiness, and high-performance backend infrastructure." },
-  { icon: Webhook, title: "Automation workflows", description: "Trigger events, sync inventory in real time, and automate operational pipelines." },
+const pillars = [
+  { icon: Boxes, title: "Products Management", text: "Centralize SKUs, pricing, stock, images, fields, categories, and product history." },
+  { icon: Link2, title: "Seamless Integrations", text: "Connect ecommerce, ERP, warehouse, accounting, and custom platforms from one hub." },
+  { icon: BarChart3, title: "Data Driven Growth", text: "Understand product performance, inventory risk, and operational readiness faster." },
+  { icon: Cloud, title: "Cloud Powered", text: "Run a modern SaaS stack with secure APIs, webhooks, and automated sync workflows." },
 ];
+
+const platformCards = [
+  { label: "Products synced", value: "12,480", detail: "Across stores, APIs and connected tools" },
+  { label: "Connected platforms", value: "14", detail: "Commerce, ERP, POS and custom sources" },
+  { label: "Webhook deliveries", value: "1.8M", detail: "Reliable product and stock events" },
+  { label: "Inventory accuracy", value: "99.98%", detail: "Clean data with fewer manual errors" },
+];
+
+const workflow = [
+  { icon: PlugZap, title: "Connect", text: "Link your business systems and import existing product data." },
+  { icon: DatabaseZap, title: "Map", text: "Align fields, SKUs, categories, prices, and stock rules." },
+  { icon: RefreshCw, title: "Sync", text: "Keep inventory and product updates flowing between platforms." },
+  { icon: BarChart3, title: "Grow", text: "Use clean data to sell smarter and operate faster." },
+];
+
+const security = ["Role-based workspace access", "Secure API keys", "Signed webhook events", "Cloud-ready infrastructure", "Audit-ready product operations", "Production deployment pipeline"];
 
 export default function LandingPage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#050505] text-white">
-      <div className="absolute inset-0 hero-grid opacity-30" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.09),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.05),transparent_24%)]" />
+    <main className="relative min-h-screen overflow-hidden bg-[#06111f] text-white">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(58,123,255,0.35),transparent_30%),radial-gradient(circle_at_80%_10%,rgba(38,229,189,0.28),transparent_28%),radial-gradient(circle_at_55%_80%,rgba(139,92,246,0.22),transparent_32%),linear-gradient(180deg,#06111f_0%,#071a2f_45%,#07101d_100%)]" />
+      <div className="absolute inset-0 opacity-[0.16] [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:72px_72px]" />
 
-      <header className="relative z-10 border-b border-white/10 backdrop-blur-xl">
+      <header className="relative z-20 border-b border-white/10 bg-[#06111f]/70 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-10">
           <NexstockLogo light />
           <nav className="hidden items-center gap-8 text-sm text-white/65 md:flex">
             <a href="#features" className="transition hover:text-white">Features</a>
+            <a href="#workflow" className="transition hover:text-white">Workflow</a>
             <a href="#platform" className="transition hover:text-white">Platform</a>
             <a href="#security" className="transition hover:text-white">Security</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="rounded-2xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/85 transition hover:bg-white/10">Sign in</Link>
-            <Link href="/signup" className="rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-zinc-200">Start free</Link>
+            <Link href="/login" className="rounded-2xl border border-white/12 bg-white/5 px-5 py-2.5 text-sm font-medium text-white/85 transition hover:bg-white/10">Sign in</Link>
+            <Link href="/signup" className="rounded-2xl bg-gradient-to-r from-[#3b7bff] via-[#1fd1d1] to-[#35e6a4] px-5 py-2.5 text-sm font-bold text-white shadow-[0_18px_45px_rgba(31,209,209,0.28)] transition hover:scale-[1.02]">Start free</Link>
           </div>
         </div>
       </header>
 
-      <section className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-6 pb-28 pt-24 text-center lg:px-10 lg:pt-32">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-white/70 backdrop-blur-xl">
-          <Sparkles className="h-3.5 w-3.5" /> Next generation inventory SaaS
+      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-20 text-center lg:px-10 lg:pt-28">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-white/7 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-100 shadow-[0_18px_60px_rgba(31,209,209,0.15)] backdrop-blur-xl">
+          <Sparkles className="h-3.5 w-3.5 text-cyan-300" /> Connect · Manage · Grow
         </div>
-        <h1 className="mt-8 max-w-5xl text-5xl font-black tracking-[-0.06em] text-white md:text-7xl">Modern inventory and product operations for growing companies.</h1>
-        <p className="mt-8 max-w-3xl text-lg leading-8 text-zinc-400 md:text-xl">NexStock helps businesses connect platforms, automate inventory workflows, manage products, and scale operations with a clean modern SaaS experience.</p>
+        <h1 className="mx-auto mt-8 max-w-6xl text-5xl font-black tracking-[-0.065em] text-white md:text-7xl lg:text-8xl">One platform to manage products, integrations and inventory growth.</h1>
+        <p className="mx-auto mt-8 max-w-3xl text-lg leading-8 text-slate-300 md:text-xl">NexStock is a modern SaaS command center for businesses that need clean product data, connected platforms, automated stock workflows and cloud-powered growth.</p>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <Link href="/signup" className="inline-flex items-center gap-2 rounded-2xl bg-white px-7 py-4 text-sm font-semibold text-black transition hover:bg-zinc-200">Launch workspace <ArrowRight className="h-4 w-4" /></Link>
-          <Link href="/login" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-7 py-4 text-sm font-medium text-white/80 backdrop-blur-xl transition hover:bg-white/10 hover:text-white">Existing workspace</Link>
+          <Link href="/signup" className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#3b7bff] via-[#1fd1d1] to-[#35e6a4] px-7 py-4 text-sm font-bold text-white shadow-[0_24px_70px_rgba(31,209,209,0.30)] transition hover:-translate-y-0.5">Create workspace <ArrowRight className="h-4 w-4" /></Link>
+          <Link href="/login" className="inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/7 px-7 py-4 text-sm font-semibold text-white/85 backdrop-blur-xl transition hover:bg-white/12">Open dashboard</Link>
         </div>
-        <div className="mt-20 grid w-full gap-5 lg:grid-cols-4" id="features">
-          {features.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <div key={feature.title} className="group rounded-[2rem] border border-white/10 bg-white/[0.03] p-7 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.05]">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-2xl"><Icon className="h-6 w-6" /></div>
-                <h3 className="mt-6 text-xl font-semibold tracking-tight">{feature.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-zinc-400">{feature.description}</p>
-              </div>
-            );
+
+        <div className="mx-auto mt-18 grid max-w-5xl gap-4 md:grid-cols-4" id="features">
+          {pillars.map((item) => {
+            const Icon = item.icon;
+            return <div key={item.title} className="rounded-[2rem] border border-white/10 bg-white/[0.055] p-6 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-white/[0.075]"><div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-[#3b7bff]/25 to-[#35e6a4]/20 text-cyan-100"><Icon className="h-6 w-6" /></div><h3 className="mt-5 text-lg font-bold tracking-tight">{item.title}</h3><p className="mt-3 text-sm leading-6 text-slate-300">{item.text}</p></div>;
           })}
+        </div>
+
+        <div className="mx-auto mt-16 max-w-6xl rounded-[2.5rem] border border-white/10 bg-[#071527]/75 p-4 shadow-[0_50px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+          <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/[0.09] to-white/[0.025] p-5 text-left">
+            <div className="flex flex-col gap-5 border-b border-white/10 pb-5 md:flex-row md:items-center md:justify-between">
+              <div><p className="text-sm font-semibold text-white">NexStock Operations Dashboard</p><p className="mt-1 text-sm text-slate-400">Products, integrations, webhooks and growth analytics in one view.</p></div>
+              <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">Live workspace</span>
+            </div>
+            <div className="grid gap-4 py-5 md:grid-cols-4">{platformCards.map((card) => <div key={card.label} className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs text-slate-500">{card.label}</p><p className="mt-2 text-2xl font-black tracking-tight">{card.value}</p><p className="mt-2 text-xs leading-5 text-slate-400">{card.detail}</p></div>)}</div>
+          </div>
         </div>
       </section>
 
-      <section id="platform" className="relative z-10 border-y border-white/10 bg-white/[0.03]">
-        <div className="mx-auto grid max-w-7xl gap-14 px-6 py-24 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white/45">Built for scale</p>
-            <h2 className="mt-5 text-4xl font-black tracking-[-0.05em] md:text-5xl">Professional SaaS infrastructure designed for real businesses.</h2>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">From APIs and webhooks to inventory syncs and multi-platform integrations, NexStock gives teams the tools to manage operations from one elegant dashboard.</p>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
-              {["Real-time inventory sync", "Secure API access", "Webhook automations", "Multi-platform integrations", "Role-based access control", "Scalable architecture"].map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 px-4 py-4"><CheckCircle2 className="h-5 w-5 text-white" /><span className="text-sm text-zinc-200">{item}</span></div>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-white/[0.08] to-white/[0.02] p-8 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 pb-5"><NexstockLogo light /><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.2em] text-white/55">Live sync</span></div>
-            <div className="mt-8 space-y-4">
-              {[["Products synced", "12,480"], ["Webhook deliveries", "1.8M"], ["Connected platforms", "14"], ["Inventory accuracy", "99.98%"]].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4"><span className="text-sm text-zinc-400">{label}</span><span className="text-lg font-semibold tracking-tight">{value}</span></div>
-              ))}
-            </div>
-          </div>
+      <section id="workflow" className="relative z-10 border-y border-white/10 bg-[#071527]/70 px-6 py-24 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-2xl"><p className="text-sm font-bold uppercase tracking-[0.28em] text-cyan-300">How it works</p><h2 className="mt-4 text-4xl font-black tracking-[-0.05em] md:text-5xl">A clear workflow for product operations.</h2><p className="mt-5 text-lg leading-8 text-slate-300">NexStock turns disconnected stock and product data into a managed, automated operating system.</p></div>
+          <div className="mt-12 grid gap-5 md:grid-cols-4">{workflow.map((step, index) => { const Icon = step.icon; return <div key={step.title} className="relative rounded-[2rem] border border-white/10 bg-white/[0.05] p-6 backdrop-blur-xl"><span className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">0{index + 1}</span><div className="mt-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#3b7bff] to-[#35e6a4]"><Icon className="h-6 w-6" /></div><h3 className="mt-5 text-xl font-bold">{step.title}</h3><p className="mt-3 text-sm leading-7 text-slate-300">{step.text}</p></div>; })}</div>
         </div>
       </section>
+
+      <section id="platform" className="relative z-10 px-6 py-24 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div><p className="text-sm font-bold uppercase tracking-[0.28em] text-purple-300">Platform ready</p><h2 className="mt-4 text-4xl font-black tracking-[-0.05em] md:text-5xl">Built for integrations, APIs and cloud workflows.</h2><p className="mt-5 text-lg leading-8 text-slate-300">Whether your products live in spreadsheets, online stores, ERP systems or custom apps, NexStock provides the layer to connect, manage and grow.</p></div>
+          <div className="grid gap-4 md:grid-cols-2">{["Product catalog API", "Webhook event delivery", "Custom field mapping", "Cloud image storage", "Inventory movement logs", "Integration sync history"].map((item) => <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4"><CheckCircle2 className="h-5 w-5 text-cyan-300" /><span className="text-sm font-medium text-slate-200">{item}</span></div>)}</div>
+        </div>
+      </section>
+
+      <section id="security" className="relative z-10 border-t border-white/10 bg-white/[0.03] px-6 py-24 lg:px-10">
+        <div className="mx-auto max-w-7xl rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#0d1d34] to-[#06111f] p-8 shadow-[0_40px_120px_rgba(0,0,0,0.35)] md:p-12">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-center"><div><LockKeyhole className="h-10 w-10 text-cyan-300" /><h2 className="mt-5 text-4xl font-black tracking-[-0.05em]">Secure enough for real business operations.</h2><p className="mt-5 text-lg leading-8 text-slate-300">Designed for production from day one with secure access, API controls, automated deployments and a scalable cloud foundation.</p></div><div className="grid gap-3 sm:grid-cols-2">{security.map((item) => <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 text-sm text-slate-200"><CheckCircle2 className="mb-3 h-5 w-5 text-emerald-300" />{item}</div>)}</div></div>
+        </div>
+      </section>
+
+      <section className="relative z-10 px-6 py-24 text-center lg:px-10">
+        <div className="mx-auto max-w-4xl"><h2 className="text-4xl font-black tracking-[-0.05em] md:text-6xl">Ready to connect, manage and grow?</h2><p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-300">Launch your NexStock workspace and start building a cleaner product operating system for your company.</p><div className="mt-8"><Link href="/signup" className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#3b7bff] via-[#1fd1d1] to-[#35e6a4] px-8 py-4 text-sm font-bold text-white shadow-[0_24px_70px_rgba(31,209,209,0.30)]">Start free today <Zap className="h-4 w-4" /></Link></div></div>
+      </section>
+
+      <footer className="relative z-10 border-t border-white/10 px-6 py-8 lg:px-10"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 text-sm text-slate-500 md:flex-row"><NexstockLogo light /><p>© 2026 NexStock. Connect. Manage. Grow.</p></div></footer>
     </main>
   );
 }
