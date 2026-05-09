@@ -2,7 +2,7 @@ import { Body, Controller, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { Throttle, ThrottleGuard } from '../common/guards/throttle.guard';
-import { LoginDto, SignupDto } from './dto';
+import { AcceptInviteDto, LoginDto, SignupDto } from './dto';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -76,6 +76,14 @@ export class AuthController {
   @Throttle(10, 60_000)
   async login(@Body() dto: LoginDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
     const tokens = await this.auth.login(dto.email, dto.password, getRequestMeta(request));
+    setAuthCookies(response, tokens);
+    return { accessToken: tokens.accessToken };
+  }
+
+  @Post('invite/accept')
+  @Throttle(10, 60_000)
+  async acceptInvite(@Body() dto: AcceptInviteDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const tokens = await this.auth.acceptInvite(dto, getRequestMeta(request));
     setAuthCookies(response, tokens);
     return { accessToken: tokens.accessToken };
   }
