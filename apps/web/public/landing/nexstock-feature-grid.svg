@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
+  <title id="title">NexStock feature grid</title>
+  <desc id="desc">Feature grid showing product management, integrations, growth analytics, and cloud powered workflows.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#3e73ff"/><stop offset="0.5" stop-color="#16c7d0"/><stop offset="1" stop-color="#44f0b4"/></linearGradient>
+    <linearGradient id="p" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#7d45ff"/><stop offset="1" stop-color="#44f0b4"/></linearGradient>
+  </defs>
+  <rect width="1200" height="680" fill="#f8fafc"/>
+  <g transform="translate(70 70)">
+    <rect width="500" height="240" fill="#fff" stroke="#e2e8f0"/>
+    <rect x="38" y="38" width="58" height="58" fill="#eef2ff"/>
+    <path d="M54 80V54l14-10v42l-7 6Z" fill="url(#p)"/><path d="M66 44l50 50q7 7 15 1l8-6v17l-12 9q-12 9-23-2L58 66q-4-4-4-3V44Z" fill="url(#g)"/>
+    <text x="38" y="138" font-family="Inter, Arial" font-size="28" font-weight="800" fill="#0f172a">Products Management</text>
+    <text x="38" y="178" font-family="Inter, Arial" font-size="17" fill="#64748b">Catalogs, SKUs, custom fields, images, and stock levels.</text>
+    <rect x="38" y="205" width="280" height="10" fill="#e2e8f0"/><rect x="38" y="205" width="210" height="10" fill="url(#g)"/>
+
+    <rect x="560" width="500" height="240" fill="#fff" stroke="#e2e8f0"/>
+    <rect x="598" y="38" width="58" height="58" fill="#ecfeff"/>
+    <path d="M614 76l28-28M636 82l28-28" stroke="url(#g)" stroke-width="10" stroke-linecap="round"/>
+    <text x="598" y="138" font-family="Inter, Arial" font-size="28" font-weight="800" fill="#0f172a">Seamless Integrations</text>
+    <text x="598" y="178" font-family="Inter, Arial" font-size="17" fill="#64748b">Connect CSV, XLSX, JSON, Zoho, Shopify, and WooCommerce.</text>
+    <rect x="598" y="205" width="280" height="10" fill="#e2e8f0"/><rect x="598" y="205" width="232" height="10" fill="url(#g)"/>
+
+    <rect y="300" width="500" height="240" fill="#fff" stroke="#e2e8f0"/>
+    <rect x="38" y="338" width="58" height="58" fill="#f5f3ff"/>
+    <path d="M54 378h16v-28H54Zm28 0h16v-46H82Zm28 0h16v-68h-16Z" fill="url(#p)"/>
+    <path d="M54 333l20 18 26-34 20 12 28-42" fill="none" stroke="url(#g)" stroke-width="6" stroke-linecap="round"/>
+    <text x="38" y="438" font-family="Inter, Arial" font-size="28" font-weight="800" fill="#0f172a">Data Driven Growth</text>
+    <text x="38" y="478" font-family="Inter, Arial" font-size="17" fill="#64748b">Operational insights for sync health and inventory readiness.</text>
+    <rect x="38" y="505" width="280" height="10" fill="#e2e8f0"/><rect x="38" y="505" width="248" height="10" fill="url(#g)"/>
+
+    <rect x="560" y="300" width="500" height="240" fill="#fff" stroke="#e2e8f0"/>
+    <rect x="598" y="338" width="58" height="58" fill="#eff6ff"/>
+    <path d="M610 374c0-15 11-26 25-26 10 0 19 6 23 15 14 1 24 12 24 26 0 14-11 25-26 25h-45c-13 0-23-9-23-20 0-10 9-19 22-20Z" fill="none" stroke="url(#g)" stroke-width="6"/>
+    <text x="598" y="438" font-family="Inter, Arial" font-size="28" font-weight="800" fill="#0f172a">Cloud Powered</text>
+    <text x="598" y="478" font-family="Inter, Arial" font-size="17" fill="#64748b">Secure APIs, webhooks, image storage, and automation flows.</text>
+    <rect x="598" y="505" width="280" height="10" fill="#e2e8f0"/><rect x="598" y="505" width="226" height="10" fill="url(#g)"/>
+  </g>
+</svg>
