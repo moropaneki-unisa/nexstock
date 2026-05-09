@@ -160,13 +160,13 @@ export default function LandingPage() {
       </section>
 
       <section id="platform" className="px-4 py-24 sm:px-6 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-stretch">
-          <div className="flex min-h-[380px] flex-col justify-center">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
+          <div className="flex min-h-[320px] flex-col justify-center">
             <SectionIntro eyebrow="Platform ready" title="Built for integrations, APIs, imports, and cloud workflows." description="Whether your products live in spreadsheets, online stores, ERP systems, or custom apps, NexStock gives your team one reliable layer to connect, manage, and grow." />
           </div>
-          <section className="flex min-h-[380px] flex-col overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
+          <section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
             <SectionHeader icon={DatabaseZap} title="Platform capabilities" description="Core capabilities for connected product operations." />
-            <div className="grid flex-1 auto-rows-fr divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               {platformItems.map((item) => <ListItem key={item} label={item} />)}
             </div>
           </section>
@@ -174,13 +174,13 @@ export default function LandingPage() {
       </section>
 
       <section id="security" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-stretch">
-          <div className="flex min-h-[380px] flex-col justify-center">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
+          <div className="flex min-h-[320px] flex-col justify-center">
             <SectionIntro eyebrow="Security" title="Professional enough for real business operations." description="Designed for launch with secure access, API controls, operational monitoring, and a scalable cloud foundation." icon={LockKeyhole} />
           </div>
-          <section className="flex min-h-[380px] flex-col overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
+          <section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm">
             <SectionHeader icon={ShieldCheck} title="Operational controls" description="Security and infrastructure foundations for production teams." />
-            <div className="grid flex-1 auto-rows-fr divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
               {securityItems.map((item) => <ListItem key={item} label={item} icon={ShieldCheck} />)}
             </div>
           </section>
@@ -272,7 +272,7 @@ function SectionIntro({ eyebrow, title, description, icon: Icon }: { eyebrow: st
 }
 
 function SectionHeader({ icon: Icon, title, description, badge }: { icon: LucideIcon; title: string; description?: string; badge?: string }) {
-  return <div className="flex flex-row items-start justify-between gap-4 p-0 pb-4"><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Icon className="h-5 w-5" />{title}</h2>{description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div>{badge && <span className="border bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{badge}</span>}</div>;
+  return <div className="flex flex-row items-start justify-between gap-4 p-5"><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Icon className="h-5 w-5" />{title}</h2>{description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div>{badge && <span className="border bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{badge}</span>}</div>;
 }
 
 function FeaturePanel({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) {
@@ -284,5 +284,5 @@ function WorkflowPanel({ icon: Icon, title, text, index }: { icon: LucideIcon; t
 }
 
 function ListItem({ label, icon: Icon = CheckCircle2 }: { label: string; icon?: LucideIcon }) {
-  return <div className="flex min-h-[86px] items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium">{label}</span></div>;
+  return <div className="flex min-h-[74px] items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium leading-5">{label}</span></div>;
 }
