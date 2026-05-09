@@ -8,13 +8,6 @@ import { PageHeader, PageShell } from "@/components/system/page-shell";
 export default function NewProductPage() {
   return (
     <PageShell className="space-y-6 pb-10">
-      <Button asChild variant="ghost" className="w-fit rounded-xl px-0 text-muted-foreground hover:text-foreground">
-        <Link href="/products">
-          <ArrowLeft className="h-4 w-4" />
-          Back to products
-        </Link>
-      </Button>
-
       <PageHeader
         eyebrow="Products"
         title="Create product"
@@ -22,20 +15,32 @@ export default function NewProductPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
-              <Link href="/products/fields">
-                <SlidersHorizontal className="h-4 w-4" />
-                Product schema
+              <Link href="/products">
+                <ArrowLeft className="h-4 w-4" />
+                Back to products
               </Link>
             </Button>
-            <Button asChild className="rounded-xl shadow-sm">
-              <Link href="/products/new">
-                <PackagePlus className="h-4 w-4" />
-                New product
+            <Button asChild variant="outline" className="rounded-xl bg-background/70">
+              <Link href="/products/fields">
+                <SlidersHorizontal className="h-4 w-4" />
+                Product fields
               </Link>
             </Button>
           </div>
         }
       />
+
+      <section className="border bg-card/95">
+        <div className="flex items-center gap-3 p-5">
+          <span className="flex h-10 w-10 items-center justify-center bg-primary/10 text-primary">
+            <PackagePlus className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">New product workflow</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Complete the required product details, pricing, inventory, and optional media below.</p>
+          </div>
+        </div>
+      </section>
 
       <ProductForm />
     </PageShell>
