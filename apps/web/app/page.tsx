@@ -98,8 +98,8 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 lg:px-10 lg:pb-20 lg:pt-20">
-        <div className="grid gap-10 lg:grid-cols-[1fr_31rem] lg:items-center">
+      <section className="mx-auto max-w-7xl px-4 pb-14 pt-14 sm:px-6 lg:px-10 lg:pb-16 lg:pt-20">
+        <div className="grid gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
           <div>
             <div className="inline-flex items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5 text-primary" /> Connect · Manage · Grow
@@ -116,22 +116,19 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <section className="border bg-card/95">
-            <SectionHeader icon={BarChart3} title="NexStock Operations Dashboard" description="Products, integrations, webhooks, imports, and growth metrics in one view." badge="Launch ready" />
-            <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-              <DashboardMetric label="Products" value="12,480" />
-              <DashboardMetric label="Integrations" value="14" />
-            </div>
-            <div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-              <DashboardMetric label="Sync events" value="1.8M" />
-              <DashboardMetric label="Accuracy" value="99.98%" />
-            </div>
-            <div className="divide-y border-t">
-              <HealthLine label="API health" value="Operational" />
-              <HealthLine label="Import queue" value="Clear" />
-              <HealthLine label="Webhook delivery" value="Monitoring" />
-            </div>
+          <section className="overflow-hidden border bg-card/95 shadow-sm">
+            <img
+              src="/landing/nexstock-hero-visual.svg"
+              alt="NexStock product operations dashboard visual"
+              className="h-full w-full object-cover"
+            />
           </section>
+        </div>
+      </section>
+
+      <section className="px-4 pb-16 sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-7xl overflow-hidden border bg-card/95">
+          <img src="/landing/nexstock-brand-strip.svg" alt="NexStock brand strip" className="w-full object-cover" />
         </div>
       </section>
 
@@ -146,7 +143,16 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="workflow" className="px-4 py-16 sm:px-6 lg:px-10">
+      <section className="px-4 py-16 sm:px-6 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <SectionIntro eyebrow="Brand system" title="A polished product identity for every touchpoint." description="The new NexStock assets give the landing page a stronger visual system while keeping the clean Organization-style product UI." />
+          <section className="overflow-hidden border bg-card/95">
+            <img src="/landing/nexstock-feature-grid.svg" alt="NexStock feature grid" className="w-full object-cover" />
+          </section>
+        </div>
+      </section>
+
+      <section id="workflow" className="border-y bg-card/40 px-4 py-16 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <SectionIntro eyebrow="How it works" title="Connect your stack, structure your data, and grow with confidence." description="NexStock turns disconnected stock and product data into a clean, automated operating layer." />
           <div className="mt-10 border bg-card/95">
@@ -157,7 +163,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="platform" className="border-y bg-card/40 px-4 py-16 sm:px-6 lg:px-10">
+      <section id="platform" className="px-4 py-16 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <SectionIntro eyebrow="Platform ready" title="Built for integrations, APIs, imports, and cloud workflows." description="Whether your products live in spreadsheets, online stores, ERP systems, or custom apps, NexStock gives your team one reliable layer to connect, manage, and grow." />
           <section className="border bg-card/95">
@@ -169,7 +175,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="security" className="px-4 py-16 sm:px-6 lg:px-10">
+      <section id="security" className="border-y bg-card/40 px-4 py-16 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <SectionIntro eyebrow="Security" title="Professional enough for real business operations." description="Designed for launch with secure access, API controls, operational monitoring, and a scalable cloud foundation." icon={LockKeyhole} />
           <section className="border bg-card/95">
@@ -214,14 +220,6 @@ function FeaturePanel({ icon: Icon, title, text }: { icon: LucideIcon; title: st
 
 function WorkflowPanel({ icon: Icon, title, text, index }: { icon: LucideIcon; title: string; text: string; index: number }) {
   return <div className="p-5"><span className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">0{index + 1}</span><span className="mt-4 flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
-}
-
-function DashboardMetric({ label, value }: { label: string; value: string }) {
-  return <div className="p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold tracking-tight">{value}</p></div>;
-}
-
-function HealthLine({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" />{label}</span><span className="font-medium">{value}</span></div>;
 }
 
 function ListItem({ label, icon: Icon = CheckCircle2 }: { label: string; icon?: LucideIcon }) {
