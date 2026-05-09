@@ -17,11 +17,18 @@ export default function OnboardingPage() {
       setLoading(true);
       setError('');
 
-      await apiFetch('/api/organizations', {
-        method: 'POST',
+      const slug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      await apiFetch('/api/organization', {
+        method: 'PATCH',
         body: JSON.stringify({
           name,
           industry,
+          slug,
+          onboardingComplete: true,
         }),
       });
 
@@ -34,49 +41,53 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-black text-white">
-      <div className="w-full max-w-lg p-10 bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-900 to-black text-white px-4">
+      <div className="w-full max-w-lg p-10 bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl">
+        <div className="mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mb-5 text-2xl">
+            🚀
+          </div>
 
-        <h1 className="text-3xl font-semibold mb-2">
-          Set up your workspace
-        </h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-3">
+            Set up your workspace
+          </h1>
 
-        <p className="text-gray-400 mb-8">
-          Let’s create your organization so you can start using InventoryHub.
-        </p>
+          <p className="text-zinc-400 leading-6">
+            Configure your organization to start managing inventory, products and integrations.
+          </p>
+        </div>
 
         <div className="space-y-5">
-
           <div>
-            <label className="text-sm text-gray-400">Organization Name</label>
+            <label className="text-sm text-zinc-300 font-medium">Organization Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Acme Inc"
-              className="w-full mt-2 p-3 rounded-lg bg-black border border-gray-700 focus:border-white outline-none"
+              placeholder="e.g. Nexstock Ltd"
+              className="w-full mt-2 p-4 rounded-2xl bg-black/60 border border-zinc-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
             />
           </div>
 
           <div>
-            <label className="text-sm text-gray-400">Industry</label>
+            <label className="text-sm text-zinc-300 font-medium">Industry</label>
             <input
               value={industry}
               onChange={(e) => setIndustry(e.target.value)}
-              placeholder="e.g. Retail, SaaS, Logistics"
-              className="w-full mt-2 p-3 rounded-lg bg-black border border-gray-700 focus:border-white outline-none"
+              placeholder="Retail, SaaS, Logistics"
+              className="w-full mt-2 p-4 rounded-2xl bg-black/60 border border-zinc-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
             />
           </div>
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-4 rounded-2xl">
               {error}
             </div>
           )}
 
           <button
             onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-white text-black py-3 rounded-lg font-medium hover:bg-gray-200 transition"
+            disabled={loading || !name}
+            className="w-full bg-white text-black py-4 rounded-2xl font-semibold hover:bg-zinc-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating workspace...' : 'Continue to dashboard'}
           </button>
