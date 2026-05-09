@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { validateEnv } from './common/config/env';
@@ -26,6 +27,19 @@ function parseAllowedOrigins() {
   return Array.from(new Set([...defaults, ...configured]));
 }
 
+function isOriginAllowed(origin: string, allowedOrigins: string[]) {
+  return allowedOrigins.includes(normalizeOrigin(origin));
+}
+
+function applyCorsHeaders(response: Response, origin: string) {
+  response.header('Access-Control-Allow-Origin', origin);
+  response.header('Vary', 'Origin');
+  response.header('Access-Control-Allow-Credentials', 'true');
+  response.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  response.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With');
+  response.header('Access-Control-Expose-Headers', 'Content-Disposition');
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   validateEnv(logger);
@@ -36,25 +50,35 @@ async function bootstrap() {
 
   const allowedOrigins = parseAllowedOrigins();
 
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    const origin = request.headers.origin;
+
+    if (origin && isOriginAllowed(origin, allowedOrigins)) {
+      applyCorsHeaders(response, origin);
+    } else if (origin) {
+      logger.warn(`Blocked CORS origin: ${normalizeOrigin(origin)}`);
+    }
+
+    if (request.method === 'OPTIONS') {
+      response.sendStatus(origin && isOriginAllowed(origin, allowedOrigins) ? 204 : 403);
+      return;
+    }
+
+    next();
+  });
+
   app.enableCors({
     origin(origin, callback) {
-      if (!origin) {
+      if (!origin || isOriginAllowed(origin, allowedOrigins)) {
         callback(null, true);
         return;
       }
 
-      const normalizedOrigin = normalizeOrigin(origin);
-      const isAllowed = allowedOrigins.includes(normalizedOrigin);
-
-      if (!isAllowed) {
-        logger.warn(`Blocked CORS origin: ${normalizedOrigin}`);
-      }
-
-      callback(null, isAllowed);
+      callback(null, false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
     exposedHeaders: ['Content-Disposition'],
     optionsSuccessStatus: 204,
   });
