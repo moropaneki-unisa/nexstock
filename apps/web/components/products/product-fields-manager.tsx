@@ -6,11 +6,9 @@ import { CheckCircle2, DatabaseZap, Loader2, Pencil, Plus, Settings2, ShieldChec
 import { apiFetch } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -184,57 +182,61 @@ export function ProductFieldsManager() {
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-4">
-        <SummaryCard title="All fields" value={defaultProductFields.length + fields.length} description="Default plus additional fields" />
-        <SummaryCard title="Default fields" value={defaultProductFields.length} description="Built into every product" />
-        <SummaryCard title="Additional fields" value={activeFields.length} description="Active business fields" />
-        <SummaryCard title="Required fields" value={requiredCount} description="Required on product forms" />
-      </div>
+      <section className="border bg-card/95">
+        <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+          <SummaryMetric title="All fields" value={defaultProductFields.length + fields.length} description="Default plus additional fields" />
+          <SummaryMetric title="Default fields" value={defaultProductFields.length} description="Built into every product" />
+          <SummaryMetric title="Additional fields" value={activeFields.length} description="Active business fields" />
+          <SummaryMetric title="Required fields" value={requiredCount} description="Required on product forms" />
+        </div>
+      </section>
 
-      <Card className="rounded-[2rem] border-border/80 bg-card/95 shadow-xl shadow-slate-950/5">
-        <CardHeader>
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-xl"><Settings2 className="h-5 w-5" />Unified product field system</CardTitle>
-              <CardDescription>Default fields and additional business fields are shown together so products, imports, mappings, and APIs use one field model.</CardDescription>
+      <section className="border bg-card/95">
+        <SectionHeader
+          icon={Settings2}
+          title="Unified product field system"
+          description="Default fields and additional business fields are shown together so products, imports, mappings, and APIs use one field model."
+          action={<Button onClick={openCreateDialog} className="rounded-xl"><Plus className="h-4 w-4" />Add additional field</Button>}
+        />
+
+        {error && <div className="border-t border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+
+        <section className="border-t">
+          <SectionHeader icon={ShieldCheck} title="Default product fields" description="These fields are locked because they power core product, inventory, import, and sync behavior." />
+          <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+            <div className="divide-y">
+              {defaultProductFields.filter((_, index) => index % 2 === 0).map((field) => <DefaultFieldRow key={field.key} field={field} />)}
             </div>
-            <Button onClick={openCreateDialog} className="rounded-xl"><Plus className="h-4 w-4" />Add additional field</Button>
+            <div className="divide-y">
+              {defaultProductFields.filter((_, index) => index % 2 === 1).map((field) => <DefaultFieldRow key={field.key} field={field} />)}
+            </div>
           </div>
-        </CardHeader>
+        </section>
 
-        <CardContent className="space-y-6">
-          {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
-
-          <section className="space-y-3">
-            <div><h3 className="font-medium">Default product fields</h3><p className="text-sm text-muted-foreground">These fields are locked because they power core product, inventory, import, and sync behavior.</p></div>
-            <div className="grid gap-3">{defaultProductFields.map((field) => <DefaultFieldRow key={field.key} field={field} />)}</div>
-          </section>
-
-          <Separator />
-
-          {isLoading ? (
-            <div className="flex min-h-48 items-center justify-center rounded-xl border border-dashed"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading additional product fields...</div></div>
-          ) : fields.length === 0 ? (
-            <EmptyState onCreate={openCreateDialog} />
-          ) : (
-            <div className="space-y-6">
-              <FieldSection title="Additional active fields" description="These fields extend the default product model and appear on forms, imports, mapping, and APIs." fields={activeFields} emptyMessage="No additional active fields yet." onEdit={openEditDialog} onDeactivate={deactivateField} onReactivate={reactivateField} />
-              {inactiveFields.length > 0 && <><Separator /><FieldSection title="Inactive additional fields" description="Hidden from new product forms, but existing values remain preserved." fields={inactiveFields} emptyMessage="No inactive fields." onEdit={openEditDialog} onDeactivate={deactivateField} onReactivate={reactivateField} /></>}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {isLoading ? (
+          <div className="border-t p-8 text-center text-sm text-muted-foreground">
+            <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Loading additional product fields...
+          </div>
+        ) : fields.length === 0 ? (
+          <EmptyState onCreate={openCreateDialog} />
+        ) : (
+          <div className="border-t">
+            <FieldSection title="Additional active fields" description="These fields extend the default product model and appear on forms, imports, mapping, and APIs." fields={activeFields} emptyMessage="No additional active fields yet." onEdit={openEditDialog} onDeactivate={deactivateField} onReactivate={reactivateField} />
+            {inactiveFields.length > 0 && <FieldSection title="Inactive additional fields" description="Hidden from new product forms, but existing values remain preserved." fields={inactiveFields} emptyMessage="No inactive fields." onEdit={openEditDialog} onDeactivate={deactivateField} onReactivate={reactivateField} />}
+          </div>
+        )}
+      </section>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>{editingField ? "Edit additional product field" : "Create additional product field"}</DialogTitle><DialogDescription>Add a business-specific field that joins the default product fields across product forms, imports, and integration mappings.</DialogDescription></DialogHeader>
           <div className="space-y-5">
-            {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+            {error && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
             <div className="grid gap-4 md:grid-cols-2"><Field label="Label" required><Input className="rounded-xl" value={form.label} placeholder="Supplier code" onChange={(event) => setForm((prev) => ({ ...prev, label: event.target.value }))} /></Field><Field label="Generated key"><Input value={generateKeyFromLabel(form.label)} readOnly placeholder="Supplier_code" className="rounded-xl bg-muted text-muted-foreground" /></Field></div>
             <div className="grid gap-4 md:grid-cols-2"><Field label="Type" required><Select value={form.type} onValueChange={(value: CustomFieldType) => setForm((prev) => ({ ...prev, type: value, optionsText: value === "select" ? prev.optionsText : "" }))}><SelectTrigger className="rounded-xl"><SelectValue placeholder="Select field type" /></SelectTrigger><SelectContent><SelectItem value="text">Text</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="boolean">Boolean</SelectItem><SelectItem value="select">Select</SelectItem><SelectItem value="date">Date</SelectItem><SelectItem value="json">JSON</SelectItem></SelectContent></Select></Field><Field label="Display order"><Input className="rounded-xl" type="number" min={0} value={form.order} onChange={(event) => setForm((prev) => ({ ...prev, order: Number(event.target.value) }))} /></Field></div>
             {form.type === "select" && <Field label="Options" required><Textarea value={form.optionsText} placeholder={"Small\nMedium\nLarge"} className="min-h-28 resize-none rounded-xl" onChange={(event) => setForm((prev) => ({ ...prev, optionsText: event.target.value }))} /><p className="text-xs text-muted-foreground">Add one option per line.</p></Field>}
             <Field label="Default value"><DefaultValueInput form={form} setForm={setForm} /></Field>
-            <div className="grid gap-4 rounded-2xl border bg-muted/20 p-4 md:grid-cols-2"><ToggleRow label="Required" description="Product creation must provide this value." checked={form.required} onChange={(checked) => setForm((prev) => ({ ...prev, required: checked }))} /><ToggleRow label="Active" description="Show this field on product forms." checked={form.isActive} onChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked }))} /></div>
+            <div className="grid gap-4 border bg-muted/20 p-4 md:grid-cols-2"><ToggleRow label="Required" description="Product creation must provide this value." checked={form.required} onChange={(checked) => setForm((prev) => ({ ...prev, required: checked }))} /><ToggleRow label="Active" description="Show this field on product forms." checked={form.isActive} onChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked }))} /></div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0"><Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving} className="rounded-xl">Cancel</Button><Button type="button" onClick={handleSubmit} disabled={isSaving} className="rounded-xl">{isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : editingField ? "Save changes" : "Create field"}</Button></DialogFooter>
         </DialogContent>
@@ -243,24 +245,28 @@ export function ProductFieldsManager() {
   );
 }
 
-function SummaryCard({ title, value, description }: { title: string; value: number; description: string }) {
-  return <Card className="rounded-[1.5rem] border-border/80 bg-card/95 shadow-sm"><CardContent className="flex items-center justify-between p-5"><div><p className="text-sm text-muted-foreground">{title}</p><p className="mt-1 text-2xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{description}</p></div><div className="rounded-2xl bg-primary/10 p-3 text-primary"><SlidersHorizontal className="h-5 w-5" /></div></CardContent></Card>;
+function SectionHeader({ icon: Icon, title, description, action }: { icon: any; title: string; description?: string; action?: React.ReactNode }) {
+  return <div className="flex flex-row items-start justify-between gap-4 p-5"><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Icon className="h-5 w-5" />{title}</h2>{description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div>{action}</div>;
+}
+
+function SummaryMetric({ title, value, description }: { title: string; value: number; description: string }) {
+  return <div className="flex items-center justify-between p-4"><div><p className="text-sm text-muted-foreground">{title}</p><p className="mt-1 text-xl font-semibold">{value}</p><p className="mt-1 text-xs text-muted-foreground">{description}</p></div><span className="flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><SlidersHorizontal className="h-4 w-4" /></span></div>;
 }
 
 function DefaultFieldRow({ field }: { field: DefaultProductField }) {
-  return <div className="flex flex-col gap-4 rounded-2xl border bg-muted/20 p-4 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{field.label}</p><Badge variant="secondary" className="rounded-full">Default</Badge>{field.required && <Badge className="rounded-full">Required</Badge>}<Badge variant="outline" className="rounded-full">{field.type}</Badge></div><p className="mt-1 text-sm text-muted-foreground">{field.description}</p><p className="mt-2 font-mono text-xs text-muted-foreground">{field.key}</p></div><Badge variant="outline" className="w-fit rounded-full"><ShieldCheck className="h-3 w-3" />Locked</Badge></div>;
+  return <div className="p-4"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{field.label}</p><Badge variant="secondary">Default</Badge>{field.required && <Badge>Required</Badge>}<Badge variant="outline">{field.type}</Badge><Badge variant="outline"><ShieldCheck className="h-3 w-3" />Locked</Badge></div><p className="mt-2 text-sm text-muted-foreground">{field.description}</p><p className="mt-2 font-mono text-xs text-muted-foreground">{field.key}</p></div>;
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
-  return <div className="flex min-h-72 flex-col items-center justify-center rounded-[1.5rem] border border-dashed bg-muted/20 p-8 text-center"><div className="rounded-2xl bg-primary/10 p-4 text-primary"><Settings2 className="h-8 w-8" /></div><h3 className="mt-4 text-lg font-semibold">No additional fields yet</h3><p className="mt-2 max-w-md text-sm text-muted-foreground">Default fields already cover the basics. Add additional fields like brand, supplier code, color, material, warranty months, or external category when your business needs more detail.</p><Button className="mt-5 rounded-xl" onClick={onCreate}><Plus className="h-4 w-4" />Create additional field</Button></div>;
+  return <div className="border-t bg-muted/20 p-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center bg-primary/10 text-primary"><Settings2 className="h-7 w-7" /></div><h3 className="mt-4 text-lg font-semibold">No additional fields yet</h3><p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">Default fields already cover the basics. Add additional fields like brand, supplier code, color, material, warranty months, or external category when your business needs more detail.</p><Button className="mt-5 rounded-xl" onClick={onCreate}><Plus className="h-4 w-4" />Create additional field</Button></div>;
 }
 
 function FieldSection({ title, description, fields, emptyMessage, onEdit, onDeactivate, onReactivate }: { title: string; description: string; fields: ProductField[]; emptyMessage: string; onEdit: (field: ProductField) => void; onDeactivate: (field: ProductField) => void; onReactivate: (field: ProductField) => void }) {
-  return <section className="space-y-3"><div><h3 className="font-medium">{title}</h3><p className="text-sm text-muted-foreground">{description}</p></div>{fields.length === 0 ? <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">{emptyMessage}</div> : <div className="grid gap-3">{fields.map((field) => <FieldRow key={field.id} field={field} onEdit={onEdit} onDeactivate={onDeactivate} onReactivate={onReactivate} />)}</div>}</section>;
+  return <section className="border-t"><div className="p-5"><h3 className="font-semibold tracking-tight">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>{fields.length === 0 ? <div className="border-t p-5 text-sm text-muted-foreground">{emptyMessage}</div> : <div className="divide-y border-t">{fields.map((field) => <FieldRow key={field.id} field={field} onEdit={onEdit} onDeactivate={onDeactivate} onReactivate={onReactivate} />)}</div>}</section>;
 }
 
 function FieldRow({ field, onEdit, onDeactivate, onReactivate }: { field: ProductField; onEdit: (field: ProductField) => void; onDeactivate: (field: ProductField) => void; onReactivate: (field: ProductField) => void }) {
-  return <div className="flex flex-col gap-4 rounded-2xl border bg-background p-4 md:flex-row md:items-center md:justify-between"><div className="min-w-0 space-y-2"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{field.label}</p><Badge variant={field.isActive ? "default" : "secondary"} className="rounded-full">{field.isActive ? "Active" : "Inactive"}</Badge>{field.required && <Badge variant="destructive" className="rounded-full">Required</Badge>}<Badge variant="outline" className="rounded-full">{field.type}</Badge><Badge variant="secondary" className="rounded-full">Additional</Badge></div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Key: {field.key}</span><span>Order: {field.order}</span>{field.options?.length > 0 && <span>Options: {field.options.join(", ")}</span>}</div></div><div className="flex flex-wrap gap-2">{!field.isActive && <Button type="button" variant="outline" size="sm" onClick={() => onReactivate(field)} className="rounded-xl"><CheckCircle2 className="h-4 w-4" />Reactivate</Button>}<Button type="button" variant="outline" size="sm" onClick={() => onEdit(field)} className="rounded-xl"><Pencil className="h-4 w-4" />Edit</Button>{field.isActive && <Button type="button" variant="destructive" size="sm" onClick={() => onDeactivate(field)} className="rounded-xl"><Trash2 className="h-4 w-4" />Deactivate</Button>}</div></div>;
+  return <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between"><div className="min-w-0 space-y-2"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{field.label}</p><Badge variant={field.isActive ? "default" : "secondary"}>{field.isActive ? "Active" : "Inactive"}</Badge>{field.required && <Badge variant="destructive">Required</Badge>}<Badge variant="outline">{field.type}</Badge><Badge variant="secondary">Additional</Badge></div><div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Key: {field.key}</span><span>Order: {field.order}</span>{field.options?.length > 0 && <span>Options: {field.options.join(", ")}</span>}</div></div><div className="flex flex-wrap gap-2">{!field.isActive && <Button type="button" variant="outline" size="sm" onClick={() => onReactivate(field)} className="rounded-xl"><CheckCircle2 className="h-4 w-4" />Reactivate</Button>}<Button type="button" variant="outline" size="sm" onClick={() => onEdit(field)} className="rounded-xl"><Pencil className="h-4 w-4" />Edit</Button>{field.isActive && <Button type="button" variant="destructive" size="sm" onClick={() => onDeactivate(field)} className="rounded-xl"><Trash2 className="h-4 w-4" />Deactivate</Button>}</div></div>;
 }
 
 function DefaultValueInput({ form, setForm }: { form: FieldFormState; setForm: React.Dispatch<React.SetStateAction<FieldFormState>> }) {
