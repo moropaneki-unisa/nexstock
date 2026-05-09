@@ -6,6 +6,10 @@ import { validateEnv } from './common/config/env';
 
 const cookieParser = require('cookie-parser');
 
+function normalizeOrigin(origin: string) {
+  return origin.trim().replace(/^['"]|['"]$/g, '').replace(/\/$/, '');
+}
+
 function parseAllowedOrigins() {
   const defaults = [
     'https://nexstock.co.za',
@@ -17,10 +21,26 @@ function parseAllowedOrigins() {
 
   const configured = (process.env.CORS_ORIGINS ?? '')
     .split(',')
-    .map((origin) => origin.trim().replace(/^['"]|['"]$/g, '').replace(/\/$/, ''))
+    .map(normalizeOrigin)
     .filter(Boolean);
 
   return Array.from(new Set([...defaults, ...configured]));
+}
+
+function isAllowedVercelPreview(origin: string) {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    if (protocol !== 'https:') return false;
+
+    const allowedProjects = ['product-hub-web', 'nexstock'];
+    return allowedProjects.some(
+      (project) =>
+        hostname === `${project}.vercel.app` ||
+        (hostname.startsWith(`${project}-`) && hostname.endsWith('.vercel.app')),
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function bootstrap() {
@@ -35,12 +55,19 @@ async function bootstrap() {
 
   app.enableCors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
+      if (!origin) {
         callback(null, true);
         return;
       }
 
-      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      const normalizedOrigin = normalizeOrigin(origin);
+      const isAllowed = allowedOrigins.includes(normalizedOrigin) || isAllowedVercelPreview(normalizedOrigin);
+
+      if (!isAllowed) {
+        logger.warn(`Blocked CORS origin: ${normalizedOrigin}`);
+      }
+
+      callback(null, isAllowed);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     credentials: true,
