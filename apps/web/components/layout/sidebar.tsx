@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   UploadCloud,
+  UserRound,
   Webhook,
 } from "lucide-react";
 
@@ -38,8 +39,9 @@ const sections = [
     ],
   },
   {
-    label: "Admin",
+    label: "Account",
     items: [
+      { href: "/profile", label: "My profile", description: "Edit profile and password", icon: UserRound },
       { href: "/organization", label: "Organization", description: "Users, roles, billing, security", icon: Building2 },
       { href: "/settings", label: "Settings", description: "Workspace preferences", icon: Settings },
     ],
