@@ -55,8 +55,8 @@ const sections: NavSection[] = [
   {
     label: "Connect",
     items: [
-      { href: "/integrations", label: "Integrations", description: "Apps, mapping, import/export", icon: Code2, activePrefixes: ["/integration"] },
-      { href: "/integration/csv/configuration", label: "Import data", description: "CSV, XLSX, JSON workflow", icon: UploadCloud, activePrefixes: ["/integration/csv", "/integration/xlsx", "/integration/json"] },
+      { href: "/integrations", label: "Integrations", description: "Apps, mapping, import/export", icon: Code2, activePrefixes: ["/integrations", "/integration"] },
+      { href: "/imports", label: "Import data", description: "Upload, map, validate, import", icon: UploadCloud, activePrefixes: ["/imports"] },
       { href: "/api-keys", label: "API keys", description: "Developer access", icon: KeyRound },
       { href: "/webhooks", label: "Webhooks", description: "Event delivery", icon: Webhook },
     ],
