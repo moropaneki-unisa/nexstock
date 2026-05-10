@@ -14,7 +14,8 @@ enum UserRole {
 
 enum Plan {
   free
-  pro
+  starter
+  growth
   business
 }
 
@@ -183,7 +184,7 @@ model Payment {
   status           PaymentStatus   @default(pending)
   plan             Plan
   amount           Int
-  currency         String          @default("ZAR")
+  currency         String          @default("USD")
   reference        String          @unique
   authorizationUrl String?
   paidAt           DateTime?
@@ -268,8 +269,7 @@ model ProductCustomFieldValue {
   @@unique([productId, fieldId])
   @@index([productId])
   @@index([fieldId])
-}
-
+}\n
 model ProductVariant {
   id        String         @id @default(uuid())
   productId String
