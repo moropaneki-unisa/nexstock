@@ -5,14 +5,23 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { validateEnv } from './common/config/env';
 
 const cookieParser = require('cookie-parser');
+const express = require('express');
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   validateEnv(logger);
 
-  const app = await NestFactory.create(AppModule, { bufferLogs: false });
+  const app = await NestFactory.create(AppModule, { bufferLogs: false, bodyParser: false });
 
   app.use(cookieParser());
+  app.use(express.json({
+    verify: (req: any, _res: any, buf: Buffer) => {
+      if (req.originalUrl?.includes('/api/billing/paddle/webhook')) {
+        req.rawBody = Buffer.from(buf);
+      }
+    },
+  }));
+  app.use(express.urlencoded({ extended: true }));
 
   const allowedOrigins = (
     process.env.CORS_ORIGINS ??
@@ -26,7 +35,7 @@ async function bootstrap() {
     origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Paddle-Signature'],
   });
 
   app.setGlobalPrefix('api');
