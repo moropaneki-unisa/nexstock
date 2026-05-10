@@ -132,9 +132,9 @@ export class OrganizationService {
         auditLog: false,
       },
       plans: [
-        { name: 'free', price: 0, current: org.plan === 'free', description: 'Basic product management.' },
-        { name: 'pro', price: 29, current: org.plan === 'pro', description: 'Integrations, APIs, webhooks, and team access.' },
-        { name: 'business', price: 99, current: org.plan === 'business', description: 'Advanced controls, limits, audit logs, and priority support.' },
+        { name: 'free', price: 0, current: org.plan === 'free', description: 'Start a workspace and validate the NexStock workflow before upgrading.' },
+        { name: 'pro', price: 299, current: org.plan === 'pro', description: 'Product imports, reusable mapping, inventory movement history, and API keys for connected workflows.' },
+        { name: 'business', price: 999, current: org.plan === 'business', description: 'Advanced imports, integration-ready workflows, webhooks, team controls, and priority setup support.' },
       ],
     };
   }
