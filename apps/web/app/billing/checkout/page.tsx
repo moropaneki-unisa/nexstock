@@ -67,7 +67,7 @@ export default function BillingCheckoutPage() {
         if (result.success) {
           setStatus("success");
           window.localStorage.removeItem(PLAN_STORAGE_KEY);
-          window.setTimeout(() => router.push("/dashboard"), 1200);
+          window.setTimeout(() => router.push("/organization/edit?setup=1"), 1200);
           return;
         }
         setStatus("failed");
@@ -131,7 +131,7 @@ export default function BillingCheckoutPage() {
           </div>
         </div>
 
-        {status === "success" && <div className="border-t border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">Payment verified. Redirecting to dashboard...</div>}
+        {status === "success" && <div className="border-t border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">Payment verified. Redirecting to organization setup...</div>}
         {error && <div className="border-t border-destructive/30 bg-destructive/10 px-5 py-4 text-sm text-destructive">{error}</div>}
 
         <div className="border-t p-5">
@@ -144,7 +144,7 @@ export default function BillingCheckoutPage() {
               {status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying payment...</> : status === "success" ? "Payment verified" : "Verification failed"}
             </Button>
           )}
-          <Link href="/dashboard" className="mt-4 block text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">Skip for now and open dashboard</Link>
+          <Link href="/organization/edit?setup=1" className="mt-4 block text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">Skip for now and finish organization setup</Link>
         </div>
       </section>
     </CheckoutLayout>
@@ -159,7 +159,7 @@ function CheckoutLayout({ children }: { children: React.ReactNode }) {
           <Link href="/" aria-label="NexStock home">
             <NexstockLogo tagline={false} className="px-2 py-1" />
           </Link>
-          <Link href="/dashboard" className="rounded-xl border bg-background/70 px-4 py-2 text-sm font-semibold transition hover:bg-muted">Dashboard</Link>
+          <Link href="/organization/edit?setup=1" className="rounded-xl border bg-background/70 px-4 py-2 text-sm font-semibold transition hover:bg-muted">Finish setup</Link>
         </div>
       </header>
 
