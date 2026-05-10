@@ -73,8 +73,8 @@ export default function VerifyEmailPage() {
       await verifyEmail({ email: values.email.trim(), otp: values.otp.trim() });
       setVerified(true);
       if (selectedPlan !== "free") {
-        setNotice("Email verified. Redirecting to payment...");
-        window.setTimeout(() => router.push(`/billing/checkout?plan=${selectedPlan}&autostart=1`), 600);
+        setNotice("Email verified. Redirecting to subscription checkout...");
+        window.setTimeout(() => router.push(`/billing/checkout?plan=${selectedPlan}`), 600);
         return;
       }
       window.localStorage.removeItem(PLAN_STORAGE_KEY);
