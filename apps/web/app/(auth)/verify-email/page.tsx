@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { CheckCircle2, Loader2, MailCheck, ShieldCheck } from "lucide-react";
 
@@ -13,32 +13,46 @@ import { Label } from "@/components/ui/label";
 import { resendVerificationOtp, verifyEmail } from "@/lib/api";
 
 type VerifyEmailValues = { email: string; otp: string };
+type SelectedPlan = "free" | "pro" | "business";
 
-export default function VerifyEmailPage() {
-  return (
-    <Suspense fallback={<VerifyEmailShell />}>
-      <VerifyEmailForm />
-    </Suspense>
-  );
+const PLAN_STORAGE_KEY = "nexstock:selected-plan";
+
+const planLabels: Record<SelectedPlan, string> = {
+  free: "Free",
+  pro: "Pro",
+  business: "Business",
+};
+
+function getSelectedPlan(value: string | null): SelectedPlan {
+  if (value === "pro" || value === "business") return value;
+  return "free";
 }
 
-function VerifyEmailForm() {
+function saveSelectedPlan(plan: SelectedPlan) {
+  window.localStorage.setItem(PLAN_STORAGE_KEY, plan);
+}
+
+export default function VerifyEmailPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialEmail = useMemo(() => searchParams.get("email") ?? "", [searchParams]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlan>("free");
   const { register, handleSubmit, setValue, watch, formState: { isSubmitting } } = useForm<VerifyEmailValues>({
-    defaultValues: { email: initialEmail, otp: "" },
+    defaultValues: { email: "", otp: "" },
   });
 
   const email = watch("email");
 
   useEffect(() => {
-    if (initialEmail) setValue("email", initialEmail);
-  }, [initialEmail, setValue]);
+    const params = new URLSearchParams(window.location.search);
+    const nextEmail = params.get("email") ?? "";
+    const nextPlan = getSelectedPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
+    if (nextEmail) setValue("email", nextEmail);
+    setSelectedPlan(nextPlan);
+    saveSelectedPlan(nextPlan);
+  }, [setValue]);
 
   async function onSubmit(values: VerifyEmailValues) {
     setError(null);
@@ -55,8 +69,15 @@ function VerifyEmailForm() {
     }
 
     try {
+      saveSelectedPlan(selectedPlan);
       await verifyEmail({ email: values.email.trim(), otp: values.otp.trim() });
       setVerified(true);
+      if (selectedPlan !== "free") {
+        setNotice("Email verified. Redirecting to payment...");
+        window.setTimeout(() => router.push(`/billing/checkout?plan=${selectedPlan}&autostart=1`), 600);
+        return;
+      }
+      window.localStorage.removeItem(PLAN_STORAGE_KEY);
       setNotice("Email verified. Redirecting to your dashboard...");
       window.setTimeout(() => router.push("/dashboard"), 900);
     } catch (err) {
@@ -85,7 +106,7 @@ function VerifyEmailForm() {
   }
 
   return (
-    <VerifyEmailLayout>
+    <VerifyEmailLayout selectedPlan={selectedPlan}>
       <section className="border bg-card/95 shadow-sm">
         <div className="p-6 text-center lg:text-left">
           <div className="mx-auto flex h-11 w-11 items-center justify-center bg-primary/10 text-primary lg:mx-0">
@@ -94,6 +115,13 @@ function VerifyEmailForm() {
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Verify email</p>
           <h2 className="mt-2 text-4xl font-black tracking-[-0.05em]">Enter your code</h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">We sent a 6-digit verification code to your email address.</p>
+        </div>
+
+        <div className="border-t bg-muted/20 px-5 py-4">
+          <div className="rounded-xl border bg-background px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Selected plan</p>
+            <p className="mt-1 text-sm font-semibold">{planLabels[selectedPlan]}</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-0 border-t">
@@ -122,18 +150,7 @@ function VerifyEmailForm() {
   );
 }
 
-function VerifyEmailShell() {
-  return (
-    <VerifyEmailLayout>
-      <section className="border bg-card/95 p-10 text-center text-sm text-muted-foreground shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
-        Loading verification form...
-      </section>
-    </VerifyEmailLayout>
-  );
-}
-
-function VerifyEmailLayout({ children }: { children: React.ReactNode }) {
+function VerifyEmailLayout({ children, selectedPlan }: { children: React.ReactNode; selectedPlan: SelectedPlan }) {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-card/80 backdrop-blur-xl">
@@ -156,8 +173,8 @@ function VerifyEmailLayout({ children }: { children: React.ReactNode }) {
           <section className="mt-8 border bg-card/95">
             <div className="divide-y">
               <InfoLine label="Confirm account ownership" />
-              <InfoLine label="Activate organization workspace" />
-              <InfoLine label="Unlock dashboard access" />
+              <InfoLine label={`${planLabels[selectedPlan]} plan preserved`} />
+              <InfoLine label={selectedPlan === "free" ? "Unlock dashboard access" : "Continue to subscription checkout"} />
             </div>
           </section>
         </div>
