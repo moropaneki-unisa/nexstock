@@ -35,7 +35,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-card/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-10">
           <Link href="/" aria-label="NexStock home">
             <NexstockLogo tagline={false} className="px-2 py-1" />
           </Link>
@@ -43,7 +43,7 @@ export default function LoginPage() {
         </div>
       </header>
 
-      <section className="mx-auto grid min-h-[calc(100vh-73px)] max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_28rem]">
+      <section className="mx-auto grid min-h-[calc(100vh-73px)] w-full max-w-7xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_28rem] lg:px-10">
         <div className="hidden lg:block">
           <p className="inline-flex items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Secure workspace access
