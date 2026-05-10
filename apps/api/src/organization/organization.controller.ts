@@ -21,6 +21,9 @@ export class OrganizationController {
       name?: string;
       slug?: string;
       skuPrefix?: string;
+      baseCurrency?: string;
+      enabledCurrencies?: string[];
+      exchangeRates?: Array<{ code: string; rateToBase: number }> | Record<string, number>;
       industry?: string;
       onboardingComplete?: boolean;
       legalName?: string;
