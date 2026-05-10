@@ -14,6 +14,8 @@ import { NexstockLogo } from "@/components/brand/nexstock-logo";
 type SignupValues = { email: string; password: string; name: string; orgName: string };
 type SelectedPlan = "free" | "pro" | "business";
 
+const PLAN_STORAGE_KEY = "nexstock:selected-plan";
+
 const planLabels: Record<SelectedPlan, { name: string; price: string; helper: string }> = {
   free: { name: "Free", price: "R0", helper: "Explore the workspace before upgrading." },
   pro: { name: "Pro", price: "R299/month", helper: "Product imports, mapping, and stock visibility." },
@@ -29,6 +31,10 @@ function getSelectedPlan(plan: string | null): SelectedPlan {
   return "free";
 }
 
+function saveSelectedPlan(plan: SelectedPlan) {
+  window.localStorage.setItem(PLAN_STORAGE_KEY, plan);
+}
+
 export default function SignupPage() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan>("free");
@@ -38,12 +44,15 @@ export default function SignupPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setSelectedPlan(getSelectedPlan(params.get("plan")));
+    const nextPlan = getSelectedPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
+    setSelectedPlan(nextPlan);
+    saveSelectedPlan(nextPlan);
   }, []);
 
   async function onSubmit(values: SignupValues) {
     setError(null);
     try {
+      saveSelectedPlan(selectedPlan);
       const res: any = await signup(values);
       const planQuery = selectedPlan === "free" ? "" : `&plan=${selectedPlan}`;
       if (res?.requiresVerification) {
