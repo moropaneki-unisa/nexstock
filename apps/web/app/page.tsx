@@ -68,7 +68,7 @@ const platformItems = [
 const pricingPlans = [
   {
     name: "Free",
-    price: "R0",
+    price: "$0",
     cadence: "forever",
     description: "Start a workspace and validate the NexStock workflow before upgrading.",
     cta: "Start free",
@@ -82,7 +82,7 @@ const pricingPlans = [
   },
   {
     name: "Pro",
-    price: "R299",
+    price: "$19",
     cadence: "per month",
     description: "For growing teams that need product imports, stock visibility, and cleaner operating workflows.",
     cta: "Choose Pro",
@@ -97,7 +97,7 @@ const pricingPlans = [
   },
   {
     name: "Business",
-    price: "R999",
+    price: "$59",
     cadence: "per month",
     description: "For teams that need integrations, automation, and stronger product operations across systems.",
     cta: "Choose Business",
@@ -242,7 +242,7 @@ export default function LandingPage() {
           <div className="mt-10 grid gap-4 lg:grid-cols-3">
             {pricingPlans.map((plan) => <PricingCard key={plan.name} {...plan} />)}
           </div>
-          <p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Paystack. Prices are shown in South African Rand and can be adjusted as the platform grows.</p>
+          <p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Paystack. Prices are shown in USD.</p>
         </div>
       </section>
 
