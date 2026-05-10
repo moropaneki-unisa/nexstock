@@ -7,11 +7,12 @@ import { ArrowRight, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "luci
 
 import { AuthCard, AuthShell } from "@/components/marketing/auth-shell";
 import { Button } from "@/components/ui/button";
-import { initializeSubscriptionCheckout, verifySubscriptionPayment } from "@/lib/api";
+import { initializeSubscriptionCheckout, verifySubscriptionPayment, type SubscriptionPlan } from "@/lib/api";
 
-type PaidPlan = "starter" | "growth";
+type PaidPlan = SubscriptionPlan;
 
 const PLAN_STORAGE_KEY = "nexstock:selected-plan";
+const PADDLE_REFERENCE_KEY = "nexstock:paddle-reference";
 
 const plans: Record<PaidPlan, { name: string; price: string; description: string; features: string[] }> = {
   starter: {
@@ -33,6 +34,16 @@ function getPaidPlan(value: string | null): PaidPlan {
   return "starter";
 }
 
+function getReferenceFromSearch(params: URLSearchParams) {
+  return (
+    params.get("transaction_id") ||
+    params.get("_ptxn") ||
+    params.get("reference") ||
+    params.get("trxref") ||
+    window.localStorage.getItem(PADDLE_REFERENCE_KEY)
+  );
+}
+
 export default function BillingCheckoutPage() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("starter");
@@ -44,7 +55,7 @@ export default function BillingCheckoutPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const nextPlan = getPaidPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
-    const nextReference = params.get("reference") || params.get("trxref");
+    const nextReference = getReferenceFromSearch(params);
     setSelectedPlan(nextPlan);
     setReference(nextReference);
     window.localStorage.setItem(PLAN_STORAGE_KEY, nextPlan);
@@ -64,11 +75,12 @@ export default function BillingCheckoutPage() {
         if (result.success) {
           setStatus("success");
           window.localStorage.removeItem(PLAN_STORAGE_KEY);
+          window.localStorage.removeItem(PADDLE_REFERENCE_KEY);
           window.setTimeout(() => router.push("/organization/edit?setup=1"), 1200);
           return;
         }
         setStatus("failed");
-        setError("Payment could not be verified. Please try again or contact support.");
+        setError(result.status ? `Payment is currently ${result.status}. If you completed payment, wait a few seconds and refresh.` : "Payment could not be verified. Please try again or contact support.");
       } catch (err) {
         if (cancelled) return;
         setStatus("failed");
@@ -94,9 +106,11 @@ export default function BillingCheckoutPage() {
     setStatus("starting");
     setError(null);
     try {
-      const checkout = await initializeSubscriptionCheckout(selectedPlan as never);
-      if (!checkout.authorization_url) throw new Error("Checkout link was not returned");
-      window.location.href = checkout.authorization_url;
+      const checkout = await initializeSubscriptionCheckout(selectedPlan);
+      const checkoutUrl = checkout.checkout_url || checkout.authorization_url;
+      if (!checkoutUrl) throw new Error("Checkout link was not returned");
+      if (checkout.reference) window.localStorage.setItem(PADDLE_REFERENCE_KEY, checkout.reference);
+      window.location.href = checkoutUrl;
     } catch (err) {
       setStatus("failed");
       setError(err instanceof Error ? err.message : "Could not start checkout");
@@ -107,7 +121,7 @@ export default function BillingCheckoutPage() {
     <AuthShell
       eyebrow="Secure subscription"
       title="Choose before you pay."
-      description="Review your subscription, switch plans if needed, then continue to Paystack only when you are ready."
+      description="Review your subscription, switch plans if needed, then continue to Paddle only when you are ready."
       icon={ShieldCheck}
       highlights={["USD subscription pricing", "Change plan before payment", "Organization setup after successful payment"]}
       actionHref="/#pricing"
@@ -117,7 +131,7 @@ export default function BillingCheckoutPage() {
         icon={CreditCard}
         eyebrow="Subscription checkout"
         title="Review your plan"
-        description="Choose the subscription that fits your product operations, then continue to Paystack when you are ready."
+        description="Choose the subscription that fits your product operations, then continue to Paddle when you are ready."
         footer={<Link href="/#pricing" className="font-medium text-foreground hover:underline">Compare all plans</Link>}
       >
         {!reference && (
@@ -161,7 +175,7 @@ export default function BillingCheckoutPage() {
         <div className="border-t p-5">
           {!reference ? (
             <Button onClick={startCheckout} className="w-full rounded-xl py-6 font-semibold" disabled={status === "starting"}>
-              {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Pay {plan.price} with Paystack <ArrowRight className="h-4 w-4" /></>}
+              {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Pay {plan.price} with Paddle <ArrowRight className="h-4 w-4" /></>}
             </Button>
           ) : (
             <Button className="w-full rounded-xl py-6 font-semibold" disabled>
