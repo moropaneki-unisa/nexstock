@@ -11,7 +11,7 @@ export function proxy(request: NextRequest) {
 
   if (pathname === "/imports") {
     const url = request.nextUrl.clone();
-    url.pathname = "/imports-v2";
+    url.pathname = "/imports-currency";
     return NextResponse.rewrite(url);
   }
 
