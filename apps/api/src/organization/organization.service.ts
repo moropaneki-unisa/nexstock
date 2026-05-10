@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Plan, UserRole } from '@prisma/client';
+import { Plan, Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,10 +9,15 @@ import { EmailService } from '../email/email.service';
 const INVITE_EXPIRY_DAYS = 7;
 const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 
+type CurrencyRateDto = { code: string; rateToBase: number };
+
 type OrganizationUpdateDto = {
   name?: string;
   slug?: string;
   skuPrefix?: string;
+  baseCurrency?: string;
+  enabledCurrencies?: string[];
+  exchangeRates?: CurrencyRateDto[] | Record<string, number>;
   industry?: string | null;
   onboardingComplete?: boolean;
   legalName?: string | null;
@@ -95,6 +100,9 @@ export class OrganizationService {
       industry: org.industry,
       onboardingComplete: org.onboardingComplete,
       skuPrefix: org.skuPrefix,
+      baseCurrency: org.baseCurrency,
+      enabledCurrencies: org.enabledCurrencies,
+      exchangeRates: org.exchangeRates,
       legalName: org.legalName,
       tradingName: org.tradingName,
       registrationNo: org.registrationNo,
@@ -141,7 +149,7 @@ export class OrganizationService {
 
   async updateOrganization(user: CurrentUserPayload, dto: OrganizationUpdateDto) {
     requireAdmin(user);
-    const data: Record<string, string | boolean | null> = {};
+    const data: Prisma.OrganizationUpdateInput = {};
 
     if (dto.name !== undefined) {
       const name = dto.name.trim();
@@ -154,6 +162,15 @@ export class OrganizationService {
       data.slug = slug;
     }
     if (dto.skuPrefix !== undefined) data.skuPrefix = dto.skuPrefix?.trim().toUpperCase() || null;
+    if (dto.baseCurrency !== undefined || dto.enabledCurrencies !== undefined || dto.exchangeRates !== undefined) {
+      const current = await this.db.organization.findUnique({ where: { id: user.organizationId } });
+      if (!current) throw new NotFoundException('Organization not found');
+      const baseCurrency = this.normalizeCurrencyCode(dto.baseCurrency ?? current.baseCurrency ?? 'ZAR');
+      const enabledCurrencies = this.normalizeCurrencyList(baseCurrency, dto.enabledCurrencies ?? current.enabledCurrencies ?? [baseCurrency]);
+      data.baseCurrency = baseCurrency;
+      data.enabledCurrencies = enabledCurrencies;
+      data.exchangeRates = this.normalizeExchangeRates(dto.exchangeRates ?? current.exchangeRates, baseCurrency, enabledCurrencies) as Prisma.InputJsonValue;
+    }
     if (dto.industry !== undefined) data.industry = optionalText(dto.industry);
     if (dto.onboardingComplete !== undefined) data.onboardingComplete = dto.onboardingComplete;
     if (dto.legalName !== undefined) data.legalName = optionalText(dto.legalName);
@@ -281,6 +298,28 @@ export class OrganizationService {
     requireAdmin(user);
     if (!['free', 'pro', 'business'].includes(planInput)) throw new BadRequestException('Invalid plan');
     return this.db.organization.update({ where: { id: user.organizationId }, data: { plan: planInput as Plan } });
+  }
+
+  private normalizeCurrencyCode(value: string) {
+    const code = String(value || '').trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(code)) throw new BadRequestException('Currency code must be a 3-letter ISO code');
+    return code;
+  }
+
+  private normalizeCurrencyList(baseCurrency: string, values: string[]) {
+    return Array.from(new Set([baseCurrency, ...(values ?? []).map((code) => this.normalizeCurrencyCode(code))]));
+  }
+
+  private normalizeExchangeRates(value: OrganizationUpdateDto['exchangeRates'] | Prisma.JsonValue | null | undefined, baseCurrency: string, enabledCurrencies: string[]) {
+    const entries = Array.isArray(value)
+      ? value.map((item) => ({ code: this.normalizeCurrencyCode(String((item as any).code ?? '')), rateToBase: Number((item as any).rateToBase ?? 1) }))
+      : value && typeof value === 'object'
+        ? Object.entries(value as Record<string, unknown>).map(([code, rate]) => ({ code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) }))
+        : [];
+
+    return entries
+      .filter((rate) => rate.code !== baseCurrency && enabledCurrencies.includes(rate.code))
+      .map((rate) => ({ code: rate.code, rateToBase: Number.isFinite(rate.rateToBase) && rate.rateToBase > 0 ? rate.rateToBase : 1 }));
   }
 
   private normalizeRole(value: string): UserRole {
