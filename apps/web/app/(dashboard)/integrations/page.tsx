@@ -84,7 +84,7 @@ function FlowItem({ icon: Icon, title, description }: { icon: LucideIcon; title:
 function ConnectorPanel({ connector }: { connector: (typeof connectors)[number] }) {
   const Icon = connector.icon;
   const isFileConnector = connector.id === "csv" || connector.id === "xlsx" || connector.id === "json";
-  const workflowHref = isFileConnector ? "/imports" : `/integration/${connector.id}/configuration`;
+  const workflowHref = connector.id === "json" ? "/imports-json" : isFileConnector ? "/imports" : `/integration/${connector.id}/configuration`;
   return (
     <article className="p-5 transition hover:bg-muted/25">
       <div className="flex items-start justify-between gap-4">
@@ -111,7 +111,7 @@ function ConnectorPanel({ connector }: { connector: (typeof connectors)[number] 
           <Link href={workflowHref}>Open workflow<ArrowRight className="h-4 w-4" /></Link>
         </Button>
         {isFileConnector ? (
-          <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">File imports now open the guided product import wizard for upload, preview, mapping, and validation.</div>
+          <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">{connector.id === "json" ? "JSON imports open a dedicated JSON flow for product objects, image arrays, and custom fields." : "File imports open the guided product import wizard for upload, preview, mapping, and validation."}</div>
         ) : (
           <div className="grid grid-cols-5 gap-1.5">
             {sectionActions.map((action) => {
