@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Edit, FileText, History, ImageIcon, Loader2, PackageSearch } from "lucide-react";
+import { ArrowLeft, Edit, FileText, History, ImageIcon, Loader2, PackageSearch, Warehouse } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
 import type { Product } from "@/lib/types";
@@ -21,26 +25,62 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [delta, setDelta] = useState("");
+  const [reason, setReason] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
-  useEffect(() => {
+  async function loadProduct() {
     if (!params.id) return;
-    let active = true;
     setLoading(true);
     setError(null);
-    apiFetch<ProductDetail>(`/api/products/${params.id}`)
-      .then((result) => {
-        if (active) setProduct(result);
-      })
-      .catch((err) => {
-        if (active) setError(err.message ?? "Failed to load product");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    try {
+      const result = await apiFetch<ProductDetail>(`/api/products/${params.id}`);
+      setProduct(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load product");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadProduct();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  async function submitStockAdjustment() {
+    if (!product) return;
+    const numericDelta = Number(delta);
+    setAdjustError(null);
+
+    if (!Number.isInteger(numericDelta) || numericDelta === 0) {
+      setAdjustError("Enter a whole number above or below zero. Example: 10 or -3.");
+      return;
+    }
+
+    if (product.quantity + numericDelta < 0) {
+      setAdjustError("Stock cannot go below zero.");
+      return;
+    }
+
+    setAdjusting(true);
+    try {
+      await apiFetch(`/api/products/${product.id}/adjust`, {
+        method: "POST",
+        body: JSON.stringify({ delta: numericDelta, reason: reason.trim() || "Manual stock adjustment", source: "app" }),
+      });
+      setDelta("");
+      setReason("");
+      setAdjustOpen(false);
+      await loadProduct();
+    } catch (err) {
+      setAdjustError(err instanceof Error ? err.message : "Failed to adjust stock");
+    } finally {
+      setAdjusting(false);
+    }
+  }
 
   const lowStock = product ? product.quantity <= product.lowStockLevel : false;
   const cleanDescription = useMemo(() => cleanText(product?.description), [product?.description]);
@@ -54,7 +94,7 @@ export default function ProductDetailPage() {
       { id: "description", label: "Description", value: cleanDescription || "No description", multiline: true },
       { id: "price", label: "Price", value: formatCurrency(product.price) },
       { id: "cost", label: "Cost", value: product.cost == null ? "Not set" : formatCurrency(product.cost) },
-      { id: "quantity", label: "Quantity", value: `${product.quantity} units` },
+      { id: "quantity", label: "Current stock", value: `${product.quantity} units` },
       { id: "lowStockLevel", label: "Low-stock level", value: `${product.lowStockLevel} units` },
       { id: "images", label: "Images", value: `${product.images?.length ?? 0} image${(product.images?.length ?? 0) === 1 ? "" : "s"}` },
       { id: "createdAt", label: "Created", value: formatDate(product.createdAt) },
@@ -79,7 +119,7 @@ export default function ProductDetailPage() {
       <PageShell>
         <div className="border bg-card/95 p-8">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />Loading product record...
+            <Loader2 className="h-5 w-5 animate-spin" />Loading product profile...
           </div>
         </div>
       </PageShell>
@@ -103,16 +143,16 @@ export default function ProductDetailPage() {
   return (
     <PageShell className="space-y-6 pb-10">
       <PageHeader
-        eyebrow="Product management"
+        eyebrow="Product profile"
         title={cleanText(product.name) || "Product"}
-        description="Internal product data record. Review every field exactly as the business manages it, then edit what needs to change."
+        description="Review product identity, pricing, inventory, images, business attributes, and stock movement from one profile."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
               <Link href="/products"><ArrowLeft className="h-4 w-4" />Back to products</Link>
             </Button>
-            <Button asChild variant="outline" className="rounded-xl bg-background/70">
-              <Link href="/products"><PackageSearch className="h-4 w-4" />Catalog</Link>
+            <Button type="button" variant="outline" onClick={() => setAdjustOpen(true)} className="rounded-xl bg-background/70">
+              <Warehouse className="h-4 w-4" />Adjust stock
             </Button>
             <Button asChild className="rounded-xl shadow-sm">
               <Link href={`/products/${product.id}/edit`}><Edit className="h-4 w-4" />Edit product</Link>
@@ -168,9 +208,9 @@ export default function ProductDetailPage() {
           <section className="border bg-card/95">
             <SectionHeader
               icon={FileText}
-              title="Product data"
-              description="System fields and additional fields are part of the same editable product record."
-              badge={`${productFields.length} fields`}
+              title="Product attributes"
+              description="Default fields and custom business attributes stored against this product."
+              badge={`${productFields.length} attributes`}
             />
             <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
               <div className="divide-y">
@@ -183,7 +223,7 @@ export default function ProductDetailPage() {
           </section>
 
           <section className="border bg-card/95">
-            <SectionHeader icon={History} title="Inventory movement" description="Stock changes returned by the API." badge={`${product.inventoryLogs?.length ?? 0} logs`} />
+            <SectionHeader icon={History} title="Inventory movement" description="Every stock adjustment is recorded with before/after quantity and reason." badge={`${product.inventoryLogs?.length ?? 0} logs`} />
             <div className="border-t">
               {product.inventoryLogs?.length ? (
                 <div className="divide-y">
@@ -196,6 +236,32 @@ export default function ProductDetailPage() {
           </section>
         </main>
       </section>
+
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust stock</DialogTitle>
+            <DialogDescription>
+              Current stock is {product.quantity} units. Add stock with a positive number or reduce stock with a negative number.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {adjustError && <div className="border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{adjustError}</div>}
+            <label className="space-y-2">
+              <Label>Adjustment quantity</Label>
+              <Input value={delta} onChange={(event) => setDelta(event.target.value)} type="number" step="1" placeholder="Example: 10 or -3" />
+            </label>
+            <label className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Stock count correction, supplier delivery, damaged goods..." className="min-h-24" />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} disabled={adjusting}>Cancel</Button>
+            <Button type="button" onClick={submitStockAdjustment} disabled={adjusting}>{adjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Warehouse className="h-4 w-4" />}Save adjustment</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }
@@ -222,6 +288,7 @@ function InventoryLogRow({ log }: { log: InventoryLog }) {
 
 function ProductStatusBadge({ product, lowStock }: { product: Product; lowStock: boolean }) {
   if (product.status === "archived") return <Badge variant="outline" className="bg-background/90">Archived</Badge>;
+  if (product.quantity <= 0) return <Badge variant="destructive">Out of stock</Badge>;
   if (lowStock) return <Badge variant="destructive">Low stock</Badge>;
   if (product.status === "draft") return <Badge variant="secondary" className="bg-background/90">Draft</Badge>;
   return <Badge className="bg-emerald-600 hover:bg-emerald-600">Active</Badge>;
