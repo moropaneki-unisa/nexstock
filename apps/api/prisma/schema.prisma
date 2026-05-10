@@ -21,6 +21,7 @@ enum Plan {
 
 enum PaymentProvider {
   paystack
+  paddle
 }
 
 enum PaymentStatus {
