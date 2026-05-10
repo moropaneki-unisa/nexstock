@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -32,6 +32,19 @@ function appUrl(path = '') {
   return `${base.replace(/\/$/, '')}${path}`;
 }
 
+function requiredTrimmedString(value: unknown, fieldName: string) {
+  if (typeof value !== 'string') throw new BadRequestException(`${fieldName} is required`);
+  const trimmed = value.trim();
+  if (!trimmed) throw new BadRequestException(`${fieldName} is required`);
+  return trimmed;
+}
+
+function normalizeEmail(value: unknown) {
+  const email = requiredTrimmedString(value, 'Email').toLowerCase();
+  if (!email.includes('@')) throw new BadRequestException('Enter a valid email address');
+  return email;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -41,11 +54,17 @@ export class AuthService {
   ) {}
 
   async signup(dto: SignupDto) {
-    const email = dto.email.toLowerCase().trim();
+    const email = normalizeEmail(dto.email);
+    const name = requiredTrimmedString(dto.name, 'Full name');
+    const password = requiredTrimmedString(dto.password, 'Password');
+    const orgName = requiredTrimmedString(dto.orgName, 'Organization name');
+
+    if (password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already exists');
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await bcrypt.hash(password, 12);
 
     const otp = generateOtp();
     const otpHash = hashOtp(otp);
@@ -54,7 +73,7 @@ export class AuthService {
       data: {
         email,
         passwordHash,
-        name: dto.name.trim(),
+        name,
         verificationOtpHash: otpHash,
         verificationOtpExpiry: new Date(Date.now() + OTP_EXPIRY_MS),
       },
@@ -62,15 +81,15 @@ export class AuthService {
 
     await this.email.sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
 
-    return { requiresVerification: true };
+    return { requiresVerification: true, orgName };
   }
 
   async verifyEmail(emailInput: string, otp: string, meta: TokenMeta) {
-    const email = emailInput.toLowerCase().trim();
+    const email = normalizeEmail(emailInput);
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.verificationOtpHash) throw new UnauthorizedException('Invalid request');
 
-    const hashed = hashOtp(otp.trim());
+    const hashed = hashOtp(requiredTrimmedString(otp, 'Verification code'));
     if (hashed !== user.verificationOtpHash) throw new UnauthorizedException('Invalid OTP');
 
     if (!user.verificationOtpExpiry || user.verificationOtpExpiry < new Date()) {
@@ -105,8 +124,8 @@ export class AuthService {
   }
 
   async acceptInvite(dto: AcceptInviteDto, meta: TokenMeta) {
-    const email = dto.email.toLowerCase().trim();
-    const tokenHash = hashInviteToken(dto.token.trim());
+    const email = normalizeEmail(dto.email);
+    const tokenHash = hashInviteToken(requiredTrimmedString(dto.token, 'Invitation token'));
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -128,7 +147,7 @@ export class AuthService {
     const membership = user.memberships[0];
     if (!membership) throw new UnauthorizedException('Invitation has no organization access');
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await bcrypt.hash(requiredTrimmedString(dto.password, 'Password'), 12);
     const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -144,7 +163,7 @@ export class AuthService {
   }
 
   async resendOtp(emailInput: string) {
-    const email = emailInput.toLowerCase().trim();
+    const email = normalizeEmail(emailInput);
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) return { ok: true };
 
@@ -166,7 +185,7 @@ export class AuthService {
   }
 
   async forgotPassword(emailInput: string) {
-    const email = emailInput.toLowerCase().trim();
+    const email = normalizeEmail(emailInput);
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || user.passwordHash === 'temporary') return { ok: true };
 
@@ -185,7 +204,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto) {
-    const email = dto.email.toLowerCase().trim();
+    const email = normalizeEmail(dto.email);
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user || !user.verificationOtpHash) throw new UnauthorizedException('Invalid or expired reset link');
 
@@ -193,10 +212,10 @@ export class AuthService {
       throw new UnauthorizedException('Reset link expired. Request a new one.');
     }
 
-    const tokenHash = hashInviteToken(dto.token.trim());
+    const tokenHash = hashInviteToken(requiredTrimmedString(dto.token, 'Reset token'));
     if (tokenHash !== user.verificationOtpHash) throw new UnauthorizedException('Invalid or expired reset link');
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await bcrypt.hash(requiredTrimmedString(dto.password, 'Password'), 12);
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
@@ -212,13 +231,13 @@ export class AuthService {
   }
 
   async login(emailInput: string, password: string, meta: TokenMeta) {
-    const email = emailInput.toLowerCase().trim();
+    const email = normalizeEmail(emailInput);
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: { memberships: { orderBy: { createdAt: 'asc' } } },
     });
 
-    if (!user || user.passwordHash === 'temporary' || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user || user.passwordHash === 'temporary' || !(await bcrypt.compare(password, password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
