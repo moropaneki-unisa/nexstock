@@ -8,9 +8,11 @@ import {
   AlertTriangle,
   ArrowRight,
   Boxes,
+  Building2,
   CheckCircle2,
   CircleDollarSign,
   Clock3,
+  DatabaseZap,
   KeyRound,
   Layers3,
   Loader2,
@@ -18,15 +20,17 @@ import {
   PackageSearch,
   Plus,
   RefreshCw,
+  Settings2,
   Webhook,
   Zap,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
-import type { Dashboard } from "@/lib/types";
+import type { Dashboard, ProductField } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const sampleActivity = [
@@ -38,12 +42,24 @@ const sampleActivity = [
 const quickActions = [
   { href: "/products/new", label: "Create product", icon: Plus },
   { href: "/products", label: "Catalog", icon: PackageSearch },
+  { href: "/products/fields", label: "Attributes", icon: DatabaseZap },
   { href: "/integrations", label: "Connect", icon: Zap },
   { href: "/api-keys", label: "API keys", icon: KeyRound },
 ];
 
+type OrganizationSummary = {
+  onboardingComplete?: boolean;
+  legalName?: string | null;
+  tradingName?: string | null;
+  billingEmail?: string | null;
+  industry?: string | null;
+  country?: string | null;
+};
+
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
+  const [organization, setOrganization] = useState<OrganizationSummary | null>(null);
+  const [productFields, setProductFields] = useState<ProductField[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,9 +67,18 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      setData(await apiFetch<Dashboard>("/api/dashboard"));
+      const [dashboard, org, fields] = await Promise.all([
+        apiFetch<Dashboard>("/api/dashboard"),
+        apiFetch<OrganizationSummary>("/api/organization").catch(() => null),
+        apiFetch<ProductField[]>("/api/product-fields").catch(() => []),
+      ]);
+      setData(dashboard);
+      setOrganization(org);
+      setProductFields(fields);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard");
+      const message = err instanceof Error ? err.message : "Failed to load dashboard";
+      setError(message);
+      toast.error("Could not refresh dashboard", { description: message });
     } finally {
       setLoading(false);
     }
@@ -73,9 +98,59 @@ export default function DashboardPage() {
     return { totalProducts, lowStock, inventoryValue, apiKeyCount, webhookCount, recentActivity };
   }, [data]);
 
+  const customAttributeCount = productFields.filter((field) => field.isActive).length;
+  const organizationProfileReady = Boolean(organization?.onboardingComplete || organization?.legalName || organization?.tradingName || organization?.billingEmail || organization?.industry || organization?.country);
+  const onboardingSteps = [
+    {
+      label: "Complete organization profile",
+      description: "Add business, billing, and workspace details.",
+      href: "/organization/edit?setup=1",
+      ready: organizationProfileReady,
+      icon: Building2,
+    },
+    {
+      label: "Add product attributes",
+      description: "Create custom attributes or apply templates for richer product data.",
+      href: "/products/fields",
+      ready: customAttributeCount > 0,
+      icon: DatabaseZap,
+    },
+    {
+      label: "Create first product",
+      description: "Add one product manually to validate your catalog workflow.",
+      href: "/products/new",
+      ready: view.totalProducts > 0,
+      icon: Boxes,
+    },
+    {
+      label: "Review stock health",
+      description: "Confirm quantity and low-stock thresholds on your products.",
+      href: "/products",
+      ready: view.totalProducts > 0 && view.lowStock === 0,
+      icon: PackageSearch,
+    },
+    {
+      label: "Connect integration or import",
+      description: "Prepare CSV, XLSX, JSON, Zoho, WooCommerce, or Shopify workflows.",
+      href: "/integrations",
+      ready: false,
+      icon: Zap,
+    },
+    {
+      label: "Create API key or webhook",
+      description: "Enable developer access and event delivery for connected systems.",
+      href: view.apiKeyCount > 0 ? "/webhooks" : "/api-keys",
+      ready: view.apiKeyCount > 0 || view.webhookCount > 0,
+      icon: KeyRound,
+    },
+  ];
+
+  const completedSteps = onboardingSteps.filter((step) => step.ready).length;
+  const progress = Math.round((completedSteps / onboardingSteps.length) * 100);
+
   const readiness = [
     { label: "Products", value: view.totalProducts > 0 ? `${view.totalProducts} records` : "Add products", ready: view.totalProducts > 0 },
-    { label: "Integrations", value: "Mapping ready", ready: true },
+    { label: "Attributes", value: customAttributeCount > 0 ? `${customAttributeCount} active` : "Apply template", ready: customAttributeCount > 0 },
     { label: "Webhooks", value: `${view.webhookCount} configured`, ready: view.webhookCount > 0 },
     { label: "API keys", value: `${view.apiKeyCount} active`, ready: view.apiKeyCount > 0 },
   ];
@@ -121,6 +196,27 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      <section className="border bg-card/95">
+        <SectionHeader
+          icon={CheckCircle2}
+          title="Workspace setup checklist"
+          description="Complete these steps to get NexStock ready for real product operations."
+          action={<Badge variant={progress === 100 ? "default" : "secondary"}>{completedSteps}/{onboardingSteps.length} complete</Badge>}
+        />
+        <div className="border-t p-5">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="font-medium">Setup progress</span>
+            <span className="font-semibold">{progress}%</span>
+          </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+        <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-3">
+          {onboardingSteps.map((step) => <OnboardingStep key={step.label} {...step} />)}
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-[1fr_22rem]">
         <main className="space-y-6">
           <section className="border bg-card/95">
@@ -139,7 +235,7 @@ export default function DashboardPage() {
             <SectionHeader icon={AlertTriangle} title="Focus next" description="The next operational areas to review before launch or daily handover." />
             <div className="grid divide-y border-t md:grid-cols-3 md:divide-x md:divide-y-0">
               <FocusItem title="Stock review" detail={view.lowStock > 0 ? `${view.lowStock} products need review.` : "No low-stock issues reported."} href="/products" status={view.lowStock > 0 ? "Review" : "Ready"} urgent={view.lowStock > 0} />
-              <FocusItem title="Integration mapping" detail="Confirm fields before syncing data." href="/integrations" status="Open" />
+              <FocusItem title="Attribute model" detail={customAttributeCount > 0 ? `${customAttributeCount} active attributes configured.` : "Apply templates before adding more products."} href="/products/fields" status={customAttributeCount > 0 ? "Ready" : "Open"} urgent={customAttributeCount === 0} />
               <FocusItem title="Webhook delivery" detail={`${view.webhookCount} endpoint${view.webhookCount === 1 ? "" : "s"} configured.`} href="/webhooks" status="Open" />
             </div>
           </section>
@@ -171,6 +267,10 @@ function SectionHeader({ icon: Icon, title, description, action }: { icon: Lucid
 
 function Metric({ label, value, icon: Icon, tone = "default" }: { label: string; value: string | number; icon: LucideIcon; tone?: "default" | "success" | "warning" }) {
   return <div className="flex items-center justify-between p-4"><div className="min-w-0"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 truncate text-xl font-semibold capitalize">{value}</p></div><span className={cn("flex h-10 w-10 shrink-0 items-center justify-center", tone === "warning" ? "bg-amber-50 text-amber-700" : tone === "success" ? "bg-emerald-50 text-emerald-700" : "bg-primary/10 text-primary")}><Icon className="h-4 w-4" /></span></div>;
+}
+
+function OnboardingStep({ label, description, href, ready, icon: Icon }: { label: string; description: string; href: string; ready: boolean; icon: LucideIcon }) {
+  return <Link href={href} className="block p-5 transition hover:bg-muted/45"><div className="flex items-start gap-3"><span className={cn("flex h-10 w-10 shrink-0 items-center justify-center", ready ? "bg-emerald-50 text-emerald-700" : "bg-primary/10 text-primary")}><Icon className="h-5 w-5" /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold tracking-tight">{label}</h3><Badge variant={ready ? "default" : "secondary"}>{ready ? "Done" : "Next"}</Badge></div><p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p></div></div></Link>;
 }
 
 function FocusItem({ title, detail, href, status, urgent = false }: { title: string; detail: string; href: string; status: string; urgent?: boolean }) {
