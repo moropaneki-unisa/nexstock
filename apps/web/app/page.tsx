@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { NexstockLogo } from "@/components/brand/nexstock-logo";
 import { AppFooter } from "@/components/layout/app-footer";
+import { PricingSection } from "@/components/landing/pricing-section";
 
 const navLinks = [
   { href: "#features", label: "Product" },
@@ -54,7 +55,7 @@ const pricingPlans = [
     name: "Free",
     price: "$0",
     cadence: "per month",
-    description: "Start a workspace and validate the NexStock workflow before upgrading.",
+    description: "Start a workspace and validate the NexStock workflow before upgrading. This is best for testing the product experience, setting up your first product records, and understanding how NexStock fits your business before committing to a paid plan.",
     cta: "Start free",
     href: "/signup?plan=free",
     features: ["Create a product workspace", "Manual product catalog setup", "Basic inventory visibility", "Email verification and secure access"],
@@ -63,7 +64,7 @@ const pricingPlans = [
     name: "Starter",
     price: "$19",
     cadence: "per month",
-    description: "For small teams starting product imports, stock visibility, and cleaner operating workflows.",
+    description: "For small teams starting product imports, stock visibility, and cleaner operating workflows. Starter is the first paid plan for businesses that need to move beyond manual product entry and start importing catalog data more consistently.",
     cta: "Choose Starter",
     href: "/signup?plan=starter",
     highlighted: true,
@@ -73,7 +74,7 @@ const pricingPlans = [
     name: "Growth",
     price: "$59",
     cadence: "per month",
-    description: "For growing teams that need APIs, webhooks, integrations, and stronger product operations.",
+    description: "For growing teams that need APIs, webhooks, integrations, and stronger product operations. Growth is intended for businesses that are connecting NexStock to other systems and need more automation around product and inventory updates.",
     cta: "Choose Growth",
     href: "/signup?plan=growth",
     features: ["Advanced imports and integration-ready workflows", "Webhooks for product and inventory events", "Team workspace and admin controls", "Priority setup support"],
@@ -82,7 +83,7 @@ const pricingPlans = [
     name: "Business",
     price: "$149",
     cadence: "per month later",
-    description: "A future plan for purchase orders, vendor operations, multi-location stock, audit logs, and advanced automation.",
+    description: "A future plan for purchase orders, vendor operations, multi-location stock, audit logs, and advanced automation. Business is shown now to communicate the product direction, but checkout is not enabled for this plan yet.",
     cta: "Coming later",
     href: "/signup?plan=growth",
     disabled: true,
@@ -144,7 +145,7 @@ export default function LandingPage() {
 
       <section id="platform" className="px-4 py-24 sm:px-6 lg:px-10"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center"><div className="flex min-h-[320px] flex-col justify-center"><SectionIntro eyebrow="Platform" title="Everything needed to launch a product operations SaaS." description="The platform covers core product records, import workflows, integration configuration, API access, webhook delivery, and the operational history teams need when data changes." /></div><section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm"><SectionHeader icon={DatabaseZap} title="What NexStock includes" description="Core SaaS capabilities for connected product operations." /><div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">{platformItems.map((item) => <ListItem key={item} label={item} />)}</div></section></div></section>
 
-      <section id="pricing" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10"><div className="mx-auto max-w-7xl"><SectionIntro eyebrow="Subscriptions" title="Choose the workspace plan that matches your product operations." description="Start free, then upgrade when imports, API access, webhooks, and connected workflows become part of your day-to-day operations." /><div className="mt-10 grid gap-4 lg:grid-cols-4">{pricingPlans.map((plan) => <PricingCard key={plan.name} {...plan} />)}</div><p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Paystack. Prices are shown in USD. Business is planned for a later release.</p></div></section>
+      <section id="pricing" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10"><div className="mx-auto max-w-7xl"><SectionIntro eyebrow="Subscriptions" title="Choose the workspace plan that matches your product operations." description="Start free, then upgrade when imports, API access, webhooks, and connected workflows become part of your day-to-day operations." /><PricingSection plans={pricingPlans} /><p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Paystack. Prices are shown in USD. Business is planned for a later release.</p></div></section>
 
       <section id="security" className="px-4 py-24 sm:px-6 lg:px-10"><div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center"><div className="flex min-h-[320px] flex-col justify-center"><SectionIntro eyebrow="Security" title="Designed for real teams, not just single-user spreadsheets." description="NexStock separates users by organization, protects sensitive integration details, restricts administrative areas, and gives teams safer ways to connect external systems." icon={LockKeyhole} /></div><section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm"><SectionHeader icon={ShieldCheck} title="Workspace controls" description="Security and account controls built into the SaaS experience." /><div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">{securityItems.map((item) => <ListItem key={item} label={item} icon={ShieldCheck} />)}</div></section></div></section>
 
@@ -163,4 +164,3 @@ function SectionHeader({ icon: Icon, title, description, badge }: { icon: Lucide
 function FeaturePanel({ icon: Icon, title, text }: { icon: LucideIcon; title: string; text: string }) { return <div className="flex min-h-[230px] flex-col p-5"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>; }
 function WorkflowPanel({ icon: Icon, title, text, index }: { icon: LucideIcon; title: string; text: string; index: number }) { return <div className="flex min-h-[230px] flex-col p-5"><span className="text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground">0{index + 1}</span><span className="mt-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" /></span><h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>; }
 function ListItem({ label, icon: Icon = CheckCircle2 }: { label: string; icon?: LucideIcon }) { return <div className="flex min-h-[74px] items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium leading-5">{label}</span></div>; }
-function PricingCard({ name, price, cadence, description, cta, href, features, highlighted, disabled }: { name: string; price: string; cadence: string; description: string; cta: string; href: string; features: string[]; highlighted?: boolean; disabled?: boolean }) { return <section className={`flex min-h-[430px] flex-col rounded-2xl border bg-card/95 p-5 shadow-sm ${highlighted ? "ring-2 ring-primary" : ""} ${disabled ? "opacity-80" : ""}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-bold uppercase tracking-[0.22em] text-muted-foreground">{name}</p>{highlighted && <span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">Popular</span>}{disabled && <span className="rounded-full border bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">Later</span>}</div><div className="mt-5 flex items-end gap-2"><span className="text-5xl font-black tracking-[-0.06em]">{price}</span><span className="pb-2 text-sm text-muted-foreground">{cadence}</span></div><p className="mt-4 text-sm leading-6 text-muted-foreground">{description}</p><div className="mt-6 grid gap-3">{features.map((feature) => <ListItem key={feature} label={feature} />)}</div>{disabled ? <span className="mt-auto inline-flex items-center justify-center gap-2 rounded-full border bg-muted px-5 py-3 text-sm font-bold text-muted-foreground">{cta}</span> : <Link href={href} className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">{cta} <ArrowRight className="h-4 w-4" /></Link>}</section>; }
