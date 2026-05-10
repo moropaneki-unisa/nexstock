@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowUpRight,
   Edit,
@@ -18,6 +18,16 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,19 +42,22 @@ type StatusFilter = "all" | "active" | "draft" | "archived";
 type StockFilter = "all" | "healthy" | "low" | "out";
 
 export default function ProductsPage() {
-  const searchParams = useSearchParams();
-  const initialSearch = searchParams.get("search") ?? "";
-
-  const [search, setSearch] = useState(initialSearch);
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Paginated<Product> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [productToArchive, setProductToArchive] = useState<Product | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSearch(params.get("search") ?? "");
+  }, []);
 
   const queryString = useMemo(() => {
     const query = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) });
@@ -60,7 +73,9 @@ export default function ProductsPage() {
       const result = await apiFetch<Paginated<Product>>(`/api/products?${queryString}`);
       setData(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load products");
+      const message = err instanceof Error ? err.message : "Failed to load products";
+      setError(message);
+      toast.error("Could not load products", { description: message });
       setData(null);
     } finally {
       setLoading(false);
@@ -75,17 +90,21 @@ export default function ProductsPage() {
     setPage(1);
   }, [search]);
 
-  async function archiveProduct(product: Product) {
-    if (!window.confirm(`Archive ${product.name}? This removes it from active product lists.`)) return;
+  async function archiveProduct() {
+    if (!productToArchive) return;
 
-    setDeletingId(product.id);
+    setDeletingId(productToArchive.id);
     setError(null);
 
     try {
-      await apiFetch(`/api/products/${product.id}`, { method: "DELETE" });
+      await apiFetch(`/api/products/${productToArchive.id}`, { method: "DELETE" });
+      toast.success("Product archived", { description: `${productToArchive.name} was removed from active product lists.` });
+      setProductToArchive(null);
       await loadProducts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to archive product");
+      const message = err instanceof Error ? err.message : "Failed to archive product";
+      setError(message);
+      toast.error("Could not archive product", { description: message });
     } finally {
       setDeletingId(null);
     }
@@ -95,6 +114,7 @@ export default function ProductsPage() {
     setCategoryFilter("all");
     setStatusFilter("all");
     setStockFilter("all");
+    toast.success("Filters cleared");
   }
 
   const products = data?.items ?? [];
@@ -138,7 +158,7 @@ export default function ProductsPage() {
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
               <Link href="/products/fields">
                 <SlidersHorizontal className="h-4 w-4" />
-                Product fields
+                Product attributes
               </Link>
             </Button>
             <Button asChild className="rounded-xl shadow-sm">
@@ -249,7 +269,7 @@ export default function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {visibleProducts.map((product) => (
-                    <ProductTableRow key={product.id} product={product} deletingId={deletingId} onArchive={archiveProduct} />
+                    <ProductTableRow key={product.id} product={product} deletingId={deletingId} onRequestArchive={setProductToArchive} />
                   ))}
                 </TableBody>
               </Table>
@@ -257,7 +277,7 @@ export default function ProductsPage() {
 
             <div className="grid gap-3 border-t p-4 xl:hidden">
               {visibleProducts.map((product) => (
-                <ProductMobileCard key={product.id} product={product} deletingId={deletingId} onArchive={archiveProduct} />
+                <ProductMobileCard key={product.id} product={product} deletingId={deletingId} onRequestArchive={setProductToArchive} />
               ))}
             </div>
           </>
@@ -276,11 +296,29 @@ export default function ProductsPage() {
           )}
         </div>
       </section>
+
+      <AlertDialog open={Boolean(productToArchive)} onOpenChange={(open) => !open && setProductToArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive product?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {productToArchive ? `This will remove "${productToArchive.name}" from active product lists. Existing records, inventory history, and integrations remain preserved.` : "This product will be archived."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(deletingId)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(event) => { event.preventDefault(); void archiveProduct(); }} className="bg-destructive text-white hover:bg-destructive/90" disabled={Boolean(deletingId)}>
+              {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Archive product
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageShell>
   );
 }
 
-function ProductTableRow({ product, deletingId, onArchive }: { product: Product; deletingId: string | null; onArchive: (product: Product) => void }) {
+function ProductTableRow({ product, deletingId, onRequestArchive }: { product: Product; deletingId: string | null; onRequestArchive: (product: Product) => void }) {
   const lowStock = isLowStock(product);
 
   return (
@@ -290,18 +328,18 @@ function ProductTableRow({ product, deletingId, onArchive }: { product: Product;
       <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(product.price)}</TableCell>
       <TableCell className="text-right"><span className="font-semibold tabular-nums">{product.quantity}</span><span className="ml-1 text-xs text-muted-foreground">/ alert {product.lowStockLevel}</span></TableCell>
       <TableCell><ProductStatusBadge product={product} lowStock={lowStock} /></TableCell>
-      <TableCell className="pr-5"><div className="flex justify-end gap-1"><Button asChild size="icon" variant="ghost" aria-label="View product" className="rounded-xl"><Link href={`/products/${product.id}`}><ArrowUpRight className="h-4 w-4" /></Link></Button><Button asChild size="icon" variant="ghost" aria-label="Edit product" className="rounded-xl"><Link href={`/products/${product.id}/edit`}><Edit className="h-4 w-4" /></Link></Button><Button type="button" size="icon" variant="ghost" aria-label="Archive product" onClick={() => onArchive(product)} disabled={deletingId === product.id} className="rounded-xl text-muted-foreground hover:text-destructive">{deletingId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button></div></TableCell>
+      <TableCell className="pr-5"><div className="flex justify-end gap-1"><Button asChild size="icon" variant="ghost" aria-label="View product" className="rounded-xl"><Link href={`/products/${product.id}`}><ArrowUpRight className="h-4 w-4" /></Link></Button><Button asChild size="icon" variant="ghost" aria-label="Edit product" className="rounded-xl"><Link href={`/products/${product.id}/edit`}><Edit className="h-4 w-4" /></Link></Button><Button type="button" size="icon" variant="ghost" aria-label="Archive product" onClick={() => onRequestArchive(product)} disabled={deletingId === product.id} className="rounded-xl text-muted-foreground hover:text-destructive">{deletingId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button></div></TableCell>
     </TableRow>
   );
 }
 
-function ProductMobileCard({ product, deletingId, onArchive }: { product: Product; deletingId: string | null; onArchive: (product: Product) => void }) {
+function ProductMobileCard({ product, deletingId, onRequestArchive }: { product: Product; deletingId: string | null; onRequestArchive: (product: Product) => void }) {
   const lowStock = isLowStock(product);
   return (
     <article className="border bg-card p-4">
       <div className="flex items-start gap-3"><ProductThumbnail product={product} /><div className="min-w-0 flex-1"><Link href={`/products/${product.id}`} className="line-clamp-1 font-semibold hover:underline">{product.name}</Link><p className="mt-1 font-mono text-xs text-muted-foreground">{product.sku}</p><div className="mt-3 flex flex-wrap gap-2"><ProductStatusBadge product={product} lowStock={lowStock} /><Badge variant="secondary">{product.category || "Uncategorized"}</Badge></div></div></div>
       <div className="mt-4 grid grid-cols-2 gap-3 border bg-muted/25 p-3 text-sm"><div><p className="text-xs text-muted-foreground">Price</p><p className="mt-1 font-semibold">{formatCurrency(product.price)}</p></div><div><p className="text-xs text-muted-foreground">Stock</p><p className="mt-1 font-semibold">{product.quantity} units</p></div></div>
-      <div className="mt-4 flex gap-2"><Button asChild size="sm" variant="outline" className="flex-1 rounded-xl"><Link href={`/products/${product.id}`}>View</Link></Button><Button asChild size="sm" variant="outline" className="flex-1 rounded-xl"><Link href={`/products/${product.id}/edit`}>Edit</Link></Button><Button type="button" size="sm" variant="ghost" onClick={() => onArchive(product)} disabled={deletingId === product.id} className="rounded-xl text-muted-foreground hover:text-destructive">{deletingId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button></div>
+      <div className="mt-4 flex gap-2"><Button asChild size="sm" variant="outline" className="flex-1 rounded-xl"><Link href={`/products/${product.id}`}>View</Link></Button><Button asChild size="sm" variant="outline" className="flex-1 rounded-xl"><Link href={`/products/${product.id}/edit`}>Edit</Link></Button><Button type="button" size="sm" variant="ghost" onClick={() => onRequestArchive(product)} disabled={deletingId === product.id} className="rounded-xl text-muted-foreground hover:text-destructive">{deletingId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</Button></div>
     </article>
   );
 }
