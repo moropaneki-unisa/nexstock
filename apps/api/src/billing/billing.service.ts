@@ -7,18 +7,26 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import axios from 'axios';
-import { PaymentStatus, Plan } from '@prisma/client';
+import { createHmac, timingSafeEqual } from 'crypto';
+import { PaymentProvider, PaymentStatus, Plan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 const BILLING_CURRENCY = 'USD';
+const PADDLE_TIMEOUT_MS = 10_000;
 
-const PLAN_PRICES_CENTS: Record<'starter' | 'growth', number> = {
-  starter: 19_00,
-  growth: 59_00,
+type PaidPlan = 'starter' | 'growth';
+
+type PaddleWebhookPayload = {
+  event_id?: string;
+  event_type?: string;
+  data?: any;
 };
 
-const PAYSTACK_TIMEOUT_MS = 10_000;
+const PLAN_CONFIG: Record<PaidPlan, { amount: number; envKey: string }> = {
+  starter: { amount: 19_00, envKey: 'PADDLE_STARTER_PRICE_ID' },
+  growth: { amount: 59_00, envKey: 'PADDLE_GROWTH_PRICE_ID' },
+};
 
 @Injectable()
 export class BillingService {
@@ -26,22 +34,32 @@ export class BillingService {
 
   constructor(private readonly db: PrismaService) {}
 
-  private requirePaystackKey() {
-    const key = process.env.PAYSTACK_SECRET_KEY;
+  private get apiBaseUrl() {
+    return process.env.PADDLE_ENVIRONMENT === 'sandbox'
+      ? 'https://sandbox-api.paddle.com'
+      : 'https://api.paddle.com';
+  }
+
+  private requirePaddleApiKey() {
+    const key = process.env.PADDLE_API_KEY;
     if (!key) {
-      this.logger.error('PAYSTACK_SECRET_KEY is not configured');
-      throw new InternalServerErrorException('Billing is not configured. Add PAYSTACK_SECRET_KEY to the API environment.');
+      throw new InternalServerErrorException('Billing is not configured. Add PADDLE_API_KEY to the API environment.');
     }
-
-    if (!key.startsWith('sk_')) {
-      this.logger.error('PAYSTACK_SECRET_KEY must be a secret key that starts with sk_');
-      throw new InternalServerErrorException('Billing is not configured correctly. PAYSTACK_SECRET_KEY must be a Paystack secret key.');
-    }
-
     return key;
   }
 
-  private getPaidPlan(plan: string): 'starter' | 'growth' {
+  private requirePaddlePriceId(plan: PaidPlan) {
+    const priceId = process.env[PLAN_CONFIG[plan].envKey];
+    if (!priceId) {
+      throw new InternalServerErrorException(`Billing is not configured. Add ${PLAN_CONFIG[plan].envKey} to the API environment.`);
+    }
+    if (!priceId.startsWith('pri_')) {
+      throw new InternalServerErrorException(`${PLAN_CONFIG[plan].envKey} must be a Paddle price ID that starts with pri_.`);
+    }
+    return priceId;
+  }
+
+  private getPaidPlan(plan: string): PaidPlan {
     const normalizedPlan = plan === 'pro' ? 'starter' : plan === 'business' ? 'growth' : plan;
     if (normalizedPlan !== 'starter' && normalizedPlan !== 'growth') {
       throw new BadRequestException('Invalid plan');
@@ -49,162 +67,261 @@ export class BillingService {
     return normalizedPlan;
   }
 
-  private getPaystackErrorMessage(error: unknown) {
-    if (!axios.isAxiosError(error)) return (error as Error)?.message || 'Unknown Paystack error';
-
+  private getPaddleErrorMessage(error: unknown) {
+    if (!axios.isAxiosError(error)) return (error as Error)?.message || 'Unknown Paddle error';
     const status = error.response?.status;
-    const responseMessage =
-      (error.response?.data as any)?.message ||
-      (error.response?.data as any)?.error ||
-      error.message;
-
-    return status ? `Paystack ${status}: ${responseMessage}` : responseMessage;
+    const data: any = error.response?.data;
+    const responseMessage = data?.error?.detail || data?.error?.message || data?.message || data?.error || error.message;
+    return status ? `Paddle ${status}: ${responseMessage}` : responseMessage;
   }
 
-  private throwPaystackCheckoutError(error: unknown): never {
-    const message = this.getPaystackErrorMessage(error);
-    this.logger.error('Paystack initialize failed', message);
+  private throwPaddleCheckoutError(error: unknown): never {
+    const message = this.getPaddleErrorMessage(error);
+    this.logger.error('Paddle transaction create failed', message);
 
-    if (axios.isAxiosError(error) && error.response?.status === 403) {
-      throw new ServiceUnavailableException(
-        `Paystack rejected checkout. Check PAYSTACK_SECRET_KEY and confirm your Paystack account supports ${BILLING_CURRENCY} payments. ${message}`,
-      );
+    if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
+      throw new ServiceUnavailableException(`Paddle rejected checkout. Check PADDLE_API_KEY and Paddle environment. ${message}`);
     }
 
-    throw new InternalServerErrorException(`Could not start checkout. ${message}`);
+    throw new InternalServerErrorException(`Could not start Paddle checkout. ${message}`);
+  }
+
+  private frontendUrl(path = '') {
+    const base = process.env.FRONTEND_URL || 'https://nexstock.co.za';
+    return `${base.replace(/\/$/, '')}${path}`;
   }
 
   async initialize(user: CurrentUserPayload, planValue: string) {
     const plan = this.getPaidPlan(planValue);
-    const org = await this.db.organization.findUnique({
-      where: { id: user.organizationId },
-    });
+    const org = await this.db.organization.findUnique({ where: { id: user.organizationId } });
     if (!org) throw new BadRequestException('Organization not found');
 
-    const amount = PLAN_PRICES_CENTS[plan];
-    const key = this.requirePaystackKey();
+    const priceId = this.requirePaddlePriceId(plan);
+    const apiKey = this.requirePaddleApiKey();
+    const amount = PLAN_CONFIG[plan].amount;
 
     try {
       const response = await axios.post(
-        'https://api.paystack.co/transaction/initialize',
+        `${this.apiBaseUrl}/transactions`,
         {
-          email: org.billingEmail || user.email,
-          amount,
-          currency: BILLING_CURRENCY,
-          metadata: {
+          items: [{ price_id: priceId, quantity: 1 }],
+          collection_mode: 'automatic',
+          custom_data: {
             organizationId: org.id,
+            userId: user.sub,
             plan,
             billingCurrency: BILLING_CURRENCY,
           },
+          checkout: {
+            url: this.frontendUrl('/billing/checkout'),
+          },
         },
         {
-          headers: { Authorization: `Bearer ${key}` },
-          timeout: PAYSTACK_TIMEOUT_MS,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: PADDLE_TIMEOUT_MS,
         },
       );
 
-      const checkout = response.data?.data;
+      const transaction = response.data?.data;
+      const transactionId = transaction?.id;
+      const checkoutUrl = transaction?.checkout?.url;
 
-      if (checkout?.reference) {
-        await this.db.payment.upsert({
-          where: { reference: checkout.reference },
-          create: {
-            organizationId: org.id,
-            provider: 'paystack',
-            status: PaymentStatus.pending,
-            plan: plan as Plan,
-            amount,
-            currency: BILLING_CURRENCY,
-            reference: checkout.reference,
-            authorizationUrl: checkout.authorization_url,
-            payload: checkout,
-          },
-          update: {
-            status: PaymentStatus.pending,
-            amount,
-            currency: BILLING_CURRENCY,
-            authorizationUrl: checkout.authorization_url,
-            payload: checkout,
-          },
-        });
+      if (!transactionId || !checkoutUrl) {
+        throw new InternalServerErrorException('Paddle did not return a checkout URL. Confirm default payment link/domain approval in Paddle.');
       }
 
-      return checkout;
+      await this.db.payment.upsert({
+        where: { reference: transactionId },
+        create: {
+          organizationId: org.id,
+          provider: PaymentProvider.paddle,
+          status: PaymentStatus.pending,
+          plan: plan as Plan,
+          amount,
+          currency: BILLING_CURRENCY,
+          reference: transactionId,
+          authorizationUrl: checkoutUrl,
+          payload: transaction,
+        },
+        update: {
+          provider: PaymentProvider.paddle,
+          status: PaymentStatus.pending,
+          amount,
+          currency: BILLING_CURRENCY,
+          authorizationUrl: checkoutUrl,
+          payload: transaction,
+        },
+      });
+
+      return {
+        authorization_url: checkoutUrl,
+        checkout_url: checkoutUrl,
+        reference: transactionId,
+        provider: 'paddle',
+      };
     } catch (error) {
-      this.throwPaystackCheckoutError(error);
+      this.throwPaddleCheckoutError(error);
     }
   }
 
   async verify(user: CurrentUserPayload, reference: string) {
-    const key = this.requirePaystackKey();
+    const apiKey = this.requirePaddleApiKey();
 
-    let data: any;
+    let transaction: any;
     try {
-      const response = await axios.get(
-        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
-        {
-          headers: { Authorization: `Bearer ${key}` },
-          timeout: PAYSTACK_TIMEOUT_MS,
-        },
-      );
-      data = response.data?.data;
+      const response = await axios.get(`${this.apiBaseUrl}/transactions/${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: PADDLE_TIMEOUT_MS,
+      });
+      transaction = response.data?.data;
     } catch (error) {
-      const message = this.getPaystackErrorMessage(error);
-      this.logger.error('Paystack verify failed', message);
+      const message = this.getPaddleErrorMessage(error);
+      this.logger.error('Paddle transaction verify failed', message);
       throw new InternalServerErrorException(`Could not verify payment. ${message}`);
     }
 
-    const metadata = data?.metadata ?? {};
-    const organizationId: string | undefined = metadata.organizationId;
-    const planValue: string | undefined = metadata.plan;
+    const customData = transaction?.custom_data ?? {};
+    const organizationId: string | undefined = customData.organizationId;
+    const planValue: string | undefined = customData.plan;
 
     if (!organizationId || organizationId !== user.organizationId) {
       throw new ForbiddenException('Reference does not belong to this organization');
     }
 
     const plan = this.getPaidPlan(planValue ?? '');
-    const amount = PLAN_PRICES_CENTS[plan];
+    const amount = PLAN_CONFIG[plan].amount;
+    const isPaid = transaction?.status === 'completed' || transaction?.payments?.some((payment: any) => payment.status === 'captured');
 
-    if (!data || data.status !== 'success') {
+    if (!isPaid) {
       await this.db.payment.updateMany({
         where: { reference, organizationId: user.organizationId },
-        data: {
-          status: PaymentStatus.failed,
-          payload: data ?? {},
-        },
+        data: { status: PaymentStatus.pending, payload: transaction ?? {} },
       });
-      return { success: false };
+      return { success: false, status: transaction?.status ?? 'pending' };
     }
 
+    await this.markPaymentSuccess({ organizationId, reference, plan, amount, payload: transaction });
+    return { success: true, plan };
+  }
+
+  verifyPaddleSignature(rawBody: Buffer | string | undefined, signatureHeader?: string) {
+    const secret = process.env.PADDLE_WEBHOOK_SECRET;
+    if (!secret) throw new InternalServerErrorException('PADDLE_WEBHOOK_SECRET is not configured.');
+    if (!rawBody || !signatureHeader) throw new BadRequestException('Missing Paddle webhook signature.');
+
+    const raw = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody;
+    const parts = Object.fromEntries(signatureHeader.split(';').map((part) => {
+      const [key, ...value] = part.split('=');
+      return [key, value.join('=')];
+    }));
+
+    const timestamp = parts.ts;
+    const signature = parts.h1;
+    if (!timestamp || !signature) throw new BadRequestException('Invalid Paddle webhook signature header.');
+
+    const signedPayload = `${timestamp}:${raw}`;
+    const expected = createHmac('sha256', secret).update(signedPayload).digest('hex');
+    const expectedBuffer = Buffer.from(expected, 'hex');
+    const signatureBuffer = Buffer.from(signature, 'hex');
+
+    if (expectedBuffer.length !== signatureBuffer.length || !timingSafeEqual(expectedBuffer, signatureBuffer)) {
+      throw new ForbiddenException('Invalid Paddle webhook signature.');
+    }
+  }
+
+  async handleWebhook(payload: PaddleWebhookPayload) {
+    const eventType = payload.event_type;
+    const data = payload.data ?? {};
+
+    if (!eventType) return { ok: true, ignored: true };
+
+    if (eventType === 'transaction.completed' || eventType === 'transaction.paid') {
+      await this.handlePaidTransaction(data);
+      return { ok: true };
+    }
+
+    if (eventType === 'subscription.created' || eventType === 'subscription.updated') {
+      await this.handleSubscriptionChange(data);
+      return { ok: true };
+    }
+
+    if (eventType === 'subscription.canceled' || eventType === 'subscription.paused') {
+      await this.handleSubscriptionInactive(data);
+      return { ok: true };
+    }
+
+    return { ok: true, ignored: true };
+  }
+
+  private async handlePaidTransaction(transaction: any) {
+    const customData = transaction?.custom_data ?? {};
+    const organizationId = customData.organizationId;
+    const planValue = customData.plan;
+    if (!organizationId || !planValue) return;
+
+    const plan = this.getPaidPlan(planValue);
+    await this.markPaymentSuccess({
+      organizationId,
+      reference: transaction.id,
+      plan,
+      amount: PLAN_CONFIG[plan].amount,
+      payload: transaction,
+    });
+  }
+
+  private async handleSubscriptionChange(subscription: any) {
+    const customData = subscription?.custom_data ?? {};
+    const organizationId = customData.organizationId;
+    const planValue = customData.plan;
+    if (!organizationId || !planValue) return;
+
+    const plan = this.getPaidPlan(planValue);
+    await this.db.organization.update({
+      where: { id: organizationId },
+      data: { plan: plan as Plan },
+    });
+  }
+
+  private async handleSubscriptionInactive(subscription: any) {
+    const customData = subscription?.custom_data ?? {};
+    const organizationId = customData.organizationId;
+    if (!organizationId) return;
+
+    await this.db.organization.update({
+      where: { id: organizationId },
+      data: { plan: Plan.free },
+    });
+  }
+
+  private async markPaymentSuccess({ organizationId, reference, plan, amount, payload }: { organizationId: string; reference: string; plan: PaidPlan; amount: number; payload: any }) {
     await this.db.$transaction([
-      this.db.organization.update({
-        where: { id: organizationId },
-        data: { plan: plan as Plan },
-      }),
+      this.db.organization.update({ where: { id: organizationId }, data: { plan: plan as Plan } }),
       this.db.payment.upsert({
         where: { reference },
         create: {
           organizationId,
-          provider: 'paystack',
+          provider: PaymentProvider.paddle,
           status: PaymentStatus.success,
           plan: plan as Plan,
           amount,
           currency: BILLING_CURRENCY,
           reference,
           paidAt: new Date(),
-          payload: data,
+          payload,
         },
         update: {
+          provider: PaymentProvider.paddle,
           status: PaymentStatus.success,
           plan: plan as Plan,
           amount,
           currency: BILLING_CURRENCY,
           paidAt: new Date(),
-          payload: data,
+          payload,
         },
       }),
     ]);
-
-    return { success: true, plan };
   }
 }
