@@ -11,6 +11,8 @@ import { initializeSubscriptionCheckout, verifySubscriptionPayment } from "@/lib
 
 type PaidPlan = "pro" | "business";
 
+const PLAN_STORAGE_KEY = "nexstock:selected-plan";
+
 const plans: Record<PaidPlan, { name: string; price: string; description: string; features: string[] }> = {
   pro: {
     name: "Pro",
@@ -37,14 +39,18 @@ export default function BillingCheckoutPage() {
   const plan = plans[selectedPlan];
   const [status, setStatus] = useState<"idle" | "starting" | "verifying" | "success" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [shouldAutoStart, setShouldAutoStart] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const nextPlan = getPaidPlan(params.get("plan"));
+    const nextPlan = getPaidPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
     const nextReference = params.get("reference") || params.get("trxref");
+    const autoStart = params.get("autostart") === "1";
     setSelectedPlan(nextPlan);
     setReference(nextReference);
+    window.localStorage.setItem(PLAN_STORAGE_KEY, nextPlan);
     if (nextReference) setStatus("verifying");
+    if (!nextReference && autoStart) setShouldAutoStart(true);
   }, []);
 
   useEffect(() => {
@@ -60,6 +66,7 @@ export default function BillingCheckoutPage() {
         if (cancelled) return;
         if (result.success) {
           setStatus("success");
+          window.localStorage.removeItem(PLAN_STORAGE_KEY);
           window.setTimeout(() => router.push("/dashboard"), 1200);
           return;
         }
@@ -78,6 +85,13 @@ export default function BillingCheckoutPage() {
       cancelled = true;
     };
   }, [reference, router]);
+
+  useEffect(() => {
+    if (!shouldAutoStart || reference || status !== "idle") return;
+    setShouldAutoStart(false);
+    startCheckout();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldAutoStart, reference, status, selectedPlan]);
 
   async function startCheckout() {
     setStatus("starting");
