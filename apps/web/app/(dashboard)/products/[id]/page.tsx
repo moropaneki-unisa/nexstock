@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Edit, FileText, History, ImageIcon, Loader2, PackageSearch, Warehouse } from "lucide-react";
+import { ArrowLeft, ChevronDown, DatabaseZap, Edit, FileText, History, ImageIcon, Loader2, Warehouse } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [attributesOpen, setAttributesOpen] = useState(false);
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
   const [adjusting, setAdjusting] = useState(false);
@@ -84,9 +85,9 @@ export default function ProductDetailPage() {
 
   const lowStock = product ? product.quantity <= product.lowStockLevel : false;
   const cleanDescription = useMemo(() => cleanText(product?.description), [product?.description]);
-  const productFields = useMemo<ProductDataField[]>(() => {
+  const defaultFields = useMemo<ProductDataField[]>(() => {
     if (!product) return [];
-    const fields: ProductDataField[] = [
+    return [
       { id: "name", label: "Product name", value: cleanText(product.name) || "-" },
       { id: "sku", label: "SKU", value: product.sku || "-", mono: true },
       { id: "status", label: "Status", value: lowStock ? "Low stock" : product.status || "active" },
@@ -100,19 +101,18 @@ export default function ProductDetailPage() {
       { id: "createdAt", label: "Created", value: formatDate(product.createdAt) },
       { id: "updatedAt", label: "Updated", value: product.updatedAt ? formatDate(product.updatedAt) : "Not updated" },
     ];
-
-    for (const item of product.customFieldValues ?? []) {
-      fields.push({
-        id: item.fieldId,
-        label: item.field?.label ?? item.field?.key ?? item.fieldId,
-        value: formatCustomValue(item.value),
-        type: item.field?.type,
-        multiline: item.field?.type === "json",
-      });
-    }
-
-    return fields;
   }, [product, lowStock, cleanDescription]);
+
+  const customAttributes = useMemo<ProductDataField[]>(() => {
+    if (!product) return [];
+    return (product.customFieldValues ?? []).map((item) => ({
+      id: item.fieldId,
+      label: item.field?.label ?? item.field?.key ?? item.fieldId,
+      value: formatCustomValue(item.value),
+      type: item.field?.type,
+      multiline: item.field?.type === "json",
+    }));
+  }, [product]);
 
   if (loading) {
     return (
@@ -145,7 +145,7 @@ export default function ProductDetailPage() {
       <PageHeader
         eyebrow="Product profile"
         title={cleanText(product.name) || "Product"}
-        description="Review product identity, pricing, inventory, images, business attributes, and stock movement from one profile."
+        description="Review product identity, pricing, inventory, images, attributes, and stock movement from one profile."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
@@ -208,18 +208,40 @@ export default function ProductDetailPage() {
           <section className="border bg-card/95">
             <SectionHeader
               icon={FileText}
-              title="Product attributes"
-              description="Default fields and custom business attributes stored against this product."
-              badge={`${productFields.length} attributes`}
+              title="Product details"
+              description="Core product details stored on every product record."
+              badge={`${defaultFields.length} fields`}
             />
-            <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
-              <div className="divide-y">
-                {productFields.filter((_, index) => index % 2 === 0).map((field) => <ProductFieldRow key={field.id} field={field} />)}
+            <FieldGrid fields={defaultFields} />
+          </section>
+
+          <section className="border bg-card/95">
+            <button
+              type="button"
+              onClick={() => setAttributesOpen((open) => !open)}
+              className="flex w-full items-start justify-between gap-4 p-5 text-left transition hover:bg-muted/25"
+              aria-expanded={attributesOpen}
+            >
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><DatabaseZap className="h-5 w-5" />Attributes</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Show or hide custom business attributes for this product.</p>
               </div>
-              <div className="divide-y">
-                {productFields.filter((_, index) => index % 2 === 1).map((field) => <ProductFieldRow key={field.id} field={field} />)}
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge variant="secondary">{customAttributes.length} custom</Badge>
+                <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", attributesOpen && "rotate-180")} />
               </div>
-            </div>
+            </button>
+            {attributesOpen && (
+              <div className="border-t">
+                {customAttributes.length > 0 ? (
+                  <FieldGrid fields={customAttributes} />
+                ) : (
+                  <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                    No custom attributes have been saved for this product yet.
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="border bg-card/95">
@@ -272,6 +294,10 @@ function SectionHeader({ icon: Icon, title, description, badge }: { icon: any; t
 
 function Metric({ label, value, status = false }: { label: string; value: string; status?: boolean }) {
   return <div className="flex items-center justify-between p-4"><div className="min-w-0"><p className="text-sm text-muted-foreground">{label}</p><p className={cn("mt-1 truncate text-xl font-semibold capitalize", label === "SKU" && "font-mono text-base normal-case")}>{value}</p></div>{status && <Badge variant={value.toLowerCase().includes("low") ? "destructive" : "default"}>{value}</Badge>}</div>;
+}
+
+function FieldGrid({ fields }: { fields: ProductDataField[] }) {
+  return <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0"><div className="divide-y">{fields.filter((_, index) => index % 2 === 0).map((field) => <ProductFieldRow key={field.id} field={field} />)}</div><div className="divide-y">{fields.filter((_, index) => index % 2 === 1).map((field) => <ProductFieldRow key={field.id} field={field} />)}</div></div>;
 }
 
 function ProductFieldRow({ field }: { field: ProductDataField }) {
