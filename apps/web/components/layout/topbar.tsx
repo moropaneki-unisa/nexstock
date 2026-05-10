@@ -24,12 +24,20 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { apiFetch, logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; activePrefixes?: string[]; adminOnly?: boolean };
-type UserProfile = { organization?: { role?: string } | null };
+type UserProfile = { organization?: { role?: string } | null; email?: string; name?: string };
 
 type TopbarProps = {
   commandPalette?: React.ReactNode;
@@ -66,16 +74,21 @@ export function Topbar({ commandPalette }: TopbarProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const route = routeCopy.find((item) => item.match(pathname)) ?? { title: "Workspace", description: "NexStock operations" };
 
   useEffect(() => {
     let active = true;
     apiFetch<UserProfile>("/api/users/me")
       .then((profile) => {
-        if (active) setIsAdmin(profile.organization?.role === "admin");
+        if (!active) return;
+        setProfile(profile);
+        setIsAdmin(profile.organization?.role === "admin");
       })
       .catch(() => {
-        if (active) setIsAdmin(false);
+        if (!active) return;
+        setProfile(null);
+        setIsAdmin(false);
       });
     return () => {
       active = false;
@@ -101,9 +114,11 @@ export function Topbar({ commandPalette }: TopbarProps) {
     setMobileOpen(false);
   }
 
+  const initials = getInitials(profile?.name || profile?.email || "User");
+
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-card/90 shadow-sm backdrop-blur-xl">
-      <div className="grid h-[4.25rem] grid-cols-[minmax(10rem,18rem)_minmax(18rem,1fr)_auto] items-center gap-3 px-4 sm:px-6 lg:px-8">
+      <div className="grid h-[4.25rem] grid-cols-[minmax(10rem,18rem)_minmax(16rem,1fr)_auto] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <Button variant="ghost" size="icon" className="rounded-xl md:hidden" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((open) => !open)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -119,22 +134,32 @@ export function Topbar({ commandPalette }: TopbarProps) {
           </div>
         </div>
 
-        <div className="hidden min-w-0 items-center gap-2 xl:flex">
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 shadow-sm">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <Input aria-label="Global product search" placeholder="Search products, SKUs, categories..." className="h-8 min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter") handleSearch(event.currentTarget.value); }} />
-          </div>
-          {commandPalette}
+        <div className="hidden min-w-0 justify-center xl:flex">
+          <div className="w-full max-w-2xl">{commandPalette}</div>
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2">
           <div className="xl:hidden">{commandPalette}</div>
-          <Button asChild size="sm" variant="outline" className="hidden rounded-xl bg-background/70 sm:inline-flex">
-            <Link href="/profile"><UserRound className="h-4 w-4" />My profile</Link>
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleLogout} className="rounded-xl bg-background/70">
-            <LogOut className="h-4 w-4" /><span className="hidden sm:inline">Logout</span>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10 rounded-full bg-background/80 px-2.5 pr-3 shadow-sm">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{initials}</span>
+                <span className="hidden max-w-[8rem] truncate text-sm font-medium sm:inline">{profile?.name || "Account"}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <span className="block truncate">{profile?.name || "NexStock user"}</span>
+                <span className="block truncate text-xs font-normal text-muted-foreground">{profile?.email || "Workspace account"}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild><Link href="/profile"><UserRound className="h-4 w-4" />My profile</Link></DropdownMenuItem>
+              {isAdmin && <DropdownMenuItem asChild><Link href="/organization"><Building2 className="h-4 w-4" />Organization</Link></DropdownMenuItem>}
+              {isAdmin && <DropdownMenuItem asChild><Link href="/settings"><Settings className="h-4 w-4" />Settings</Link></DropdownMenuItem>}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive"><LogOut className="h-4 w-4" />Logout</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {mobileOpen && <div className="border-t bg-card/95 p-4 shadow-lg backdrop-blur-xl md:hidden"><div className="mb-4 flex items-center gap-2 rounded-2xl border bg-background/80 px-3 py-2 shadow-sm"><Search className="h-4 w-4 text-muted-foreground" /><Input aria-label="Mobile product search" placeholder="Search products..." className="h-9 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0" onKeyDown={(event) => { if (event.key === "Enter") handleSearch(event.currentTarget.value); }} /></div><nav className="grid gap-1.5">{visibleNavItems.map((item) => <MobileNavItem key={item.href} item={item} pathname={pathname} onClick={() => setMobileOpen(false)} />)}</nav></div>}
@@ -146,4 +171,9 @@ function MobileNavItem({ item, pathname, onClick }: { item: NavItem; pathname: s
   const Icon = item.icon;
   const active = pathname === item.href || pathname.startsWith(`${item.href}/`) || item.activePrefixes?.some((prefix) => pathname.startsWith(prefix));
   return <Link href={item.href} onClick={onClick} className={cn("flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground", active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground")}><Icon className="h-4 w-4" />{item.label}</Link>;
+}
+
+function getInitials(value: string) {
+  const parts = value.split(/[\s@.]+/).filter(Boolean);
+  return `${parts[0]?.[0] ?? "U"}${parts[1]?.[0] ?? ""}`.toUpperCase();
 }
