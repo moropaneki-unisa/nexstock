@@ -47,9 +47,7 @@ type FrankfurterLatestResponse = {
 };
 
 function requireAdmin(user: CurrentUserPayload) {
-  if (user.role !== 'admin') {
-    throw new ForbiddenException('Admin role required');
-  }
+  if (user.role !== 'admin') throw new ForbiddenException('Admin role required');
 }
 
 function frontendUrl(path = '') {
@@ -151,8 +149,9 @@ export class OrganizationService {
       },
       plans: [
         { name: 'free', price: 0, current: org.plan === 'free', description: 'Start a workspace and validate the NexStock workflow before upgrading.' },
-        { name: 'pro', price: 19, current: org.plan === 'pro', description: 'Product imports, reusable mapping, inventory movement history, and API keys for connected workflows.' },
-        { name: 'business', price: 59, current: org.plan === 'business', description: 'Advanced imports, integration-ready workflows, webhooks, team controls, and priority setup support.' },
+        { name: 'starter', price: 19, current: org.plan === 'starter', description: 'Product imports, reusable mapping, inventory movement history, and API keys for small teams.' },
+        { name: 'growth', price: 59, current: org.plan === 'growth', description: 'Advanced imports, integration-ready workflows, webhooks, team controls, and priority setup support.' },
+        { name: 'business', price: 149, current: org.plan === 'business', disabled: true, description: 'Later plan for purchase orders, vendor operations, multi-location stock, audit logs, and advanced automation.' },
       ],
     };
   }
@@ -248,63 +247,30 @@ export class OrganizationService {
       await this.db.membership.create({ data: { userId: newUser.id, organizationId: user.organizationId, role } });
 
       const inviteUrl = frontendUrl(`/invite/accept?token=${inviteToken}&email=${encodeURIComponent(email)}`);
-      await this.email.sendOrganizationInviteEmail({
-        email,
-        organizationName: org.name,
-        inviterEmail,
-        role,
-        inviteUrl,
-        expiresInDays: INVITE_EXPIRY_DAYS,
-      });
-
+      await this.email.sendOrganizationInviteEmail({ email, organizationName: org.name, inviterEmail, role, inviteUrl, expiresInDays: INVITE_EXPIRY_DAYS });
       return { message: 'Invitation email sent', userId: newUser.id };
     }
 
-    const membership = await this.db.membership.findUnique({
-      where: { userId_organizationId: { userId: existing.id, organizationId: user.organizationId } },
-    });
+    const membership = await this.db.membership.findUnique({ where: { userId_organizationId: { userId: existing.id, organizationId: user.organizationId } } });
     if (membership) throw new BadRequestException('User is already a member of this organization');
 
     await this.db.membership.create({ data: { userId: existing.id, organizationId: user.organizationId, role } });
 
     if (!existing.emailVerifiedAt || existing.passwordHash === 'temporary') {
       const inviteToken = generateInviteToken();
-      await this.db.user.update({
-        where: { id: existing.id },
-        data: {
-          verificationOtpHash: hashInviteToken(inviteToken),
-          verificationOtpExpiry: new Date(Date.now() + INVITE_EXPIRY_MS),
-        },
-      });
-
+      await this.db.user.update({ where: { id: existing.id }, data: { verificationOtpHash: hashInviteToken(inviteToken), verificationOtpExpiry: new Date(Date.now() + INVITE_EXPIRY_MS) } });
       const inviteUrl = frontendUrl(`/invite/accept?token=${inviteToken}&email=${encodeURIComponent(email)}`);
-      await this.email.sendOrganizationInviteEmail({
-        email,
-        organizationName: org.name,
-        inviterEmail,
-        role,
-        inviteUrl,
-        expiresInDays: INVITE_EXPIRY_DAYS,
-      });
-
+      await this.email.sendOrganizationInviteEmail({ email, organizationName: org.name, inviterEmail, role, inviteUrl, expiresInDays: INVITE_EXPIRY_DAYS });
       return { message: 'Invitation email sent', userId: existing.id };
     }
 
-    await this.email.sendOrganizationAddedEmail({
-      email,
-      organizationName: org.name,
-      inviterEmail,
-      loginUrl: frontendUrl('/login'),
-    });
-
+    await this.email.sendOrganizationAddedEmail({ email, organizationName: org.name, inviterEmail, loginUrl: frontendUrl('/login') });
     return { message: 'User added and notified', userId: existing.id };
   }
 
   async updateMemberRole(user: CurrentUserPayload, memberId: string, roleInput: string) {
     requireAdmin(user);
-    if (memberId === user.id) {
-      throw new BadRequestException('You cannot change your own role');
-    }
+    if (memberId === user.id) throw new BadRequestException('You cannot change your own role');
     const role = this.normalizeRole(roleInput);
     const membership = await this.db.membership.findFirst({ where: { userId: memberId, organizationId: user.organizationId } });
     if (!membership) throw new NotFoundException('Member not found');
@@ -313,9 +279,7 @@ export class OrganizationService {
 
   async removeMember(user: CurrentUserPayload, memberId: string) {
     requireAdmin(user);
-    if (memberId === user.id) {
-      throw new BadRequestException('You cannot remove yourself from the organization');
-    }
+    if (memberId === user.id) throw new BadRequestException('You cannot remove yourself from the organization');
     const membership = await this.db.membership.findFirst({ where: { userId: memberId, organizationId: user.organizationId } });
     if (!membership) throw new NotFoundException('Member not found');
     await this.db.membership.delete({ where: { id: membership.id } });
@@ -324,26 +288,21 @@ export class OrganizationService {
 
   async updatePlan(user: CurrentUserPayload, planInput: string) {
     requireAdmin(user);
-    if (!['free', 'pro', 'business'].includes(planInput)) throw new BadRequestException('Invalid plan');
-    return this.db.organization.update({ where: { id: user.organizationId }, data: { plan: planInput as Plan } });
+    const normalizedPlan = planInput === 'pro' ? 'starter' : planInput === 'business' ? 'growth' : planInput;
+    if (!['free', 'starter', 'growth'].includes(normalizedPlan)) throw new BadRequestException('Invalid plan');
+    return this.db.organization.update({ where: { id: user.organizationId }, data: { plan: normalizedPlan as Plan } });
   }
 
   private async fetchLiveRatesWithFallback(baseCurrency: string, enabledCurrencies: string[], fallback: CurrencyRateDto[]) {
     const targetCurrencies = enabledCurrencies.filter((code) => code !== baseCurrency);
     if (targetCurrencies.length === 0) return [];
-
     try {
-      const responses = await Promise.all(
-        targetCurrencies.map(async (code) => {
-          const response = await axios.get<FrankfurterLatestResponse>(FREE_RATES_API_URL, {
-            params: { base: code, symbols: baseCurrency },
-            timeout: 7000,
-          });
-          const rateToBase = Number(response.data?.rates?.[baseCurrency]);
-          if (!Number.isFinite(rateToBase) || rateToBase <= 0) throw new Error(`Missing rate for ${code}`);
-          return { code, rateToBase, source: 'frankfurter', date: response.data.date };
-        }),
-      );
+      const responses = await Promise.all(targetCurrencies.map(async (code) => {
+        const response = await axios.get<FrankfurterLatestResponse>(FREE_RATES_API_URL, { params: { base: code, symbols: baseCurrency }, timeout: 7000 });
+        const rateToBase = Number(response.data?.rates?.[baseCurrency]);
+        if (!Number.isFinite(rateToBase) || rateToBase <= 0) throw new Error(`Missing rate for ${code}`);
+        return { code, rateToBase, source: 'frankfurter', date: response.data.date };
+      }));
       return responses;
     } catch {
       return fallback;
@@ -372,10 +331,7 @@ export class OrganizationService {
             return { code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) };
           })
         : [];
-
-    return entries
-      .filter((rate) => rate.code !== baseCurrency && enabledCurrencies.includes(rate.code))
-      .map((rate) => ({ code: rate.code, rateToBase: Number.isFinite(rate.rateToBase) && rate.rateToBase > 0 ? rate.rateToBase : 1 }));
+    return entries.filter((rate) => rate.code !== baseCurrency && enabledCurrencies.includes(rate.code)).map((rate) => ({ code: rate.code, rateToBase: Number.isFinite(rate.rateToBase) && rate.rateToBase > 0 ? rate.rateToBase : 1 }));
   }
 
   private normalizeRole(value: string): UserRole {
