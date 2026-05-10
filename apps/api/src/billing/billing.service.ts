@@ -12,9 +12,9 @@ import { CurrentUserPayload } from '../common/decorators/current-user.decorator'
 
 const BILLING_CURRENCY = 'USD';
 
-const PLAN_PRICES_CENTS: Record<Exclude<Plan, 'free'>, number> = {
-  pro: 19_00,
-  business: 59_00,
+const PLAN_PRICES_CENTS: Record<'starter' | 'growth', number> = {
+  starter: 19_00,
+  growth: 59_00,
 };
 
 const PAYSTACK_TIMEOUT_MS = 10_000;
@@ -34,11 +34,12 @@ export class BillingService {
     return key;
   }
 
-  private getPaidPlan(plan: string): Exclude<Plan, 'free'> {
-    if (plan !== 'pro' && plan !== 'business') {
+  private getPaidPlan(plan: string): 'starter' | 'growth' {
+    const normalizedPlan = plan === 'pro' ? 'starter' : plan === 'business' ? 'growth' : plan;
+    if (normalizedPlan !== 'starter' && normalizedPlan !== 'growth') {
       throw new BadRequestException('Invalid plan');
     }
-    return plan;
+    return normalizedPlan;
   }
 
   async initialize(user: CurrentUserPayload, planValue: string) {
@@ -79,7 +80,7 @@ export class BillingService {
             organizationId: org.id,
             provider: 'paystack',
             status: PaymentStatus.pending,
-            plan,
+            plan: plan as Plan,
             amount,
             currency: BILLING_CURRENCY,
             reference: checkout.reference,
@@ -154,7 +155,7 @@ export class BillingService {
           organizationId,
           provider: 'paystack',
           status: PaymentStatus.success,
-          plan,
+          plan: plan as Plan,
           amount,
           currency: BILLING_CURRENCY,
           reference,
@@ -163,7 +164,7 @@ export class BillingService {
         },
         update: {
           status: PaymentStatus.success,
-          plan,
+          plan: plan as Plan,
           amount,
           currency: BILLING_CURRENCY,
           paidAt: new Date(),
