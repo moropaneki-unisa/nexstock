@@ -25,6 +25,12 @@ type NormalizedCustomFieldValue = {
   value: Prisma.InputJsonValue;
 };
 
+type CurrencySettings = {
+  baseCurrency: string;
+  enabledCurrencies: string[];
+  exchangeRates: Array<{ code: string; rateToBase: number }>;
+};
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -169,6 +175,8 @@ export class ProductsService {
         throw new NotFoundException('Organization not found');
       }
 
+      const currencySettings = this.organizationCurrencySettings(organization);
+      const currencyData = this.productCurrencyData(dto, currencySettings);
       const skuPrefix = organization.skuPrefix ?? this.generateSkuPrefix(organization.name);
       const sku = this.generateSku(skuPrefix, organization.nextSkuNumber);
 
@@ -186,7 +194,11 @@ export class ProductsService {
           sku,
           description: dto.description?.trim(),
           price: dto.price,
+          priceCurrency: currencyData.priceCurrency,
           cost: dto.cost,
+          costCurrency: currencyData.costCurrency,
+          exchangeRateToBase: currencyData.exchangeRateToBase,
+          convertedCost: currencyData.convertedCost,
           quantity,
           lowStockLevel: dto.lowStockLevel ?? 5,
           category: dto.category?.trim(),
@@ -243,14 +255,34 @@ export class ProductsService {
   }
 
   async update(organizationId: string, id: string, dto: UpdateProductDto) {
-    await this.get(organizationId, id);
+    const existing = await this.get(organizationId, id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const data: Prisma.ProductUpdateInput = {};
+      const organization = await tx.organization.findUnique({ where: { id: organizationId } });
+      if (!organization) throw new NotFoundException('Organization not found');
+
+      const currencySettings = this.organizationCurrencySettings(organization);
+      const currencyData = this.productCurrencyData(
+        {
+          price: dto.price ?? Number(existing.price),
+          priceCurrency: dto.priceCurrency ?? existing.priceCurrency,
+          cost: dto.cost ?? (existing.cost === null ? undefined : Number(existing.cost)),
+          costCurrency: dto.costCurrency ?? existing.costCurrency ?? undefined,
+          exchangeRateToBase: dto.exchangeRateToBase ?? (existing.exchangeRateToBase === null ? undefined : Number(existing.exchangeRateToBase)),
+          convertedCost: dto.convertedCost ?? (existing.convertedCost === null ? undefined : Number(existing.convertedCost)),
+        },
+        currencySettings,
+      );
+
       if (dto.name !== undefined) data.name = dto.name.trim();
       if (dto.description !== undefined) data.description = dto.description?.trim();
       if (dto.price !== undefined) data.price = dto.price;
+      if (dto.priceCurrency !== undefined) data.priceCurrency = currencyData.priceCurrency;
       if (dto.cost !== undefined) data.cost = dto.cost;
+      if (dto.costCurrency !== undefined || dto.cost !== undefined) data.costCurrency = currencyData.costCurrency;
+      if (dto.exchangeRateToBase !== undefined || dto.costCurrency !== undefined || dto.cost !== undefined) data.exchangeRateToBase = currencyData.exchangeRateToBase;
+      if (dto.convertedCost !== undefined || dto.exchangeRateToBase !== undefined || dto.costCurrency !== undefined || dto.cost !== undefined) data.convertedCost = currencyData.convertedCost;
       if (dto.quantity !== undefined) data.quantity = dto.quantity;
       if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
       if (dto.category !== undefined) data.category = dto.category?.trim();
@@ -361,6 +393,91 @@ export class ProductsService {
       data: { deletedAt: new Date() },
     });
     return { ok: true, id };
+  }
+
+  private organizationCurrencySettings(organization: {
+    baseCurrency?: string | null;
+    enabledCurrencies?: string[] | null;
+    exchangeRates?: Prisma.JsonValue | null;
+  }): CurrencySettings {
+    const baseCurrency = this.normalizeCurrencyCode(organization.baseCurrency || 'ZAR');
+    const enabledCurrencies = Array.from(new Set([baseCurrency, ...(organization.enabledCurrencies ?? []).map((code) => this.normalizeCurrencyCode(code))]));
+    const exchangeRates = this.normalizeExchangeRates(organization.exchangeRates);
+    return { baseCurrency, enabledCurrencies, exchangeRates };
+  }
+
+  private productCurrencyData(
+    dto: {
+      price: number;
+      priceCurrency?: string | null;
+      cost?: number | null;
+      costCurrency?: string | null;
+      exchangeRateToBase?: number | null;
+      convertedCost?: number | null;
+    },
+    settings: CurrencySettings,
+  ) {
+    const priceCurrency = this.normalizeCurrencyCode(dto.priceCurrency || settings.baseCurrency);
+    if (priceCurrency !== settings.baseCurrency) {
+      throw new BadRequestException('Selling price currency must match organization base currency for now');
+    }
+    if (!settings.enabledCurrencies.includes(priceCurrency)) {
+      throw new BadRequestException(`${priceCurrency} is not enabled for this organization`);
+    }
+
+    if (dto.cost === undefined || dto.cost === null) {
+      return {
+        priceCurrency,
+        costCurrency: undefined,
+        exchangeRateToBase: undefined,
+        convertedCost: undefined,
+      };
+    }
+
+    const costCurrency = this.normalizeCurrencyCode(dto.costCurrency || priceCurrency);
+    if (!settings.enabledCurrencies.includes(costCurrency)) {
+      throw new BadRequestException(`${costCurrency} is not enabled for this organization`);
+    }
+
+    const exchangeRateToBase = Number(dto.exchangeRateToBase ?? this.rateFor(costCurrency, settings));
+    if (!Number.isFinite(exchangeRateToBase) || exchangeRateToBase <= 0) {
+      throw new BadRequestException('Exchange rate must be greater than zero');
+    }
+
+    const convertedCost = Number(dto.convertedCost ?? Number((Number(dto.cost) * exchangeRateToBase).toFixed(2)));
+
+    return {
+      priceCurrency,
+      costCurrency,
+      exchangeRateToBase,
+      convertedCost,
+    };
+  }
+
+  private normalizeCurrencyCode(value: string) {
+    return String(value || 'ZAR').trim().toUpperCase();
+  }
+
+  private normalizeExchangeRates(value: Prisma.JsonValue | null | undefined): Array<{ code: string; rateToBase: number }> {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+          const record = item as Record<string, unknown>;
+          return { code: this.normalizeCurrencyCode(String(record.code ?? '')), rateToBase: Number(record.rateToBase ?? 1) };
+        })
+        .filter((item): item is { code: string; rateToBase: number } => Boolean(item?.code));
+    }
+    if (typeof value === 'object') {
+      return Object.entries(value).map(([code, rate]) => ({ code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) }));
+    }
+    return [];
+  }
+
+  private rateFor(code: string, settings: CurrencySettings) {
+    if (code === settings.baseCurrency) return 1;
+    return settings.exchangeRates.find((rate) => rate.code === code)?.rateToBase ?? 1;
   }
 
   private generateSkuPrefix(name: string) {
