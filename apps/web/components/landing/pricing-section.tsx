@@ -21,7 +21,7 @@ type PricingPlan = {
 
 export function PricingSection({ plans }: { plans: PricingPlan[] }) {
   return (
-    <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {plans.map((plan) => (
         <PricingCard key={plan.name} {...plan} />
       ))}
@@ -30,10 +30,12 @@ export function PricingSection({ plans }: { plans: PricingPlan[] }) {
 }
 
 function PricingCard({ name, price, cadence, description, cta, href, features, highlighted, disabled }: PricingPlan) {
+  const previewFeatures = features.slice(0, 2);
+
   return (
     <section
       className={cn(
-        "flex min-h-[430px] flex-col rounded-2xl border bg-card/95 p-5 shadow-sm",
+        "flex min-h-[330px] flex-col rounded-2xl border bg-card/95 p-5 shadow-sm",
         highlighted && "ring-2 ring-primary",
         disabled && "opacity-80",
       )}
@@ -44,17 +46,23 @@ function PricingCard({ name, price, cadence, description, cta, href, features, h
         {disabled && <span className="rounded-full border bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">Later</span>}
       </div>
 
-      <div className="mt-5 flex items-end gap-2">
-        <span className="text-5xl font-black tracking-[-0.06em]">{price}</span>
-        <span className="pb-2 text-sm text-muted-foreground">{cadence}</span>
+      <div className="mt-4 flex items-end gap-2">
+        <span className="text-4xl font-black tracking-[-0.06em]">{price}</span>
+        <span className="pb-1 text-xs text-muted-foreground">{cadence}</span>
       </div>
 
-      <p className="mt-4 text-sm leading-6 text-muted-foreground">{description}</p>
+      <p className="mt-3 line-clamp-2 text-sm leading-6 text-muted-foreground">{description}</p>
+
+      <div className="mt-5 grid gap-2">
+        {previewFeatures.map((feature) => (
+          <ListItem key={feature} label={feature} />
+        ))}
+      </div>
 
       <DialogPrimitive.Root>
         <DialogPrimitive.Trigger asChild>
-          <button type="button" className="mt-3 w-fit text-sm font-semibold text-primary underline-offset-4 hover:underline">
-            Read more
+          <button type="button" className="mt-4 w-fit text-sm font-semibold text-primary underline-offset-4 hover:underline">
+            See more
           </button>
         </DialogPrimitive.Trigger>
         <DialogPrimitive.Portal>
@@ -102,12 +110,6 @@ function PricingCard({ name, price, cadence, description, cta, href, features, h
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
-      <div className="mt-6 grid gap-3">
-        {features.map((feature) => (
-          <ListItem key={feature} label={feature} />
-        ))}
-      </div>
-
       {disabled ? (
         <span className="mt-auto inline-flex items-center justify-center gap-2 rounded-full border bg-muted px-5 py-3 text-sm font-bold text-muted-foreground">
           {cta}
@@ -124,11 +126,9 @@ function PricingCard({ name, price, cadence, description, cta, href, features, h
 
 function ListItem({ label }: { label: string }) {
   return (
-    <div className="flex min-h-[74px] items-center gap-3 p-4 text-sm">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <CheckCircle2 className="h-4 w-4" />
-      </span>
-      <span className="font-medium leading-5">{label}</span>
+    <div className="flex items-center gap-2 text-sm">
+      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+      <span className="line-clamp-1 font-medium leading-5">{label}</span>
     </div>
   );
 }
