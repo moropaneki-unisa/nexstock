@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
 
 import { NexstockLogo } from "@/components/brand/nexstock-logo";
@@ -31,21 +31,21 @@ function getPaidPlan(value: string | null): PaidPlan {
 }
 
 export default function BillingCheckoutPage() {
-  return (
-    <Suspense fallback={<CheckoutShell />}>
-      <CheckoutContent />
-    </Suspense>
-  );
-}
-
-function CheckoutContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const selectedPlan = useMemo(() => getPaidPlan(searchParams.get("plan")), [searchParams]);
-  const reference = searchParams.get("reference") || searchParams.get("trxref");
+  const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("pro");
+  const [reference, setReference] = useState<string | null>(null);
   const plan = plans[selectedPlan];
-  const [status, setStatus] = useState<"idle" | "starting" | "verifying" | "success" | "failed">(reference ? "verifying" : "idle");
+  const [status, setStatus] = useState<"idle" | "starting" | "verifying" | "success" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const nextPlan = getPaidPlan(params.get("plan"));
+    const nextReference = params.get("reference") || params.get("trxref");
+    setSelectedPlan(nextPlan);
+    setReference(nextReference);
+    if (nextReference) setStatus("verifying");
+  }, []);
 
   useEffect(() => {
     if (!reference) return;
@@ -132,17 +132,6 @@ function CheckoutContent() {
           )}
           <Link href="/dashboard" className="mt-4 block text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">Skip for now and open dashboard</Link>
         </div>
-      </section>
-    </CheckoutLayout>
-  );
-}
-
-function CheckoutShell() {
-  return (
-    <CheckoutLayout>
-      <section className="border bg-card/95 p-10 text-center text-sm text-muted-foreground shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
-        Loading checkout...
       </section>
     </CheckoutLayout>
   );
