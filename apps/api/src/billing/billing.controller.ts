@@ -1,23 +1,56 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+
 import { BillingService } from './billing.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
-@Controller('billing/paystack')
-@UseGuards(JwtAuthGuard)
+type RawBodyRequest = Request & { rawBody?: Buffer };
+
+@Controller('billing')
 export class BillingController {
   constructor(private readonly service: BillingService) {}
 
-  @Post('initialize')
-  initialize(
+  @Post('paddle/initialize')
+  @UseGuards(JwtAuthGuard)
+  initializePaddle(
     @CurrentUser() user: CurrentUserPayload,
     @Body() body: { plan: string },
   ) {
     return this.service.initialize(user, body.plan);
   }
 
-  @Get('verify/:reference')
-  verify(
+  @Get('paddle/verify/:reference')
+  @UseGuards(JwtAuthGuard)
+  verifyPaddle(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('reference') reference: string,
+  ) {
+    return this.service.verify(user, reference);
+  }
+
+  @Post('paddle/webhook')
+  handlePaddleWebhook(
+    @Req() request: RawBodyRequest,
+    @Body() body: unknown,
+    @Headers('paddle-signature') signature: string | undefined,
+  ) {
+    this.service.verifyPaddleSignature(request.rawBody, signature);
+    return this.service.handleWebhook(body as any);
+  }
+
+  @Post('paystack/initialize')
+  @UseGuards(JwtAuthGuard)
+  initializeLegacy(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { plan: string },
+  ) {
+    return this.service.initialize(user, body.plan);
+  }
+
+  @Get('paystack/verify/:reference')
+  @UseGuards(JwtAuthGuard)
+  verifyLegacy(
     @CurrentUser() user: CurrentUserPayload,
     @Param('reference') reference: string,
   ) {
