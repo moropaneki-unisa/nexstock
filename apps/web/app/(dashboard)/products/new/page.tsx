@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, PackagePlus, SlidersHorizontal } from "lucide-react";
 
-import { ProductForm } from "@/components/products/product-form";
+import { ProductForm } from "@/components/products/product-form-currency";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 
@@ -11,7 +11,7 @@ export default function NewProductPage() {
       <PageHeader
         eyebrow="Products"
         title="Create product"
-        description="Add a clean product record with pricing, stock, images, and custom schema values. NexStock will generate the SKU and create the initial stock log."
+        description="Add a product record with base-currency selling price, vendor/internal cost currency, converted cost, stock, images, and custom schema values."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
@@ -37,7 +37,7 @@ export default function NewProductPage() {
           </span>
           <div>
             <h2 className="text-lg font-semibold tracking-tight">New product workflow</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Complete the required product details, pricing, inventory, and optional media below.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Complete product details, currency-aware pricing, inventory, and optional media below.</p>
           </div>
         </div>
       </section>
