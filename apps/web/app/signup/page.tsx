@@ -12,22 +12,23 @@ import { signup } from "@/lib/api";
 import { NexstockLogo } from "@/components/brand/nexstock-logo";
 
 type SignupValues = { email: string; password: string; name: string; orgName: string };
-type SelectedPlan = "free" | "pro" | "business";
+type SelectedPlan = "free" | "starter" | "growth";
 
 const PLAN_STORAGE_KEY = "nexstock:selected-plan";
 
 const planLabels: Record<SelectedPlan, { name: string; price: string; helper: string }> = {
-  free: { name: "Free", price: "R0", helper: "Explore the workspace before upgrading." },
-  pro: { name: "Pro", price: "R299/month", helper: "Product imports, mapping, and stock visibility." },
-  business: { name: "Business", price: "R999/month", helper: "Integrations, webhooks, and team operations." },
+  free: { name: "Free", price: "$0/month", helper: "Explore the workspace before upgrading." },
+  starter: { name: "Starter", price: "$19/month", helper: "Product imports, mapping, and stock visibility." },
+  growth: { name: "Growth", price: "$59/month", helper: "Integrations, webhooks, and team operations." },
 };
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Signup failed.";
 }
 
-function getSelectedPlan(plan: string | null): SelectedPlan {
-  if (plan === "pro" || plan === "business") return plan;
+function normalizePlan(plan: string | null): SelectedPlan {
+  if (plan === "starter" || plan === "pro") return "starter";
+  if (plan === "growth" || plan === "business") return "growth";
   return "free";
 }
 
@@ -44,7 +45,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const nextPlan = getSelectedPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
+    const nextPlan = normalizePlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
     setSelectedPlan(nextPlan);
     saveSelectedPlan(nextPlan);
   }, []);
