@@ -67,6 +67,12 @@ export default function OrganizationEditPage() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [setupMode, setSetupMode] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSetupMode(params.get("setup") === "1");
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -96,11 +102,11 @@ export default function OrganizationEditPage() {
     try {
       await apiFetch("/api/organization", {
         method: "PATCH",
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, onboardingComplete: true }),
       });
-      setNotice("Company profile updated.");
+      setNotice(setupMode ? "Organization setup complete. Redirecting to dashboard..." : "Company profile updated.");
       router.refresh();
-      setTimeout(() => router.push("/organization"), 450);
+      setTimeout(() => router.push(setupMode ? "/dashboard" : "/organization"), 450);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update organization");
     } finally {
@@ -121,22 +127,25 @@ export default function OrganizationEditPage() {
   return (
     <PageShell className="space-y-6 pb-10">
       <PageHeader
-        eyebrow="Admin"
-        title="Edit company profile"
-        description="Update the organization information shown on the admin profile and used by billing, onboarding, and workspace defaults."
+        eyebrow={setupMode ? "Setup" : "Admin"}
+        title={setupMode ? "Finish organization setup" : "Edit company profile"}
+        description={setupMode ? "Add the company information NexStock needs before opening your dashboard. You can update these details later from Organization settings." : "Update the organization information shown on the admin profile and used by billing, onboarding, and workspace defaults."}
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link href="/organization"><ArrowLeft className="h-4 w-4" />Back</Link>
-            </Button>
+            {!setupMode && (
+              <Button asChild variant="outline">
+                <Link href="/organization"><ArrowLeft className="h-4 w-4" />Back</Link>
+              </Button>
+            )}
             <Button type="button" onClick={save} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save changes
+              {setupMode ? "Finish setup" : "Save changes"}
             </Button>
           </>
         }
       />
 
+      {setupMode && <div className="border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Payment successful. Complete your organization profile, then you will be taken to the dashboard.</div>}
       {notice && <div className="border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
       {error && <div className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
 
