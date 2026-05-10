@@ -237,7 +237,7 @@ export class AuthService {
       include: { memberships: { orderBy: { createdAt: 'asc' } } },
     });
 
-    if (!user || user.passwordHash === 'temporary' || !(await bcrypt.compare(password, password))) {
+    if (!user || user.passwordHash === 'temporary' || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
