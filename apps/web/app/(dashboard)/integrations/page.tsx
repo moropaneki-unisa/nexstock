@@ -30,7 +30,7 @@ export default function IntegrationsPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
-              <Link href="/integration/csv/configuration"><FileSpreadsheet className="h-4 w-4" />Import file</Link>
+              <Link href="/imports"><FileSpreadsheet className="h-4 w-4" />Import file</Link>
             </Button>
             <Button asChild className="rounded-xl shadow-sm">
               <Link href="/integration/zoho/configuration"><PlugZap className="h-4 w-4" />Connect Zoho</Link>
@@ -83,6 +83,8 @@ function FlowItem({ icon: Icon, title, description }: { icon: LucideIcon; title:
 
 function ConnectorPanel({ connector }: { connector: (typeof connectors)[number] }) {
   const Icon = connector.icon;
+  const isFileConnector = connector.id === "csv" || connector.id === "xlsx" || connector.id === "json";
+  const workflowHref = isFileConnector ? "/imports" : `/integration/${connector.id}/configuration`;
   return (
     <article className="p-5 transition hover:bg-muted/25">
       <div className="flex items-start justify-between gap-4">
@@ -106,21 +108,25 @@ function ConnectorPanel({ connector }: { connector: (typeof connectors)[number] 
 
       <div className="mt-4 grid gap-2">
         <Button asChild className="w-full rounded-xl">
-          <Link href={`/integration/${connector.id}/configuration`}>Open workflow<ArrowRight className="h-4 w-4" /></Link>
+          <Link href={workflowHref}>Open workflow<ArrowRight className="h-4 w-4" /></Link>
         </Button>
-        <div className="grid grid-cols-5 gap-1.5">
-          {sectionActions.map((action) => {
-            const ActionIcon = action.icon;
-            return (
-              <Button key={action.section} asChild variant="ghost" size="sm" className="h-auto flex-col gap-1 rounded-xl px-2 py-2 text-[0.68rem] text-muted-foreground hover:text-foreground">
-                <Link href={`/integration/${connector.id}/${action.section}`}>
-                  <ActionIcon className="h-3.5 w-3.5" />
-                  {action.label}
-                </Link>
-              </Button>
-            );
-          })}
-        </div>
+        {isFileConnector ? (
+          <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">File imports now open the guided product import wizard for upload, preview, mapping, and validation.</div>
+        ) : (
+          <div className="grid grid-cols-5 gap-1.5">
+            {sectionActions.map((action) => {
+              const ActionIcon = action.icon;
+              return (
+                <Button key={action.section} asChild variant="ghost" size="sm" className="h-auto flex-col gap-1 rounded-xl px-2 py-2 text-[0.68rem] text-muted-foreground hover:text-foreground">
+                  <Link href={`/integration/${connector.id}/${action.section}`}>
+                    <ActionIcon className="h-3.5 w-3.5" />
+                    {action.label}
+                  </Link>
+                </Button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </article>
   );
