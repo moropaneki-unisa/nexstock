@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Eye, Loader2, PackageSearch } from "lucide-react";
 
-import { ProductForm } from "@/components/products/product-form";
+import { ProductForm } from "@/components/products/product-form-currency";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
