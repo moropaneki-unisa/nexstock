@@ -23,12 +23,12 @@ const footerGroups = [
     ],
   },
   {
-    title: "Connectors",
+    title: "Legal",
     links: [
-      { href: "/integration/csv/configuration", label: "CSV import" },
-      { href: "/integration/xlsx/configuration", label: "XLSX import" },
-      { href: "/integration/wordpress/configuration", label: "WooCommerce" },
-      { href: "/integration/shopify/configuration", label: "Shopify" },
+      { href: "/#pricing", label: "Pricing" },
+      { href: "/terms", label: "Terms of service" },
+      { href: "/privacy", label: "Privacy policy" },
+      { href: "/refund-policy", label: "Refund policy" },
     ],
   },
 ];
@@ -71,9 +71,11 @@ export function AppFooter({ compact = false }: { compact?: boolean }) {
         <section className="flex flex-col gap-4 border-x border-t px-6 py-5 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
           <p>© 2026 NexStock. Connect. Manage. Grow.</p>
           <div className="flex flex-wrap gap-4">
-            <span>Production-ready product operations</span>
-            <span className="hidden md:inline">·</span>
-            <span>Secure APIs and webhooks</span>
+            <Link href="/terms" className="transition hover:text-foreground">Terms</Link>
+            <span>·</span>
+            <Link href="/privacy" className="transition hover:text-foreground">Privacy</Link>
+            <span>·</span>
+            <Link href="/refund-policy" className="transition hover:text-foreground">Refunds</Link>
           </div>
         </section>
       </div>
