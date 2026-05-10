@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Plan, Prisma, UserRole } from '@prisma/client';
+import axios from 'axios';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,6 +9,7 @@ import { EmailService } from '../email/email.service';
 
 const INVITE_EXPIRY_DAYS = 7;
 const INVITE_EXPIRY_MS = INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+const FREE_RATES_API_URL = 'https://api.frankfurter.dev/v1/latest';
 
 type CurrencyRateDto = { code: string; rateToBase: number };
 
@@ -18,6 +20,7 @@ type OrganizationUpdateDto = {
   baseCurrency?: string;
   enabledCurrencies?: string[];
   exchangeRates?: CurrencyRateDto[] | Record<string, number>;
+  autoRefreshRates?: boolean;
   industry?: string | null;
   onboardingComplete?: boolean;
   legalName?: string | null;
@@ -34,6 +37,13 @@ type OrganizationUpdateDto = {
   province?: string | null;
   postalCode?: string | null;
   country?: string | null;
+};
+
+type FrankfurterLatestResponse = {
+  amount: number;
+  base: string;
+  date: string;
+  rates: Record<string, number>;
 };
 
 function requireAdmin(user: CurrentUserPayload) {
@@ -167,9 +177,11 @@ export class OrganizationService {
       if (!current) throw new NotFoundException('Organization not found');
       const baseCurrency = this.normalizeCurrencyCode(dto.baseCurrency ?? current.baseCurrency ?? 'ZAR');
       const enabledCurrencies = this.normalizeCurrencyList(baseCurrency, dto.enabledCurrencies ?? current.enabledCurrencies ?? [baseCurrency]);
+      const manualRates = this.normalizeExchangeRates(dto.exchangeRates ?? current.exchangeRates, baseCurrency, enabledCurrencies);
+      const rates = dto.autoRefreshRates === false ? manualRates : await this.fetchLiveRatesWithFallback(baseCurrency, enabledCurrencies, manualRates);
       data.baseCurrency = baseCurrency;
       data.enabledCurrencies = enabledCurrencies;
-      data.exchangeRates = this.normalizeExchangeRates(dto.exchangeRates ?? current.exchangeRates, baseCurrency, enabledCurrencies) as Prisma.InputJsonValue;
+      data.exchangeRates = rates as Prisma.InputJsonValue;
     }
     if (dto.industry !== undefined) data.industry = optionalText(dto.industry);
     if (dto.onboardingComplete !== undefined) data.onboardingComplete = dto.onboardingComplete;
@@ -189,6 +201,22 @@ export class OrganizationService {
     if (dto.country !== undefined) data.country = optionalText(dto.country);
 
     return this.db.organization.update({ where: { id: user.organizationId }, data });
+  }
+
+  async refreshCurrencyRates(user: CurrentUserPayload) {
+    requireAdmin(user);
+    const org = await this.db.organization.findUnique({ where: { id: user.organizationId } });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const baseCurrency = this.normalizeCurrencyCode(org.baseCurrency || 'ZAR');
+    const enabledCurrencies = this.normalizeCurrencyList(baseCurrency, org.enabledCurrencies ?? [baseCurrency]);
+    const currentRates = this.normalizeExchangeRates(org.exchangeRates, baseCurrency, enabledCurrencies);
+    const exchangeRates = await this.fetchLiveRatesWithFallback(baseCurrency, enabledCurrencies, currentRates);
+
+    return this.db.organization.update({
+      where: { id: user.organizationId },
+      data: { baseCurrency, enabledCurrencies, exchangeRates: exchangeRates as Prisma.InputJsonValue },
+    });
   }
 
   async inviteUser(user: CurrentUserPayload, emailInput: string, roleInput: string) {
@@ -300,6 +328,28 @@ export class OrganizationService {
     return this.db.organization.update({ where: { id: user.organizationId }, data: { plan: planInput as Plan } });
   }
 
+  private async fetchLiveRatesWithFallback(baseCurrency: string, enabledCurrencies: string[], fallback: CurrencyRateDto[]) {
+    const targetCurrencies = enabledCurrencies.filter((code) => code !== baseCurrency);
+    if (targetCurrencies.length === 0) return [];
+
+    try {
+      const responses = await Promise.all(
+        targetCurrencies.map(async (code) => {
+          const response = await axios.get<FrankfurterLatestResponse>(FREE_RATES_API_URL, {
+            params: { base: code, symbols: baseCurrency },
+            timeout: 7000,
+          });
+          const rateToBase = Number(response.data?.rates?.[baseCurrency]);
+          if (!Number.isFinite(rateToBase) || rateToBase <= 0) throw new Error(`Missing rate for ${code}`);
+          return { code, rateToBase, source: 'frankfurter', date: response.data.date };
+        }),
+      );
+      return responses;
+    } catch {
+      return fallback;
+    }
+  }
+
   private normalizeCurrencyCode(value: string) {
     const code = String(value || '').trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(code)) throw new BadRequestException('Currency code must be a 3-letter ISO code');
@@ -314,7 +364,13 @@ export class OrganizationService {
     const entries = Array.isArray(value)
       ? value.map((item) => ({ code: this.normalizeCurrencyCode(String((item as any).code ?? '')), rateToBase: Number((item as any).rateToBase ?? 1) }))
       : value && typeof value === 'object'
-        ? Object.entries(value as Record<string, unknown>).map(([code, rate]) => ({ code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) }))
+        ? Object.entries(value as Record<string, unknown>).map(([code, rate]) => {
+            if (rate && typeof rate === 'object' && !Array.isArray(rate)) {
+              const record = rate as Record<string, unknown>;
+              return { code: this.normalizeCurrencyCode(code), rateToBase: Number(record.rateToBase || 1) };
+            }
+            return { code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) };
+          })
         : [];
 
     return entries
