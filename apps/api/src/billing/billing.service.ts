@@ -10,11 +10,11 @@ import { PaymentStatus, Plan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
-const BILLING_CURRENCY = 'ZAR';
+const BILLING_CURRENCY = 'USD';
 
 const PLAN_PRICES_CENTS: Record<Exclude<Plan, 'free'>, number> = {
-  pro: 299_00,
-  business: 999_00,
+  pro: 19_00,
+  business: 59_00,
 };
 
 const PAYSTACK_TIMEOUT_MS = 10_000;
@@ -61,6 +61,7 @@ export class BillingService {
           metadata: {
             organizationId: org.id,
             plan,
+            billingCurrency: BILLING_CURRENCY,
           },
         },
         {
