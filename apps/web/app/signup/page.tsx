@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { BarChart3, Boxes, CheckCircle2, DatabaseZap, Loader2, ShieldCheck, Sparkles, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,20 +30,16 @@ function getSelectedPlan(plan: string | null): SelectedPlan {
 }
 
 export default function SignupPage() {
-  return (
-    <Suspense fallback={<SignupShell />}>
-      <SignupForm />
-    </Suspense>
-  );
-}
-
-function SignupForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const selectedPlan = useMemo(() => getSelectedPlan(searchParams.get("plan")), [searchParams]);
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlan>("free");
   const plan = planLabels[selectedPlan];
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { isSubmitting } } = useForm<SignupValues>();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSelectedPlan(getSelectedPlan(params.get("plan")));
+  }, []);
 
   async function onSubmit(values: SignupValues) {
     setError(null);
@@ -108,17 +104,6 @@ function SignupForm() {
         <div className="border-t bg-muted/20 px-5 py-4 text-center text-sm text-muted-foreground">
           Already have an account? <Link href="/login" className="font-medium text-foreground hover:underline">Sign in</Link>
         </div>
-      </section>
-    </SignupLayout>
-  );
-}
-
-function SignupShell() {
-  return (
-    <SignupLayout selectedPlan="free" plan={planLabels.free}>
-      <section className="border bg-card/95 p-10 text-center text-sm text-muted-foreground shadow-sm">
-        <Loader2 className="mx-auto mb-3 h-5 w-5 animate-spin" />
-        Loading signup...
       </section>
     </SignupLayout>
   );
