@@ -3,6 +3,7 @@ import { AppFooter } from "@/components/layout/app-footer";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { BaseCurrencyProductCatalog } from "@/components/products/base-currency-product-catalog";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,7 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain scroll-smooth">
             <div className="pointer-events-none fixed inset-x-0 top-[4.25rem] h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
             <div className="min-h-[calc(100dvh-4rem)]">
-              {children}
+              <BaseCurrencyProductCatalog>{children}</BaseCurrencyProductCatalog>
             </div>
             <AppFooter compact />
           </main>
