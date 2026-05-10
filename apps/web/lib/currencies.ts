@@ -4,6 +4,8 @@ export type CurrencyOption = {
   symbol: string;
 };
 
+export const DEFAULT_CURRENCY = "ZAR";
+
 export const currencyOptions: CurrencyOption[] = [
   { code: "ZAR", name: "South African Rand", symbol: "R" },
   { code: "USD", name: "US Dollar", symbol: "$" },
@@ -21,15 +23,37 @@ export const currencyOptions: CurrencyOption[] = [
   { code: "CAD", name: "Canadian Dollar", symbol: "C$" },
 ];
 
+export function normalizeCurrencyCode(code?: string | null) {
+  const value = String(code || DEFAULT_CURRENCY).trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(value) ? value : DEFAULT_CURRENCY;
+}
+
 export function getCurrencyLabel(code?: string | null) {
-  const option = currencyOptions.find((currency) => currency.code === code);
-  return option ? `${option.code} · ${option.name}` : code || "Not set";
+  const normalizedCode = normalizeCurrencyCode(code);
+  const option = currencyOptions.find((currency) => currency.code === normalizedCode);
+  return option ? `${option.code} · ${option.name}` : normalizedCode;
 }
 
 export function getCurrencySymbol(code?: string | null) {
-  return currencyOptions.find((currency) => currency.code === code)?.symbol ?? code ?? "";
+  const normalizedCode = normalizeCurrencyCode(code);
+  return currencyOptions.find((currency) => currency.code === normalizedCode)?.symbol ?? normalizedCode;
 }
 
 export function normalizeCurrencyList(baseCurrency: string, currencies: string[]) {
-  return Array.from(new Set([baseCurrency, ...currencies].filter(Boolean))).sort();
+  return Array.from(new Set([normalizeCurrencyCode(baseCurrency), ...currencies.map(normalizeCurrencyCode)].filter(Boolean))).sort();
+}
+
+export function formatMoney(value: string | number | null | undefined, currency?: string | null, options?: Intl.NumberFormatOptions) {
+  const currencyCode = normalizeCurrencyCode(currency);
+  const numericValue = Number(value ?? 0);
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currencyCode,
+    maximumFractionDigits: 2,
+    ...options,
+  }).format(Number.isFinite(numericValue) ? numericValue : 0);
+}
+
+export function formatCurrencyAmount(value: string | number | null | undefined, currency?: string | null) {
+  return `${normalizeCurrencyCode(currency)} ${Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
