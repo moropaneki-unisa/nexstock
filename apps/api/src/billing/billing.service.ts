@@ -4,6 +4,7 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import axios from 'axios';
 import { PaymentStatus, Plan } from '@prisma/client';
@@ -29,8 +30,14 @@ export class BillingService {
     const key = process.env.PAYSTACK_SECRET_KEY;
     if (!key) {
       this.logger.error('PAYSTACK_SECRET_KEY is not configured');
-      throw new InternalServerErrorException('Billing is not configured');
+      throw new InternalServerErrorException('Billing is not configured. Add PAYSTACK_SECRET_KEY to the API environment.');
     }
+
+    if (!key.startsWith('sk_')) {
+      this.logger.error('PAYSTACK_SECRET_KEY must be a secret key that starts with sk_');
+      throw new InternalServerErrorException('Billing is not configured correctly. PAYSTACK_SECRET_KEY must be a Paystack secret key.');
+    }
+
     return key;
   }
 
@@ -40,6 +47,31 @@ export class BillingService {
       throw new BadRequestException('Invalid plan');
     }
     return normalizedPlan;
+  }
+
+  private getPaystackErrorMessage(error: unknown) {
+    if (!axios.isAxiosError(error)) return (error as Error)?.message || 'Unknown Paystack error';
+
+    const status = error.response?.status;
+    const responseMessage =
+      (error.response?.data as any)?.message ||
+      (error.response?.data as any)?.error ||
+      error.message;
+
+    return status ? `Paystack ${status}: ${responseMessage}` : responseMessage;
+  }
+
+  private throwPaystackCheckoutError(error: unknown): never {
+    const message = this.getPaystackErrorMessage(error);
+    this.logger.error('Paystack initialize failed', message);
+
+    if (axios.isAxiosError(error) && error.response?.status === 403) {
+      throw new ServiceUnavailableException(
+        `Paystack rejected checkout. Check PAYSTACK_SECRET_KEY and confirm your Paystack account supports ${BILLING_CURRENCY} payments. ${message}`,
+      );
+    }
+
+    throw new InternalServerErrorException(`Could not start checkout. ${message}`);
   }
 
   async initialize(user: CurrentUserPayload, planValue: string) {
@@ -99,8 +131,7 @@ export class BillingService {
 
       return checkout;
     } catch (error) {
-      this.logger.error('Paystack initialize failed', (error as Error).message);
-      throw new InternalServerErrorException('Could not start checkout');
+      this.throwPaystackCheckoutError(error);
     }
   }
 
@@ -118,8 +149,9 @@ export class BillingService {
       );
       data = response.data?.data;
     } catch (error) {
-      this.logger.error('Paystack verify failed', (error as Error).message);
-      throw new InternalServerErrorException('Could not verify payment');
+      const message = this.getPaystackErrorMessage(error);
+      this.logger.error('Paystack verify failed', message);
+      throw new InternalServerErrorException(`Could not verify payment. ${message}`);
     }
 
     const metadata = data?.metadata ?? {};
