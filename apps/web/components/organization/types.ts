@@ -18,6 +18,7 @@ export type OrgPlan = {
   price: number;
   current: boolean;
   description: string;
+  disabled?: boolean;
 };
 
 export type CurrencyRate = {
