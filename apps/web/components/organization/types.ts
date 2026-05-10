@@ -20,12 +20,20 @@ export type OrgPlan = {
   description: string;
 };
 
+export type CurrencyRate = {
+  code: string;
+  rateToBase: number;
+};
+
 export type Organization = {
   id: string;
   name: string;
   slug: string;
   plan: string;
   skuPrefix?: string | null;
+  baseCurrency?: string | null;
+  enabledCurrencies?: string[] | null;
+  exchangeRates?: CurrencyRate[] | Record<string, number> | null;
   legalName?: string | null;
   tradingName?: string | null;
   registrationNo?: string | null;
@@ -78,13 +86,29 @@ export type OrganizationProfileForm = Pick<
   | "province"
   | "postalCode"
   | "country"
->;
+> & {
+  baseCurrency: string;
+  enabledCurrencies: string[];
+  exchangeRates: CurrencyRate[];
+};
+
+export function normalizeExchangeRates(value: Organization["exchangeRates"]): CurrencyRate[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter((item) => item?.code).map((item) => ({ code: item.code, rateToBase: Number(item.rateToBase || 1) }));
+  return Object.entries(value).map(([code, rate]) => ({ code, rateToBase: Number(rate || 1) }));
+}
 
 export function toOrganizationProfile(org: Organization): OrganizationProfileForm {
+  const baseCurrency = org.baseCurrency || "ZAR";
+  const enabledCurrencies = Array.from(new Set([baseCurrency, ...(org.enabledCurrencies ?? [])]));
+
   return {
     name: org.name,
     slug: org.slug,
     skuPrefix: org.skuPrefix ?? "",
+    baseCurrency,
+    enabledCurrencies,
+    exchangeRates: normalizeExchangeRates(org.exchangeRates),
     legalName: org.legalName ?? "",
     tradingName: org.tradingName ?? "",
     registrationNo: org.registrationNo ?? "",
