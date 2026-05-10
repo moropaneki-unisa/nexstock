@@ -2,10 +2,13 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import {
   AlertCircle,
+  ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   CircleDollarSign,
   DatabaseZap,
@@ -66,14 +69,25 @@ type ProductFormProps = {
   mode?: "create" | "edit";
 };
 
+type StepId = "basics" | "pricing" | "images" | "attributes" | "review";
+
+const steps: Array<{ id: StepId; title: string; description: string }> = [
+  { id: "basics", title: "Basic details", description: "Name, category, and description" },
+  { id: "pricing", title: "Pricing & stock", description: "Price, cost, and inventory controls" },
+  { id: "images", title: "Images", description: "Product media and primary image" },
+  { id: "attributes", title: "Attributes", description: "Business-specific product data" },
+  { id: "review", title: "Review", description: "Confirm and save" },
+];
+
 export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   const router = useRouter();
   const isEdit = mode === "edit" && Boolean(product);
 
+  const [activeStep, setActiveStep] = useState<StepId>("basics");
   const [error, setError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [schemaFields, setSchemaFields] = useState<ProductField[]>([]);
-  const [schemaLoading, setSchemaLoading] = useState(true);
+  const [attributeFields, setAttributeFields] = useState<ProductField[]>([]);
+  const [attributesLoading, setAttributesLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [images, setImages] = useState<ImagePreview[]>(() =>
     (product?.images ?? []).map((url, index) => ({
@@ -86,7 +100,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   const existingCustomValues = useMemo(() => {
     const values: Record<string, string> = {};
     for (const item of product?.customFieldValues ?? []) {
-      values[item.fieldId] = item.value == null ? "" : String(item.value);
+      values[item.fieldId] = formatAttributeInputValue(item.value);
     }
     return values;
   }, [product?.customFieldValues]);
@@ -97,6 +111,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
     setValue,
     watch,
     reset,
+    trigger,
     formState: { isSubmitting, errors, isDirty },
   } = useForm<FormValues>({
     defaultValues: {
@@ -117,13 +132,13 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
 
     apiFetch<ProductField[]>("/api/product-fields")
       .then((fields) => {
-        if (active) setSchemaFields(fields.filter((field) => field.isActive).sort((a, b) => a.order - b.order));
+        if (active) setAttributeFields(fields.filter((field) => field.isActive).sort((a, b) => a.order - b.order));
       })
       .catch(() => {
-        if (active) setSchemaFields([]);
+        if (active) setAttributeFields([]);
       })
       .finally(() => {
-        if (active) setSchemaLoading(false);
+        if (active) setAttributesLoading(false);
       });
 
     return () => {
@@ -158,21 +173,48 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   const customFieldValues = watch("customFieldValues");
   const imageUrl = watch("imageUrl");
   const name = watch("name");
+  const category = watch("category");
+  const description = watch("description");
   const price = Number(watch("price") ?? 0);
   const cost = watch("cost") === "" ? undefined : Number(watch("cost") ?? 0);
   const quantity = Number(watch("quantity") ?? 0);
   const lowStockLevel = Number(watch("lowStockLevel") ?? 0);
-  const requiredSchemaFields = schemaFields.filter((field) => field.required);
-  const completedRequiredSchemaFields = requiredSchemaFields.filter((field) => {
+  const displayedQuantity = isEdit ? Number(product?.quantity ?? 0) : quantity;
+  const requiredAttributeFields = attributeFields.filter((field) => field.required);
+  const completedRequiredAttributeFields = requiredAttributeFields.filter((field) => {
     const value = customFieldValues?.[field.id];
     return value !== undefined && value !== null && String(value).trim() !== "";
   }).length;
+
   const readiness = [
-    { label: "Name", ready: Boolean(name?.trim()) },
-    { label: "Price", ready: Number.isFinite(price) && price >= 0 },
-    { label: "Inventory", ready: Number.isFinite(quantity) && quantity >= 0 && Number.isFinite(lowStockLevel) && lowStockLevel >= 0 },
+    { label: "Basic details", ready: Boolean(name?.trim()) },
+    { label: "Pricing", ready: Number.isFinite(price) && price >= 0 },
+    { label: "Inventory", ready: isEdit ? Number.isFinite(lowStockLevel) && lowStockLevel >= 0 : Number.isFinite(quantity) && quantity >= 0 && Number.isFinite(lowStockLevel) && lowStockLevel >= 0 },
     { label: "Images", ready: images.length > 0 },
+    { label: "Required attributes", ready: completedRequiredAttributeFields === requiredAttributeFields.length },
   ];
+
+  const currentIndex = steps.findIndex((step) => step.id === activeStep);
+  const isFinalStep = activeStep === "review";
+
+  async function goNext() {
+    setError(null);
+    if (activeStep === "basics") {
+      const ok = await trigger("name");
+      if (!ok) return;
+    }
+    if (activeStep === "pricing") {
+      const fieldsToValidate: Array<keyof FormValues> = isEdit ? ["price", "lowStockLevel"] : ["price", "quantity", "lowStockLevel"];
+      const ok = await trigger(fieldsToValidate);
+      if (!ok) return;
+    }
+    setActiveStep(steps[Math.min(currentIndex + 1, steps.length - 1)].id);
+  }
+
+  function goBack() {
+    setError(null);
+    setActiveStep(steps[Math.max(currentIndex - 1, 0)].id);
+  }
 
   async function handleImageUpload(files: FileList | null) {
     if (!files?.length) return;
@@ -245,17 +287,18 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
   async function onSubmit(values: FormValues) {
     setError(null);
 
-    const missingRequiredField = requiredSchemaFields.find((field) => {
+    const missingRequiredField = requiredAttributeFields.find((field) => {
       const value = values.customFieldValues?.[field.id];
       return value === undefined || value === null || String(value).trim() === "";
     });
 
     if (missingRequiredField) {
-      setError(`Custom field "${missingRequiredField.label}" is required.`);
+      setActiveStep("attributes");
+      setError(`Product attribute "${missingRequiredField.label}" is required.`);
       return;
     }
 
-    const customFieldPayload = schemaFields
+    const customFieldPayload = attributeFields
       .map((field) => {
         const rawValue = values.customFieldValues?.[field.id];
         const value = parseCustomFieldValue(field, rawValue);
@@ -263,7 +306,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
       })
       .filter(Boolean);
 
-    const payload = {
+    const basePayload = {
       name: values.name.trim(),
       category: values.category?.trim() || undefined,
       description: values.description?.trim() || undefined,
@@ -272,11 +315,12 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
         values.cost === undefined || values.cost === null || String(values.cost) === ""
           ? undefined
           : Number(values.cost),
-      quantity: Number(values.quantity),
       lowStockLevel: Number(values.lowStockLevel),
       images: images.map((image) => image.url),
       customFieldValues: customFieldPayload,
     };
+
+    const payload = isEdit ? basePayload : { ...basePayload, quantity: Number(values.quantity) };
 
     try {
       let savedProduct: Product | null = null;
@@ -310,143 +354,231 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
         )}
 
         <section className="border bg-card/95">
-          <SectionHeader icon={PackagePlus} title="Product details" description="Main information used by customers, integrations, and inventory tools." badge="Required" />
-          <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
-            <div className="divide-y">
-              {isEdit && product?.sku && <ReadOnlyItem label="Generated SKU" value={product.sku} />}
-              <Field label="Product name" required error={errors.name ? "Product name is required" : undefined}>
-                <Input className="rounded-xl" placeholder="Classic cotton t-shirt" {...register("name", { required: true })} />
-              </Field>
-              <Field label="Category">
-                <Input className="rounded-xl" placeholder="Apparel" {...register("category")} />
-              </Field>
-            </div>
-            <div>
-              <Field label="Description">
-                <Textarea
-                  placeholder="Describe the product, material, usage, supplier notes, or anything important."
-                  className="min-h-40 resize-none rounded-xl"
-                  {...register("description")}
-                />
-              </Field>
-            </div>
+          <div className="grid divide-y md:grid-cols-5 md:divide-x md:divide-y-0">
+            {steps.map((step, index) => (
+              <button
+                key={step.id}
+                type="button"
+                onClick={() => setActiveStep(step.id)}
+                className={`p-4 text-left transition hover:bg-muted/40 ${activeStep === step.id ? "bg-primary/10" : ""}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${activeStep === step.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{index + 1}</span>
+                  <span className="text-sm font-semibold">{step.title}</span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{step.description}</p>
+              </button>
+            ))}
           </div>
         </section>
 
-        <section className="border bg-card/95">
-          <SectionHeader icon={CircleDollarSign} title="Pricing and inventory" description="Selling price, internal cost, available stock, and low-stock threshold." />
-          <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
-            <div className="divide-y">
-              <Field label="Price" required error={errors.price ? "Price is required" : undefined}>
-                <Input className="rounded-xl" type="number" step="0.01" min={0} placeholder="299.99" {...register("price", { required: true, valueAsNumber: true })} />
-              </Field>
-              <Field label="Cost">
-                <Input className="rounded-xl" type="number" step="0.01" min={0} placeholder="120.00" {...register("cost")} />
-              </Field>
-            </div>
-            <div className="divide-y">
-              <Field label="Quantity" required error={errors.quantity ? "Quantity is required" : undefined}>
-                <Input className="rounded-xl" type="number" min={0} placeholder="0" {...register("quantity", { required: true, valueAsNumber: true })} />
-              </Field>
-              <Field label="Low stock alert" required error={errors.lowStockLevel ? "Low stock alert is required" : undefined}>
-                <Input className="rounded-xl" type="number" min={0} placeholder="5" {...register("lowStockLevel", { required: true, valueAsNumber: true })} />
-              </Field>
-            </div>
-          </div>
-        </section>
-
-        <section className="border bg-card/95">
-          <SectionHeader icon={ImageIcon} title="Product images" description="Upload images to the API or paste image URLs. The first image becomes the primary product image." />
-          <div className="space-y-5 border-t p-5">
-            {imageError && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{imageError}</div>}
-
-            <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed bg-muted/20 p-8 text-center transition hover:bg-muted/45">
-              {uploading ? <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground" /> : <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />}
-              <span className="text-sm font-medium">{uploading ? "Uploading images..." : "Upload product images"}</span>
-              <span className="mt-1 text-xs text-muted-foreground">JPG, PNG, WEBP, GIF. Max 5MB per file.</span>
-
-              <Input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                multiple
-                className="hidden"
-                disabled={uploading}
-                onChange={(event) => handleImageUpload(event.target.files)}
-              />
-            </label>
-
-            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-              <div className="relative">
-                <LinkIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input className="rounded-xl pl-9" placeholder="https://example.com/product.jpg" {...register("imageUrl")} />
+        {activeStep === "basics" && (
+          <section className="border bg-card/95">
+            <SectionHeader icon={PackagePlus} title="Basic product details" description="Start with the product identity that customers, imports, and integrations will recognize." badge="Step 1" />
+            <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+              <div className="divide-y">
+                {isEdit && product?.sku && <ReadOnlyItem label="Generated SKU" value={product.sku} />}
+                <Field label="Product name" required error={errors.name ? "Product name is required" : undefined}>
+                  <Input className="rounded-xl" placeholder="Classic cotton t-shirt" {...register("name", { required: true })} />
+                </Field>
+                <Field label="Category">
+                  <Input className="rounded-xl" placeholder="Apparel" {...register("category")} />
+                </Field>
               </div>
-              <Button type="button" variant="outline" onClick={addImageUrl} className="rounded-xl bg-background/70">Add image URL</Button>
-            </div>
-
-            {images.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                {images.map((image, index) => (
-                  <div key={image.id} className="group relative overflow-hidden border bg-muted/30">
-                    <img src={image.url} alt={image.name} className="h-44 w-full object-cover transition group-hover:scale-105" />
-                    <div className="absolute left-2 top-2">
-                      <Badge className="bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeImage(image.id)}
-                      className="absolute right-2 top-2 bg-background/90 p-1.5 shadow-sm transition hover:bg-background"
-                      aria-label="Remove image"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div className="border-t bg-background p-2">
-                      <p className="truncate text-xs text-muted-foreground">{image.name}</p>
-                    </div>
-                  </div>
-                ))}
+              <div>
+                <Field label="Description">
+                  <Textarea
+                    placeholder="Describe the product, material, usage, supplier notes, or anything important."
+                    className="min-h-44 resize-none rounded-xl"
+                    {...register("description")}
+                  />
+                </Field>
               </div>
-            ) : (
-              <div className="border border-dashed bg-muted/20 p-8 text-center">
-                <ImageIcon className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
-                <p className="text-sm font-medium">No images added yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">Products look more complete with at least one image.</p>
+            </div>
+          </section>
+        )}
+
+        {activeStep === "pricing" && (
+          <section className="border bg-card/95">
+            <SectionHeader icon={CircleDollarSign} title="Pricing and inventory" description={isEdit ? "Update commercial values and low-stock thresholds. Use Adjust stock on the product profile for stock movement logs." : "Set commercial values and the initial stock quantity. NexStock will create the first inventory log."} badge="Step 2" />
+            {isEdit && (
+              <div className="border-t border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                Current stock is <strong>{product?.quantity ?? 0} units</strong>. To change stock, open the product profile and use <strong>Adjust stock</strong> so an inventory movement log is created.
               </div>
             )}
-          </div>
-        </section>
-
-        <section className="border bg-card/95">
-          <SectionHeader
-            icon={DatabaseZap}
-            title="Product schema fields"
-            description="Custom fields from your organization schema are saved through the backend customFieldValues API."
-            badge={requiredSchemaFields.length > 0 ? `${completedRequiredSchemaFields}/${requiredSchemaFields.length} required` : undefined}
-          />
-          <div className="border-t p-5">
-            {schemaLoading ? (
-              <div className="flex items-center gap-2 border bg-muted/20 p-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading product schema...
+            <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+              <div className="divide-y">
+                <Field label="Selling price" required error={errors.price ? "Price is required" : undefined}>
+                  <Input className="rounded-xl" type="number" step="0.01" min={0} placeholder="299.99" {...register("price", { required: true, valueAsNumber: true })} />
+                </Field>
+                <Field label="Internal cost">
+                  <Input className="rounded-xl" type="number" step="0.01" min={0} placeholder="120.00" {...register("cost")} />
+                </Field>
               </div>
-            ) : schemaFields.length === 0 ? (
-              <div className="border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-                No product schema fields yet. Add fields under Products → Product fields to capture custom product attributes.
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {schemaFields.map((field) => (
-                  <Field key={field.id} label={field.label} required={field.required}>
-                    <SchemaFieldInput
-                      field={field}
-                      value={customFieldValues?.[field.id] ?? ""}
-                      onChange={(value) => setValue(`customFieldValues.${field.id}`, value, { shouldDirty: true })}
-                    />
+              <div className="divide-y">
+                {isEdit ? (
+                  <ReadOnlyItem label="Current stock" value={`${product?.quantity ?? 0} units`} />
+                ) : (
+                  <Field label="Initial quantity" required error={errors.quantity ? "Quantity is required" : undefined}>
+                    <Input className="rounded-xl" type="number" min={0} placeholder="0" {...register("quantity", { required: true, valueAsNumber: true })} />
                   </Field>
-                ))}
+                )}
+                <Field label="Low-stock alert" required error={errors.lowStockLevel ? "Low stock alert is required" : undefined}>
+                  <Input className="rounded-xl" type="number" min={0} placeholder="5" {...register("lowStockLevel", { required: true, valueAsNumber: true })} />
+                </Field>
               </div>
+            </div>
+          </section>
+        )}
+
+        {activeStep === "images" && (
+          <section className="border bg-card/95">
+            <SectionHeader icon={ImageIcon} title="Product images" description="Upload images to the API or paste image URLs. The first image becomes the primary product image." badge="Step 3" />
+            <div className="space-y-5 border-t p-5">
+              {imageError && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{imageError}</div>}
+
+              <label className="flex cursor-pointer flex-col items-center justify-center border border-dashed bg-muted/20 p-8 text-center transition hover:bg-muted/45">
+                {uploading ? <Loader2 className="mb-3 h-8 w-8 animate-spin text-muted-foreground" /> : <UploadCloud className="mb-3 h-8 w-8 text-muted-foreground" />}
+                <span className="text-sm font-medium">{uploading ? "Uploading images..." : "Upload product images"}</span>
+                <span className="mt-1 text-xs text-muted-foreground">JPG, PNG, WEBP, GIF. Max 5MB per file.</span>
+
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(event) => handleImageUpload(event.target.files)}
+                />
+              </label>
+
+              <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                <div className="relative">
+                  <LinkIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input className="rounded-xl pl-9" placeholder="https://example.com/product.jpg" {...register("imageUrl")} />
+                </div>
+                <Button type="button" variant="outline" onClick={addImageUrl} className="rounded-xl bg-background/70">Add image URL</Button>
+              </div>
+
+              {images.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  {images.map((image, index) => (
+                    <div key={image.id} className="group relative overflow-hidden border bg-muted/30">
+                      <img src={image.url} alt={image.name} className="h-44 w-full object-cover transition group-hover:scale-105" />
+                      <div className="absolute left-2 top-2">
+                        <Badge className="bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeImage(image.id)}
+                        className="absolute right-2 top-2 bg-background/90 p-1.5 shadow-sm transition hover:bg-background"
+                        aria-label="Remove image"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <div className="border-t bg-background p-2">
+                        <p className="truncate text-xs text-muted-foreground">{image.name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border border-dashed bg-muted/20 p-8 text-center">
+                  <ImageIcon className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+                  <p className="text-sm font-medium">No images added yet</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Products look more complete with at least one image.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeStep === "attributes" && (
+          <section className="border bg-card/95">
+            <SectionHeader
+              icon={DatabaseZap}
+              title="Product attributes"
+              description="Custom business attributes from your organization setup are saved against this product and appear in product profiles, imports, and APIs."
+              badge={requiredAttributeFields.length > 0 ? `${completedRequiredAttributeFields}/${requiredAttributeFields.length} required` : "Optional"}
+            />
+            <div className="border-t p-5">
+              {attributesLoading ? (
+                <div className="flex items-center gap-2 border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading product attributes...
+                </div>
+              ) : attributeFields.length === 0 ? (
+                <div className="border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                  <DatabaseZap className="mx-auto mb-2 h-7 w-7" />
+                  <p className="font-medium text-foreground">No custom attributes yet</p>
+                  <p className="mx-auto mt-2 max-w-md">Add attributes like brand, supplier code, color, material, warranty, barcode, or external category to capture richer product data.</p>
+                  <Button asChild type="button" variant="outline" className="mt-5 rounded-xl bg-background/70">
+                    <Link href="/products/fields">Manage product attributes</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {attributeFields.map((field) => (
+                    <Field key={field.id} label={field.label} required={field.required}>
+                      <AttributeInput
+                        field={field}
+                        value={customFieldValues?.[field.id] ?? ""}
+                        onChange={(value) => setValue(`customFieldValues.${field.id}`, value, { shouldDirty: true })}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeStep === "review" && (
+          <section className="border bg-card/95">
+            <SectionHeader icon={ShieldCheck} title={isEdit ? "Review product changes" : "Review new product"} description="Confirm the product record before saving it to your catalog." badge="Final step" />
+            <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
+              <div className="divide-y">
+                <ReviewLine label="Product name" value={name || "Missing"} />
+                <ReviewLine label="Category" value={category || "Uncategorized"} />
+                <ReviewLine label="Price" value={formatCurrency(price)} />
+                <ReviewLine label="Cost" value={cost ? formatCurrency(cost) : "Not set"} />
+                <ReviewLine label="Stock" value={`${displayedQuantity} units`} />
+                <ReviewLine label="Low-stock alert" value={`${lowStockLevel} units`} />
+              </div>
+              <div className="divide-y">
+                <ReviewLine label="Images" value={`${images.length}`} />
+                <ReviewLine label="Custom attributes" value={`${attributeFields.length}`} />
+                <ReviewLine label="Required attributes" value={`${completedRequiredAttributeFields}/${requiredAttributeFields.length}`} />
+                <ReviewLine label="Margin" value={calculateMargin(price, cost)} />
+                <div className="p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Description</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">{description || "No description"}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border bg-card/95 p-4">
+          <Button type="button" variant="outline" onClick={goBack} disabled={currentIndex === 0 || isSubmitting} className="rounded-xl bg-background/70">
+            <ArrowLeft className="h-4 w-4" />Back
+          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={isSubmitting} className="rounded-xl bg-background/70">
+              Cancel
+            </Button>
+            {isFinalStep ? (
+              <Button type="submit" disabled={isSubmitting || uploading} className="rounded-xl">
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? <Save className="h-4 w-4" /> : <PackagePlus className="h-4 w-4" />}
+                {isSubmitting ? "Saving..." : isEdit ? "Update product" : "Create product"}
+              </Button>
+            ) : (
+              <Button type="button" onClick={goNext} disabled={isSubmitting} className="rounded-xl">
+                Continue<ArrowRight className="h-4 w-4" />
+              </Button>
             )}
           </div>
-        </section>
+        </div>
       </div>
 
       <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
@@ -454,7 +586,6 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
           <SectionHeader icon={ShieldCheck} title="Product readiness" description="Complete the essentials before saving." />
           <div className="divide-y border-t">
             {readiness.map((item) => <ReadinessLine key={item.label} ready={item.ready} label={item.label} />)}
-            {requiredSchemaFields.length > 0 && <ReadinessLine ready={completedRequiredSchemaFields === requiredSchemaFields.length} label="Required schema fields" />}
           </div>
         </section>
 
@@ -462,43 +593,21 @@ export function ProductForm({ product, mode = "create" }: ProductFormProps) {
           <SectionHeader icon={Warehouse} title={isEdit ? "Update summary" : "Create summary"} />
           <div className="divide-y border-t">
             <SideFact label="Margin" value={calculateMargin(price, cost)} />
-            <SideFact label="Stock status" value={quantity <= lowStockLevel ? "Needs review" : "Healthy"} />
+            <SideFact label="Stock status" value={displayedQuantity <= lowStockLevel ? "Needs review" : "Healthy"} />
             <SideFact label="Images" value={`${images.length}`} />
+            <SideFact label="Attributes" value={`${attributeFields.length}`} />
           </div>
         </section>
 
         <section className="border bg-card/95">
           <div className="p-5">
-            <p className="text-sm font-medium">{isEdit ? "Ready to update this product?" : "Ready to create this product?"}</p>
+            <p className="text-sm font-medium">{isEdit ? "Updating product data" : "Creating product data"}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {isEdit
-                ? "Save only when the product data is accurate for customers, APIs, and integrations."
-                : "The backend will generate the SKU and create the initial inventory log."}
+                ? "This updates product information, pricing, images, and attributes. Stock quantity changes should be made from the product profile using Adjust stock."
+                : "NexStock will generate the SKU and create an initial inventory movement if quantity is greater than zero."}
             </p>
             {isDirty && <Badge variant="secondary" className="mt-3">Unsaved changes</Badge>}
-          </div>
-          <div className="grid gap-2 border-t p-4">
-            <Button type="submit" disabled={isSubmitting || uploading} className="rounded-xl">
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : isEdit ? (
-                <>
-                  <Save className="h-4 w-4" />
-                  Update product
-                </>
-              ) : (
-                <>
-                  <PackagePlus className="h-4 w-4" />
-                  Save product
-                </>
-              )}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={isSubmitting} className="rounded-xl bg-background/70">
-              Cancel
-            </Button>
           </div>
         </section>
       </aside>
@@ -514,7 +623,7 @@ function ReadOnlyItem({ label, value }: { label: string; value: string }) {
   return <div className="p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 font-mono text-sm font-semibold">{value}</p></div>;
 }
 
-function SchemaFieldInput({ field, value, onChange }: { field: ProductField; value: string; onChange: (value: string) => void }) {
+function AttributeInput({ field, value, onChange }: { field: ProductField; value: string; onChange: (value: string) => void }) {
   if (field.type === "select") {
     return (
       <Select value={value} onValueChange={onChange}>
@@ -569,9 +678,23 @@ function SideFact({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between px-4 py-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="font-medium">{value}</span></div>;
 }
 
+function ReviewLine({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-4 p-4 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>;
+}
+
 function calculateMargin(price: number, cost?: number) {
   if (!price || !cost) return "—";
   return `${Math.round(((price - cost) / price) * 100)}%`;
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: "ZAR", maximumFractionDigits: 2 }).format(Number(value ?? 0));
+}
+
+function formatAttributeInputValue(value: unknown) {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
 }
 
 function parseCustomFieldValue(field: ProductField, rawValue: string | undefined) {
