@@ -104,8 +104,8 @@ const securityItems = [
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur-xl">
-        <LandingContainer className="flex min-h-16 items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
+      <header className="sticky top-0 z-50 border-b bg-background/90 px-4 backdrop-blur-xl sm:px-6 lg:px-10">
+        <LandingContainer className="flex min-h-16 items-center justify-between gap-6">
           <Link href="/" aria-label="NexStock home" className="flex shrink-0 items-center">
             <NexstockLogo tagline={false} className="px-0 py-0" />
           </Link>
@@ -133,7 +133,7 @@ export default function LandingPage() {
         </LandingContainer>
 
         <div className="border-t bg-background/95 lg:hidden">
-          <LandingContainer className="flex gap-4 overflow-x-auto px-4 py-2 text-xs font-semibold text-muted-foreground sm:px-6 lg:px-10">
+          <LandingContainer className="flex gap-4 overflow-x-auto py-2 text-xs font-semibold text-muted-foreground">
             {navLinks.map((item) => (
               <a key={item.href} href={item.href} className="shrink-0 py-1.5 transition hover:text-foreground">
                 {item.label}
