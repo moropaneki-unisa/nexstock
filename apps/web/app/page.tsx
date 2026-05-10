@@ -104,24 +104,46 @@ const securityItems = [
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-50 bg-background/70 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-10">
-        <LandingContainer>
-          <div className="flex h-14 items-center justify-between gap-6 rounded-full border bg-background/90 px-4 shadow-sm ring-1 ring-border/40 sm:px-5">
-            <Link href="/" aria-label="NexStock home" className="flex shrink-0 items-center"><NexstockLogo tagline={false} className="px-0 py-0" /></Link>
-            <nav className="hidden items-center rounded-full bg-muted/55 p-1 text-sm font-medium text-muted-foreground lg:flex">
-              {navLinks.map((item) => <a key={item.href} href={item.href} className="rounded-full px-4 py-2 transition hover:bg-background hover:text-foreground hover:shadow-sm">{item.label}</a>)}
-            </nav>
-            <div className="hidden items-center gap-3 text-sm md:flex">
-              <Link href="/login" className="rounded-full px-3 py-2 font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">Sign in</Link>
-              <Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Create workspace <ArrowRight className="h-4 w-4" /></Link>
-            </div>
-            <Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90 md:hidden">Start <ArrowRight className="h-4 w-4" /></Link>
-          </div>
-          <nav className="mt-2 flex gap-2 overflow-x-auto rounded-full border bg-background/90 p-1 text-xs font-semibold text-muted-foreground shadow-sm lg:hidden">
-            {navLinks.map((item) => <a key={item.href} href={item.href} className="shrink-0 rounded-full px-3 py-1.5 transition hover:bg-muted hover:text-foreground">{item.label}</a>)}
-            <Link href="/login" className="shrink-0 rounded-full px-3 py-1.5 transition hover:bg-muted hover:text-foreground">Sign in</Link>
+      <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur-xl">
+        <LandingContainer className="flex min-h-16 items-center justify-between gap-6 px-4 sm:px-6 lg:px-10">
+          <Link href="/" aria-label="NexStock home" className="flex shrink-0 items-center">
+            <NexstockLogo tagline={false} className="px-0 py-0" />
+          </Link>
+
+          <nav className="hidden items-center gap-8 text-sm font-semibold text-muted-foreground lg:flex">
+            {navLinks.map((item) => (
+              <a key={item.href} href={item.href} className="transition hover:text-foreground">
+                {item.label}
+              </a>
+            ))}
           </nav>
+
+          <div className="hidden items-center gap-3 text-sm md:flex">
+            <Link href="/login" className="px-2 py-2 font-semibold text-muted-foreground transition hover:text-foreground">
+              Sign in
+            </Link>
+            <Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-4 py-2.5 font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">
+              Create workspace <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <Link href="/signup" className="inline-flex items-center gap-2 bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90 md:hidden">
+            Start <ArrowRight className="h-4 w-4" />
+          </Link>
         </LandingContainer>
+
+        <div className="border-t bg-background/95 lg:hidden">
+          <LandingContainer className="flex gap-4 overflow-x-auto px-4 py-2 text-xs font-semibold text-muted-foreground sm:px-6 lg:px-10">
+            {navLinks.map((item) => (
+              <a key={item.href} href={item.href} className="shrink-0 py-1.5 transition hover:text-foreground">
+                {item.label}
+              </a>
+            ))}
+            <Link href="/login" className="shrink-0 py-1.5 transition hover:text-foreground">
+              Sign in
+            </Link>
+          </LandingContainer>
+        </div>
       </header>
 
       <section className="border-b bg-[radial-gradient(circle_at_15%_0%,hsl(var(--primary)/0.10),transparent_34rem),linear-gradient(180deg,hsl(var(--card)/0.42),transparent)] px-4 py-16 sm:px-6 lg:px-10 lg:py-20">
