@@ -13,6 +13,8 @@ import { resendVerificationOtp, verifyEmail } from "@/lib/api";
 
 type SelectedPlan = "free" | "pro" | "business";
 
+const PLAN_STORAGE_KEY = "nexstock:selected-plan";
+
 const planLabels: Record<SelectedPlan, string> = {
   free: "Free",
   pro: "Pro",
@@ -28,6 +30,10 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Verification failed.";
 }
 
+function saveSelectedPlan(plan: SelectedPlan) {
+  window.localStorage.setItem(PLAN_STORAGE_KEY, plan);
+}
+
 export default function VerifyEmailPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -40,8 +46,10 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const nextPlan = getSelectedPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
     setEmail(params.get("email") ?? "");
-    setSelectedPlan(getSelectedPlan(params.get("plan")));
+    setSelectedPlan(nextPlan);
+    saveSelectedPlan(nextPlan);
   }, []);
 
   async function handleVerify(event: React.FormEvent<HTMLFormElement>) {
@@ -60,12 +68,14 @@ export default function VerifyEmailPage() {
 
     setIsSubmitting(true);
     try {
+      saveSelectedPlan(selectedPlan);
       await verifyEmail({ email, otp });
       setMessage("Email verified. Redirecting...");
       if (selectedPlan !== "free") {
-        router.push(`/billing/checkout?plan=${selectedPlan}`);
+        router.push(`/billing/checkout?plan=${selectedPlan}&autostart=1`);
         return;
       }
+      window.localStorage.removeItem(PLAN_STORAGE_KEY);
       router.push("/dashboard");
     } catch (err) {
       setError(getErrorMessage(err));
