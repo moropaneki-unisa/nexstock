@@ -22,6 +22,7 @@ const navLinks = [
   { href: "#features", label: "Product" },
   { href: "#workflow", label: "Workflow" },
   { href: "#platform", label: "Platform" },
+  { href: "#pricing", label: "Pricing" },
   { href: "#security", label: "Security" },
 ];
 
@@ -62,6 +63,52 @@ const platformItems = [
   "API keys for external systems and internal tools",
   "Webhook events for product and inventory changes",
   "Sync history, logs, and operational readiness checks",
+];
+
+const pricingPlans = [
+  {
+    name: "Free",
+    price: "R0",
+    cadence: "forever",
+    description: "Start a workspace and validate the NexStock workflow before upgrading.",
+    cta: "Start free",
+    href: "/signup?plan=free",
+    features: [
+      "Create a product workspace",
+      "Manual product catalog setup",
+      "Basic inventory visibility",
+      "Email verification and secure access",
+    ],
+  },
+  {
+    name: "Pro",
+    price: "R299",
+    cadence: "per month",
+    description: "For growing teams that need product imports, stock visibility, and cleaner operating workflows.",
+    cta: "Choose Pro",
+    href: "/signup?plan=pro",
+    highlighted: true,
+    features: [
+      "CSV and XLSX product imports",
+      "Reusable product-field mapping",
+      "Inventory movement history",
+      "API keys for connected tools",
+    ],
+  },
+  {
+    name: "Business",
+    price: "R999",
+    cadence: "per month",
+    description: "For teams that need integrations, automation, and stronger product operations across systems.",
+    cta: "Choose Business",
+    href: "/signup?plan=business",
+    features: [
+      "Advanced imports and integration-ready workflows",
+      "Webhooks for product and inventory events",
+      "Team workspace and admin controls",
+      "Priority setup support",
+    ],
+  },
 ];
 
 const securityItems = [
@@ -128,7 +175,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link href="/signup" className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">Create workspace <ArrowRight className="h-4 w-4" /></Link>
-              <Link href="/login" className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-6 py-3 text-sm font-semibold transition hover:bg-muted">Open dashboard</Link>
+              <a href="#pricing" className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-6 py-3 text-sm font-semibold transition hover:bg-muted">View pricing</a>
             </div>
           </div>
 
@@ -189,7 +236,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="security" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10">
+      <section id="pricing" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <SectionIntro eyebrow="Subscriptions" title="Choose the workspace plan that matches your product operations." description="Start free, then upgrade when imports, API access, webhooks, and connected workflows become part of your day-to-day operations." />
+          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+            {pricingPlans.map((plan) => <PricingCard key={plan.name} {...plan} />)}
+          </div>
+          <p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Paystack. Prices are shown in South African Rand and can be adjusted as the platform grows.</p>
+        </div>
+      </section>
+
+      <section id="security" className="px-4 py-24 sm:px-6 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-2 lg:items-center">
           <div className="flex min-h-[320px] flex-col justify-center">
             <SectionIntro eyebrow="Security" title="Designed for real teams, not just single-user spreadsheets." description="NexStock separates users by organization, protects sensitive integration details, restricts administrative areas, and gives teams safer ways to connect external systems." icon={LockKeyhole} />
@@ -269,4 +326,21 @@ function WorkflowPanel({ icon: Icon, title, text, index }: { icon: LucideIcon; t
 
 function ListItem({ label, icon: Icon = CheckCircle2 }: { label: string; icon?: LucideIcon }) {
   return <div className="flex min-h-[74px] items-center gap-3 p-4 text-sm"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span><span className="font-medium leading-5">{label}</span></div>;
+}
+
+function PricingCard({ name, price, cadence, description, cta, href, features, highlighted }: { name: string; price: string; cadence: string; description: string; cta: string; href: string; features: string[]; highlighted?: boolean }) {
+  return (
+    <section className={`flex min-h-[430px] flex-col rounded-2xl border bg-card/95 p-5 shadow-sm ${highlighted ? "ring-2 ring-primary" : ""}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold uppercase tracking-[0.22em] text-muted-foreground">{name}</p>
+        {highlighted && <span className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">Popular</span>}
+      </div>
+      <div className="mt-5 flex items-end gap-2"><span className="text-5xl font-black tracking-[-0.06em]">{price}</span><span className="pb-2 text-sm text-muted-foreground">{cadence}</span></div>
+      <p className="mt-4 text-sm leading-6 text-muted-foreground">{description}</p>
+      <div className="mt-6 grid gap-3">
+        {features.map((feature) => <ListItem key={feature} label={feature} />)}
+      </div>
+      <Link href={href} className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90">{cta} <ArrowRight className="h-4 w-4" /></Link>
+    </section>
+  );
 }
