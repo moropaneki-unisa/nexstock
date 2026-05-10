@@ -108,7 +108,7 @@ export class BillingService {
           collection_mode: 'automatic',
           custom_data: {
             organizationId: org.id,
-            userId: user.sub,
+            userId: user.id,
             plan,
             billingCurrency: BILLING_CURRENCY,
           },
