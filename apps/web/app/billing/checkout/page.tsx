@@ -5,36 +5,37 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
 
-import { NexstockLogo } from "@/components/brand/nexstock-logo";
+import { AuthCard, AuthShell } from "@/components/marketing/auth-shell";
 import { Button } from "@/components/ui/button";
 import { initializeSubscriptionCheckout, verifySubscriptionPayment } from "@/lib/api";
 
-type PaidPlan = "pro" | "business";
+type PaidPlan = "starter" | "growth";
 
 const PLAN_STORAGE_KEY = "nexstock:selected-plan";
 
 const plans: Record<PaidPlan, { name: string; price: string; description: string; features: string[] }> = {
-  pro: {
-    name: "Pro",
-    price: "R299/month",
+  starter: {
+    name: "Starter",
+    price: "$19/month",
     description: "Product imports, reusable mapping, inventory movement history, and API keys for connected workflows.",
     features: ["CSV and XLSX product imports", "Reusable product-field mapping", "Inventory movement history", "API keys for connected tools"],
   },
-  business: {
-    name: "Business",
-    price: "R999/month",
+  growth: {
+    name: "Growth",
+    price: "$59/month",
     description: "Advanced imports, integration-ready workflows, webhooks, team controls, and priority setup support.",
     features: ["Advanced imports and integration workflows", "Webhooks for product and stock events", "Team workspace and admin controls", "Priority setup support"],
   },
 };
 
 function getPaidPlan(value: string | null): PaidPlan {
-  return value === "business" ? "business" : "pro";
+  if (value === "growth" || value === "business") return "growth";
+  return "starter";
 }
 
 export default function BillingCheckoutPage() {
   const router = useRouter();
-  const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("pro");
+  const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("starter");
   const [reference, setReference] = useState<string | null>(null);
   const plan = plans[selectedPlan];
   const [status, setStatus] = useState<"idle" | "starting" | "verifying" | "success" | "failed">("idle");
@@ -52,7 +53,6 @@ export default function BillingCheckoutPage() {
 
   useEffect(() => {
     if (!reference) return;
-
     let cancelled = false;
 
     async function verify() {
@@ -77,10 +77,7 @@ export default function BillingCheckoutPage() {
     }
 
     verify();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [reference, router]);
 
   function changePlan(nextPlan: PaidPlan) {
@@ -97,7 +94,7 @@ export default function BillingCheckoutPage() {
     setStatus("starting");
     setError(null);
     try {
-      const checkout = await initializeSubscriptionCheckout(selectedPlan);
+      const checkout = await initializeSubscriptionCheckout(selectedPlan as never);
       if (!checkout.authorization_url) throw new Error("Checkout link was not returned");
       window.location.href = checkout.authorization_url;
     } catch (err) {
@@ -107,20 +104,25 @@ export default function BillingCheckoutPage() {
   }
 
   return (
-    <CheckoutLayout>
-      <section className="border bg-card/95 shadow-sm">
-        <div className="p-6 text-center lg:text-left">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center bg-primary/10 text-primary lg:mx-0">
-            <CreditCard className="h-5 w-5" />
-          </div>
-          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Subscription checkout</p>
-          <h1 className="mt-2 text-4xl font-black tracking-[-0.05em]">Review your plan</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the subscription that fits your product operations, then continue to Paystack when you are ready.</p>
-        </div>
-
+    <AuthShell
+      eyebrow="Secure subscription"
+      title="Choose before you pay."
+      description="Review your subscription, switch plans if needed, then continue to Paystack only when you are ready."
+      icon={ShieldCheck}
+      highlights={["USD subscription pricing", "Change plan before payment", "Organization setup after successful payment"]}
+      actionHref="/#pricing"
+      actionLabel="Change plan"
+    >
+      <AuthCard
+        icon={CreditCard}
+        eyebrow="Subscription checkout"
+        title="Review your plan"
+        description="Choose the subscription that fits your product operations, then continue to Paystack when you are ready."
+        footer={<Link href="/#pricing" className="font-medium text-foreground hover:underline">Compare all plans</Link>}
+      >
         {!reference && (
           <div className="grid gap-3 border-t p-5 sm:grid-cols-2">
-            {(["pro", "business"] as PaidPlan[]).map((option) => (
+            {(["starter", "growth"] as PaidPlan[]).map((option) => (
               <button
                 key={option}
                 type="button"
@@ -166,39 +168,9 @@ export default function BillingCheckoutPage() {
               {status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying payment...</> : status === "success" ? "Payment verified" : "Verification failed"}
             </Button>
           )}
-          <Link href="/#pricing" className="mt-4 block text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">Compare all plans</Link>
         </div>
-      </section>
-    </CheckoutLayout>
-  );
-}
-
-function CheckoutLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b bg-card/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Link href="/" aria-label="NexStock home">
-            <NexstockLogo tagline={false} className="px-2 py-1" />
-          </Link>
-          <Link href="/#pricing" className="rounded-xl border bg-background/70 px-4 py-2 text-sm font-semibold transition hover:bg-muted">Change plan</Link>
-        </div>
-      </header>
-
-      <section className="mx-auto grid min-h-[calc(100vh-73px)] max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_28rem]">
-        <div className="hidden lg:block">
-          <p className="inline-flex items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Secure subscription
-          </p>
-          <h2 className="mt-6 max-w-2xl text-5xl font-black tracking-[-0.06em] xl:text-6xl">Choose before you pay.</h2>
-          <p className="mt-5 max-w-xl text-base leading-8 text-muted-foreground">Review your subscription, switch plans if needed, then continue to Paystack only when you are ready.</p>
-        </div>
-
-        <div className="mx-auto w-full max-w-md lg:mx-0">
-          {children}
-        </div>
-      </section>
-    </main>
+      </AuthCard>
+    </AuthShell>
   );
 }
 
