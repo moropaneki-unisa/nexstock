@@ -62,10 +62,30 @@ export class CreateProductDto {
   price!: number;
 
   @IsOptional()
+  @IsString()
+  priceCurrency?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   cost?: number;
+
+  @IsOptional()
+  @IsString()
+  costCurrency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  exchangeRateToBase?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  convertedCost?: number;
 
   @IsOptional()
   @Type(() => Number)
@@ -115,10 +135,30 @@ export class UpdateProductDto {
   price?: number;
 
   @IsOptional()
+  @IsString()
+  priceCurrency?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   cost?: number;
+
+  @IsOptional()
+  @IsString()
+  costCurrency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  exchangeRateToBase?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  convertedCost?: number;
 
   @IsOptional()
   @Type(() => Number)
