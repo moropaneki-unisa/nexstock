@@ -6,13 +6,15 @@ import {
   Logger,
 } from '@nestjs/common';
 import axios from 'axios';
-import { Plan } from '@prisma/client';
+import { PaymentStatus, Plan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
-const PLAN_PRICES_KOBO: Record<string, number> = {
-  pro: 2900_00,
-  business: 9900_00,
+const BILLING_CURRENCY = 'ZAR';
+
+const PLAN_PRICES_CENTS: Record<Exclude<Plan, 'free'>, number> = {
+  pro: 299_00,
+  business: 999_00,
 };
 
 const PAYSTACK_TIMEOUT_MS = 10_000;
@@ -32,15 +34,21 @@ export class BillingService {
     return key;
   }
 
-  async initialize(user: CurrentUserPayload, plan: string) {
+  private getPaidPlan(plan: string): Exclude<Plan, 'free'> {
+    if (plan !== 'pro' && plan !== 'business') {
+      throw new BadRequestException('Invalid plan');
+    }
+    return plan;
+  }
+
+  async initialize(user: CurrentUserPayload, planValue: string) {
+    const plan = this.getPaidPlan(planValue);
     const org = await this.db.organization.findUnique({
       where: { id: user.organizationId },
     });
     if (!org) throw new BadRequestException('Organization not found');
 
-    const amount = PLAN_PRICES_KOBO[plan];
-    if (!amount) throw new BadRequestException('Invalid plan');
-
+    const amount = PLAN_PRICES_CENTS[plan];
     const key = this.requirePaystackKey();
 
     try {
@@ -49,6 +57,7 @@ export class BillingService {
         {
           email: org.billingEmail || user.email,
           amount,
+          currency: BILLING_CURRENCY,
           metadata: {
             organizationId: org.id,
             plan,
@@ -59,7 +68,34 @@ export class BillingService {
           timeout: PAYSTACK_TIMEOUT_MS,
         },
       );
-      return response.data?.data;
+
+      const checkout = response.data?.data;
+
+      if (checkout?.reference) {
+        await this.db.payment.upsert({
+          where: { reference: checkout.reference },
+          create: {
+            organizationId: org.id,
+            provider: 'paystack',
+            status: PaymentStatus.pending,
+            plan,
+            amount,
+            currency: BILLING_CURRENCY,
+            reference: checkout.reference,
+            authorizationUrl: checkout.authorization_url,
+            payload: checkout,
+          },
+          update: {
+            status: PaymentStatus.pending,
+            amount,
+            currency: BILLING_CURRENCY,
+            authorizationUrl: checkout.authorization_url,
+            payload: checkout,
+          },
+        });
+      }
+
+      return checkout;
     } catch (error) {
       this.logger.error('Paystack initialize failed', (error as Error).message);
       throw new InternalServerErrorException('Could not start checkout');
@@ -84,25 +120,56 @@ export class BillingService {
       throw new InternalServerErrorException('Could not verify payment');
     }
 
-    if (!data || data.status !== 'success') {
-      return { success: false };
-    }
-
-    const metadata = data.metadata ?? {};
+    const metadata = data?.metadata ?? {};
     const organizationId: string | undefined = metadata.organizationId;
-    const plan: string | undefined = metadata.plan;
+    const planValue: string | undefined = metadata.plan;
 
     if (!organizationId || organizationId !== user.organizationId) {
       throw new ForbiddenException('Reference does not belong to this organization');
     }
-    if (!plan || !PLAN_PRICES_KOBO[plan]) {
-      throw new BadRequestException('Invalid plan in payment metadata');
+
+    const plan = this.getPaidPlan(planValue ?? '');
+    const amount = PLAN_PRICES_CENTS[plan];
+
+    if (!data || data.status !== 'success') {
+      await this.db.payment.updateMany({
+        where: { reference, organizationId: user.organizationId },
+        data: {
+          status: PaymentStatus.failed,
+          payload: data ?? {},
+        },
+      });
+      return { success: false };
     }
 
-    await this.db.organization.update({
-      where: { id: organizationId },
-      data: { plan: plan as Plan },
-    });
+    await this.db.$transaction([
+      this.db.organization.update({
+        where: { id: organizationId },
+        data: { plan: plan as Plan },
+      }),
+      this.db.payment.upsert({
+        where: { reference },
+        create: {
+          organizationId,
+          provider: 'paystack',
+          status: PaymentStatus.success,
+          plan,
+          amount,
+          currency: BILLING_CURRENCY,
+          reference,
+          paidAt: new Date(),
+          payload: data,
+        },
+        update: {
+          status: PaymentStatus.success,
+          plan,
+          amount,
+          currency: BILLING_CURRENCY,
+          paidAt: new Date(),
+          payload: data,
+        },
+      }),
+    ]);
 
     return { success: true, plan };
   }
