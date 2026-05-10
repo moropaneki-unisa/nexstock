@@ -30,7 +30,7 @@ export function OrganizationBillingSection({
           </div>
 
           <p className="mt-2 text-2xl font-semibold">
-            R{plan.price}
+            ${plan.price}
             <span className="text-sm font-normal text-muted-foreground">/mo</span>
           </p>
 
