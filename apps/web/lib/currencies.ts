@@ -46,14 +46,19 @@ export function normalizeCurrencyList(baseCurrency: string, currencies: string[]
 export function formatMoney(value: string | number | null | undefined, currency?: string | null, options?: Intl.NumberFormatOptions) {
   const currencyCode = normalizeCurrencyCode(currency);
   const numericValue = Number(value ?? 0);
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currencyCode,
-    maximumFractionDigits: 2,
+  const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+  const maximumFractionDigits = options?.maximumFractionDigits ?? 2;
+  const minimumFractionDigits = options?.minimumFractionDigits ?? 2;
+  const number = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits,
+    minimumFractionDigits,
     ...options,
-  }).format(Number.isFinite(numericValue) ? numericValue : 0);
+    style: "decimal",
+  }).format(safeValue);
+
+  return `${getCurrencySymbol(currencyCode)} ${number}`;
 }
 
 export function formatCurrencyAmount(value: string | number | null | undefined, currency?: string | null) {
-  return `${normalizeCurrencyCode(currency)} ${Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return `${getCurrencySymbol(currency)} ${Number(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
