@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { BarChart3, Boxes, DatabaseZap, Loader2, ShieldCheck, Sparkles, Workflow } from "lucide-react";
+import { Loader2, ShieldCheck, Sparkles, Workflow } from "lucide-react";
 
-import { AuthBanner, AuthCard, AuthField, AuthInfoLine, AuthShell } from "@/components/marketing/auth-shell";
+import { AuthBanner, AuthCard, AuthField, AuthShell } from "@/components/marketing/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { signup } from "@/lib/api";
