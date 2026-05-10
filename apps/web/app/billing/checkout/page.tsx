@@ -39,18 +39,15 @@ export default function BillingCheckoutPage() {
   const plan = plans[selectedPlan];
   const [status, setStatus] = useState<"idle" | "starting" | "verifying" | "success" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [shouldAutoStart, setShouldAutoStart] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const nextPlan = getPaidPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
     const nextReference = params.get("reference") || params.get("trxref");
-    const autoStart = params.get("autostart") === "1";
     setSelectedPlan(nextPlan);
     setReference(nextReference);
     window.localStorage.setItem(PLAN_STORAGE_KEY, nextPlan);
     if (nextReference) setStatus("verifying");
-    if (!nextReference && autoStart) setShouldAutoStart(true);
   }, []);
 
   useEffect(() => {
@@ -86,12 +83,15 @@ export default function BillingCheckoutPage() {
     };
   }, [reference, router]);
 
-  useEffect(() => {
-    if (!shouldAutoStart || reference || status !== "idle") return;
-    setShouldAutoStart(false);
-    startCheckout();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldAutoStart, reference, status, selectedPlan]);
+  function changePlan(nextPlan: PaidPlan) {
+    if (status === "starting" || reference) return;
+    setSelectedPlan(nextPlan);
+    window.localStorage.setItem(PLAN_STORAGE_KEY, nextPlan);
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("plan", nextPlan);
+    nextUrl.searchParams.delete("autostart");
+    window.history.replaceState(null, "", nextUrl.toString());
+  }
 
   async function startCheckout() {
     setStatus("starting");
@@ -114,9 +114,30 @@ export default function BillingCheckoutPage() {
             <CreditCard className="h-5 w-5" />
           </div>
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Subscription checkout</p>
-          <h1 className="mt-2 text-4xl font-black tracking-[-0.05em]">Activate {plan.name}</h1>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">{plan.description}</p>
+          <h1 className="mt-2 text-4xl font-black tracking-[-0.05em]">Review your plan</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the subscription that fits your product operations, then continue to Paystack when you are ready.</p>
         </div>
+
+        {!reference && (
+          <div className="grid gap-3 border-t p-5 sm:grid-cols-2">
+            {(["pro", "business"] as PaidPlan[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => changePlan(option)}
+                disabled={status === "starting"}
+                className={`rounded-2xl border p-4 text-left transition ${selectedPlan === option ? "border-primary bg-primary/5 ring-2 ring-primary" : "bg-background hover:bg-muted/50"}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold">{plans[option].name}</p>
+                  {selectedPlan === option && <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">Selected</span>}
+                </div>
+                <p className="mt-2 text-2xl font-black tracking-[-0.04em]">{plans[option].price.split("/")[0]}<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{plans[option].description}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="border-t p-5">
           <div className="rounded-2xl border bg-background p-5">
@@ -125,6 +146,7 @@ export default function BillingCheckoutPage() {
               <span className="text-4xl font-black tracking-[-0.06em]">{plan.price.split("/")[0]}</span>
               <span className="pb-1 text-sm text-muted-foreground">/month</span>
             </div>
+            <p className="mt-3 text-sm text-muted-foreground">{plan.description}</p>
             <div className="mt-5 grid gap-3">
               {plan.features.map((feature) => <Feature key={feature} label={feature} />)}
             </div>
@@ -137,14 +159,14 @@ export default function BillingCheckoutPage() {
         <div className="border-t p-5">
           {!reference ? (
             <Button onClick={startCheckout} className="w-full rounded-xl py-6 font-semibold" disabled={status === "starting"}>
-              {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Continue to Paystack <ArrowRight className="h-4 w-4" /></>}
+              {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Pay {plan.price} with Paystack <ArrowRight className="h-4 w-4" /></>}
             </Button>
           ) : (
             <Button className="w-full rounded-xl py-6 font-semibold" disabled>
               {status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying payment...</> : status === "success" ? "Payment verified" : "Verification failed"}
             </Button>
           )}
-          <Link href="/organization/edit?setup=1" className="mt-4 block text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">Skip for now and finish organization setup</Link>
+          <Link href="/#pricing" className="mt-4 block text-center text-sm font-medium text-muted-foreground hover:text-foreground hover:underline">Compare all plans</Link>
         </div>
       </section>
     </CheckoutLayout>
@@ -159,7 +181,7 @@ function CheckoutLayout({ children }: { children: React.ReactNode }) {
           <Link href="/" aria-label="NexStock home">
             <NexstockLogo tagline={false} className="px-2 py-1" />
           </Link>
-          <Link href="/organization/edit?setup=1" className="rounded-xl border bg-background/70 px-4 py-2 text-sm font-semibold transition hover:bg-muted">Finish setup</Link>
+          <Link href="/#pricing" className="rounded-xl border bg-background/70 px-4 py-2 text-sm font-semibold transition hover:bg-muted">Change plan</Link>
         </div>
       </header>
 
@@ -168,8 +190,8 @@ function CheckoutLayout({ children }: { children: React.ReactNode }) {
           <p className="inline-flex items-center gap-2 border bg-card/95 px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Secure subscription
           </p>
-          <h2 className="mt-6 max-w-2xl text-5xl font-black tracking-[-0.06em] xl:text-6xl">Upgrade your product operations workspace.</h2>
-          <p className="mt-5 max-w-xl text-base leading-8 text-muted-foreground">Paid plans unlock more operational capacity for imports, integrations, API access, webhooks, and team workflows.</p>
+          <h2 className="mt-6 max-w-2xl text-5xl font-black tracking-[-0.06em] xl:text-6xl">Choose before you pay.</h2>
+          <p className="mt-5 max-w-xl text-base leading-8 text-muted-foreground">Review your subscription, switch plans if needed, then continue to Paystack only when you are ready.</p>
         </div>
 
         <div className="mx-auto w-full max-w-md lg:mx-0">
