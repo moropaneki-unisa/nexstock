@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Building2, CircleDollarSign, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Building2, CircleDollarSign, Loader2, RefreshCw, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { CurrencyRate, Organization, OrganizationProfileForm, toOrganizationProfile } from "@/components/organization/types";
 import { apiFetch } from "@/lib/api";
-import { currencyOptions, getCurrencyLabel, normalizeCurrencyList } from "@/lib/currencies";
+import { currencyOptions, normalizeCurrencyList } from "@/lib/currencies";
 
 const fields: Array<{ name: keyof OrganizationProfileForm; label: string; placeholder?: string; section: "core" | "business" | "contact" | "address" }> = [
   { name: "name", label: "Workspace name", placeholder: "NexStock", section: "core" },
@@ -69,6 +69,7 @@ export default function OrganizationEditPage() {
   const [form, setForm] = useState<OrganizationProfileForm>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshingRates, setRefreshingRates] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupMode, setSetupMode] = useState(false);
@@ -128,6 +129,32 @@ export default function OrganizationEditPage() {
     }));
   }
 
+  async function refreshRates() {
+    setRefreshingRates(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const normalizedCurrencies = normalizeCurrencyList(form.baseCurrency, form.enabledCurrencies);
+      await apiFetch("/api/organization", {
+        method: "PATCH",
+        body: JSON.stringify({
+          baseCurrency: form.baseCurrency,
+          enabledCurrencies: normalizedCurrencies,
+          exchangeRates: normalizeRates(normalizedCurrencies, form.baseCurrency, form.exchangeRates),
+          autoRefreshRates: true,
+        }),
+      });
+      const org = await apiFetch<Organization>("/api/organization");
+      setForm(toOrganizationProfile(org));
+      setNotice("Live exchange rates refreshed.");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refresh live exchange rates");
+    } finally {
+      setRefreshingRates(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     setNotice(null);
@@ -140,6 +167,7 @@ export default function OrganizationEditPage() {
           ...form,
           enabledCurrencies: normalizedCurrencies,
           exchangeRates: normalizeRates(normalizedCurrencies, form.baseCurrency, form.exchangeRates),
+          autoRefreshRates: true,
           onboardingComplete: true,
         }),
       });
@@ -176,7 +204,7 @@ export default function OrganizationEditPage() {
                 <Link href="/organization"><ArrowLeft className="h-4 w-4" />Back</Link>
               </Button>
             )}
-            <Button type="button" onClick={save} disabled={saving}>
+            <Button type="button" onClick={save} disabled={saving || refreshingRates}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {setupMode ? "Finish setup" : "Save changes"}
             </Button>
@@ -221,9 +249,15 @@ export default function OrganizationEditPage() {
               </div>
 
               <div className="border bg-muted/15">
-                <div className="border-b p-4">
-                  <p className="text-sm font-semibold">Manual exchange rates to {form.baseCurrency}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">For MVP, rates are manual. Example: if 1 USD equals 18.50 ZAR, enter 18.50 for USD.</p>
+                <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">Exchange rates to {form.baseCurrency}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Use live rates from the free Frankfurter API or manually adjust a rate before saving.</p>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={refreshRates} disabled={refreshingRates || additionalCurrencies.length === 0} className="w-full rounded-xl bg-background/70 sm:w-auto">
+                    {refreshingRates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Refresh live rates
+                  </Button>
                 </div>
                 {additionalCurrencies.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground">Select additional currencies to add exchange rates.</div>
@@ -231,9 +265,10 @@ export default function OrganizationEditPage() {
                   <div className="divide-y">
                     {additionalCurrencies.map((currency) => {
                       const rate = normalizeRates(enabledCurrencies, form.baseCurrency, form.exchangeRates).find((item) => item.code === currency)?.rateToBase ?? 1;
+                      const meta = form.exchangeRates.find((item) => item.code === currency) as CurrencyRate & { source?: string; date?: string } | undefined;
                       return (
                         <label key={currency} className="grid gap-3 p-4 md:grid-cols-[1fr_12rem] md:items-center">
-                          <span className="text-sm"><span className="font-medium">1 {currency}</span><span className="text-muted-foreground"> to {form.baseCurrency}</span></span>
+                          <span className="text-sm"><span className="font-medium">1 {currency}</span><span className="text-muted-foreground"> to {form.baseCurrency}</span>{meta?.source && <span className="ml-2 text-xs text-emerald-700">{meta.source}{meta.date ? ` · ${meta.date}` : ""}</span>}</span>
                           <Input type="number" min={0} step="0.0001" value={rate} onChange={(event) => updateRate(currency, event.target.value)} className="rounded-xl" />
                         </label>
                       );
