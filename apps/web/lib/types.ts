@@ -28,7 +28,11 @@ export type Product = {
   sku: string;
   description?: string | null;
   price: string | number;
+  priceCurrency?: string | null;
   cost?: string | number | null;
+  costCurrency?: string | null;
+  exchangeRateToBase?: string | number | null;
+  convertedCost?: string | number | null;
   quantity: number;
   lowStockLevel: number;
   category?: string | null;
