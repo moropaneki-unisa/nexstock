@@ -21,12 +21,12 @@ export function OrganizationBillingSection({
         <div
           key={plan.name}
           className={`rounded-xl border p-4 ${
-            plan.current ? "border-primary/30 bg-primary/5" : "bg-background/70"
+            plan.current ? "border-primary/30 bg-primary/5" : plan.disabled ? "bg-muted/25 opacity-80" : "bg-background/70"
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h3 className="font-semibold capitalize">{plan.name}</h3>
-            {plan.current && <Badge className="rounded-full">Current</Badge>}
+            {plan.current ? <Badge className="rounded-full">Current</Badge> : plan.disabled ? <Badge variant="secondary" className="rounded-full">Coming later</Badge> : null}
           </div>
 
           <p className="mt-2 text-2xl font-semibold">
@@ -36,7 +36,7 @@ export function OrganizationBillingSection({
 
           <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
 
-          {!plan.current && plan.name !== "free" && (
+          {!plan.current && plan.name !== "free" && !plan.disabled && (
             <Button
               onClick={() => onUpgrade(plan.name)}
               disabled={loadingPlan === plan.name}
