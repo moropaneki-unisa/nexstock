@@ -24,6 +24,7 @@ export class OrganizationController {
       baseCurrency?: string;
       enabledCurrencies?: string[];
       exchangeRates?: Array<{ code: string; rateToBase: number }> | Record<string, number>;
+      autoRefreshRates?: boolean;
       industry?: string;
       onboardingComplete?: boolean;
       legalName?: string;
@@ -43,6 +44,11 @@ export class OrganizationController {
     },
   ) {
     return this.service.updateOrganization(user, body);
+  }
+
+  @Post('currency-rates/refresh')
+  refreshCurrencyRates(@CurrentUser() user: CurrentUserPayload) {
+    return this.service.refreshCurrencyRates(user);
   }
 
   @Post('invite')
