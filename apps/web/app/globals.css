@@ -86,14 +86,6 @@ select {
   background: oklch(0.80 0.10 252 / 0.35);
 }
 
-/* Auth pages use horizontal padding inside their max-width containers. Expand only those padded auth shells so their usable content width matches the landing page max-w-7xl content area. */
-@media (min-width: 1024px) {
-  main > header > div[class*="max-w-7xl"][class*="lg:px-10"],
-  main > section[class*="max-w-7xl"][class*="lg:px-10"] {
-    max-width: 1360px;
-  }
-}
-
 /* Landing page guard rails: prevent feature cards from pushing the page horizontally on narrow laptops/zoomed browsers. */
 #platform,
 #security {
