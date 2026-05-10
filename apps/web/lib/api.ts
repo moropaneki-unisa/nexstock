@@ -235,6 +235,17 @@ export async function resetPassword(payload: { email: string; token: string; pas
   return response.json();
 }
 
+export async function initializeSubscriptionCheckout(plan: 'pro' | 'business') {
+  return apiFetch<{ authorization_url?: string; reference?: string }>("/api/billing/paystack/initialize", {
+    method: 'POST',
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export async function verifySubscriptionPayment(reference: string) {
+  return apiFetch<{ success: boolean; plan?: string }>(`/api/billing/paystack/verify/${encodeURIComponent(reference)}`);
+}
+
 export async function logout() {
   await fetch(`${API_URL}/api/auth/logout`, {
     method: 'POST',
