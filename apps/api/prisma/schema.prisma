@@ -269,7 +269,8 @@ model ProductCustomFieldValue {
   @@unique([productId, fieldId])
   @@index([productId])
   @@index([fieldId])
-}\n
+}
+
 model ProductVariant {
   id        String         @id @default(uuid())
   productId String
