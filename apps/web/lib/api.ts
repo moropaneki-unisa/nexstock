@@ -59,13 +59,13 @@ export async function refreshAccessToken(): Promise<string | null> {
 }
 
 function isFormData(body: any): body is FormData {
-  return typeof FormData !== 'undefined' && body instanceof FormData;
+  return typeof FormData !== "undefined" && body instanceof FormData;
 }
 
 async function parseResponse<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
-  const ct = res.headers.get('content-type') || '';
-  if (ct.includes('application/json')) return res.json() as Promise<T>;
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json() as Promise<T>;
   const text = await res.text();
   try {
     return JSON.parse(text) as T;
@@ -80,17 +80,17 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
 
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers as Record<string, string> || {}),
+    ...((options.headers as Record<string, string>) || {}),
   };
 
-  if (body && !isFormData(body) && !('Content-Type' in headers) && !('content-type' in headers)) {
-    headers['Content-Type'] = 'application/json';
+  if (body && !isFormData(body) && !("Content-Type" in headers) && !("content-type" in headers)) {
+    headers["Content-Type"] = "application/json";
   }
 
   const response = await fetch(`${API_URL}${url}`, {
     ...options,
     headers,
-    credentials: 'include',
+    credentials: "include",
   });
 
   if (response.status === 401) {
@@ -98,28 +98,28 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
 
     if (!nextToken) {
       clearAccessToken();
-      if (typeof window !== 'undefined') window.location.href = '/login';
-      throw new Error('Authentication required');
+      if (typeof window !== "undefined") window.location.href = "/login";
+      throw new Error("Authentication required");
     }
 
     const retryHeaders: Record<string, string> = {
-      ...(options.headers as Record<string, string> || {}),
+      ...((options.headers as Record<string, string>) || {}),
       Authorization: `Bearer ${nextToken}`,
     };
 
-    if (body && !isFormData(body) && !('Content-Type' in retryHeaders) && !('content-type' in retryHeaders)) {
-      retryHeaders['Content-Type'] = 'application/json';
+    if (body && !isFormData(body) && !("Content-Type" in retryHeaders) && !("content-type" in retryHeaders)) {
+      retryHeaders["Content-Type"] = "application/json";
     }
 
     const retry = await fetch(`${API_URL}${url}`, {
       ...options,
       headers: retryHeaders,
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!retry.ok) {
       const parsed = await parseResponse<any>(retry).catch(() => null);
-      throw new Error(parsed?.message || parsed?.error || 'API request failed');
+      throw new Error(parsed?.message || parsed?.error || "API request failed");
     }
 
     return parseResponse<T>(retry);
@@ -127,7 +127,7 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
 
   if (!response.ok) {
     const parsed = await parseResponse<any>(response).catch(() => null);
-    throw new Error(parsed?.message || parsed?.error || 'API request failed');
+    throw new Error(parsed?.message || parsed?.error || "API request failed");
   }
 
   return parseResponse<T>(response);
@@ -135,15 +135,15 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
 
 export async function login(email: string, password: string) {
   const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || 'Login failed');
+    throw new Error(body?.message || "Login failed");
   }
 
   const data = await response.json();
@@ -153,15 +153,15 @@ export async function login(email: string, password: string) {
 
 export async function signup(payload: Record<string, unknown>) {
   const response = await fetch(`${API_URL}/api/auth/signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || 'Signup failed');
+    throw new Error(body?.message || "Signup failed");
   }
 
   const data = await response.json();
@@ -171,15 +171,15 @@ export async function signup(payload: Record<string, unknown>) {
 
 export async function verifyEmail(payload: { email: string; otp: string }) {
   const response = await fetch(`${API_URL}/api/auth/verify-email`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || 'Verification failed');
+    throw new Error(body?.message || "Verification failed");
   }
 
   const data = await response.json();
@@ -189,15 +189,15 @@ export async function verifyEmail(payload: { email: string; otp: string }) {
 
 export async function resendVerificationOtp(email: string) {
   const response = await fetch(`${API_URL}/api/auth/resend-otp`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email }),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || 'Could not resend code');
+    throw new Error(body?.message || "Could not resend code");
   }
 
   return response.json();
@@ -205,15 +205,15 @@ export async function resendVerificationOtp(email: string) {
 
 export async function requestPasswordReset(email: string) {
   const response = await fetch(`${API_URL}/api/auth/account-recovery`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email }),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || 'Could not send reset link');
+    throw new Error(body?.message || "Could not send reset link");
   }
 
   return response.json();
@@ -221,37 +221,39 @@ export async function requestPasswordReset(email: string) {
 
 export async function resetPassword(payload: { email: string; token: string; password: string }) {
   const response = await fetch(`${API_URL}/api/auth/account-recovery/complete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.message || 'Could not reset password');
+    throw new Error(body?.message || "Could not reset password");
   }
 
   return response.json();
 }
 
-export async function initializeSubscriptionCheckout(plan: 'pro' | 'business') {
-  return apiFetch<{ authorization_url?: string; reference?: string }>("/api/billing/paystack/initialize", {
-    method: 'POST',
+export type SubscriptionPlan = "starter" | "growth";
+
+export async function initializeSubscriptionCheckout(plan: SubscriptionPlan) {
+  return apiFetch<{ authorization_url?: string; checkout_url?: string; reference?: string; provider?: string }>("/api/billing/paddle/initialize", {
+    method: "POST",
     body: JSON.stringify({ plan }),
   });
 }
 
 export async function verifySubscriptionPayment(reference: string) {
-  return apiFetch<{ success: boolean; plan?: string }>(`/api/billing/paystack/verify/${encodeURIComponent(reference)}`);
+  return apiFetch<{ success: boolean; plan?: string; status?: string }>(`/api/billing/paddle/verify/${encodeURIComponent(reference)}`);
 }
 
 export async function logout() {
   await fetch(`${API_URL}/api/auth/logout`, {
-    method: 'POST',
-    credentials: 'include',
+    method: "POST",
+    credentials: "include",
   }).catch(() => null);
 
   clearAccessToken();
-  if (typeof window !== 'undefined') window.location.href = '/login';
+  if (typeof window !== "undefined") window.location.href = "/login";
 }
