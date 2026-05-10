@@ -15,6 +15,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  if (pathname === "/imports-json") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/imports-json-currency";
+    return NextResponse.rewrite(url);
+  }
+
   if (pathname.startsWith("/integration/json")) {
     const url = request.nextUrl.clone();
     url.pathname = "/imports-json";
@@ -33,5 +39,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/products", "/imports", "/integration/csv/:path*", "/integration/xlsx/:path*", "/integration/json/:path*"],
+  matcher: ["/products", "/imports", "/imports-json", "/integration/csv/:path*", "/integration/xlsx/:path*", "/integration/json/:path*"],
 };
