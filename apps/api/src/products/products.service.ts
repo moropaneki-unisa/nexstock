@@ -20,6 +20,11 @@ const PRODUCT_TRANSACTION_OPTIONS = {
 
 type PrismaTransaction = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
+type NormalizedCustomFieldValue = {
+  fieldId: string;
+  value: Prisma.InputJsonValue;
+};
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -27,9 +32,6 @@ export class ProductsService {
     private readonly webhooks: WebhookEventsService,
   ) {}
 
-  // ===============================
-  // IMAGE UPLOAD
-  // ===============================
   async uploadImage(file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
@@ -51,7 +53,6 @@ export class ProductsService {
     });
   }
 
-  // ✅ NEW: Upload + attach to product
   async uploadAndAttachImage(
     organizationId: string,
     productId: string,
@@ -77,7 +78,6 @@ export class ProductsService {
     });
 
     const imageUrl = uploadResult.secure_url;
-
     const product = await this.get(organizationId, productId);
 
     return this.prisma.product.update({
@@ -88,9 +88,6 @@ export class ProductsService {
     });
   }
 
-  // ===============================
-  // LIST
-  // ===============================
   async list(organizationId: string, query: ListProductsDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 25), 1), 100);
@@ -139,9 +136,6 @@ export class ProductsService {
     };
   }
 
-  // ===============================
-  // GET
-  // ===============================
   async get(organizationId: string, id: string) {
     const product = await this.prisma.product.findFirst({
       where: { id, organizationId, deletedAt: null },
@@ -162,9 +156,6 @@ export class ProductsService {
     return product;
   }
 
-  // ===============================
-  // CREATE
-  // ===============================
   async create(organizationId: string, dto: CreateProductDto) {
     const quantity = dto.quantity ?? 0;
 
@@ -183,9 +174,10 @@ export class ProductsService {
 
       const activeFields = await db.customField.findMany({
         where: { organizationId, isActive: true },
+        orderBy: { order: 'asc' },
       });
 
-      this.validateCustomFieldValues(activeFields, dto.customFieldValues ?? []);
+      const customFieldValues = this.normalizeCustomFieldValues(activeFields, dto.customFieldValues ?? []);
 
       const created = await db.product.create({
         data: {
@@ -201,7 +193,10 @@ export class ProductsService {
           images: dto.images ?? [],
           metadata: dto.metadata === undefined ? undefined : (dto.metadata as Prisma.InputJsonValue),
           customFieldValues: {
-            create: this.buildCustomFieldValueCreates(activeFields, dto.customFieldValues ?? []),
+            create: customFieldValues.map((item) => ({
+              fieldId: item.fieldId,
+              value: item.value,
+            })),
           },
         },
         include: {
@@ -250,27 +245,58 @@ export class ProductsService {
   async update(organizationId: string, id: string, dto: UpdateProductDto) {
     await this.get(organizationId, id);
 
-    const data: Prisma.ProductUpdateInput = {};
-    if (dto.name !== undefined) data.name = dto.name.trim();
-    if (dto.description !== undefined) data.description = dto.description?.trim();
-    if (dto.price !== undefined) data.price = dto.price;
-    if (dto.cost !== undefined) data.cost = dto.cost;
-    if (dto.quantity !== undefined) data.quantity = dto.quantity;
-    if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
-    if (dto.category !== undefined) data.category = dto.category?.trim();
-    if (dto.images !== undefined) data.images = dto.images;
-    if (dto.metadata !== undefined) {
-      data.metadata = dto.metadata as Prisma.InputJsonValue;
-    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const data: Prisma.ProductUpdateInput = {};
+      if (dto.name !== undefined) data.name = dto.name.trim();
+      if (dto.description !== undefined) data.description = dto.description?.trim();
+      if (dto.price !== undefined) data.price = dto.price;
+      if (dto.cost !== undefined) data.cost = dto.cost;
+      if (dto.quantity !== undefined) data.quantity = dto.quantity;
+      if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
+      if (dto.category !== undefined) data.category = dto.category?.trim();
+      if (dto.images !== undefined) data.images = dto.images;
+      if (dto.metadata !== undefined) {
+        data.metadata = dto.metadata as Prisma.InputJsonValue;
+      }
 
-    const updated = await this.prisma.product.update({
-      where: { id },
-      data,
-      include: {
-        variants: true,
-        customFieldValues: { include: { field: true }, orderBy: { field: { order: 'asc' } } },
-      },
-    });
+      if (dto.customFieldValues !== undefined) {
+        const activeFields = await tx.customField.findMany({
+          where: { organizationId, isActive: true },
+          orderBy: { order: 'asc' },
+        });
+        const customFieldValues = this.normalizeCustomFieldValues(activeFields, dto.customFieldValues);
+        const activeFieldIds = activeFields.map((field) => field.id);
+
+        await tx.productCustomFieldValue.deleteMany({
+          where: {
+            productId: id,
+            fieldId: { in: activeFieldIds },
+          },
+        });
+
+        if (customFieldValues.length > 0) {
+          await tx.productCustomFieldValue.createMany({
+            data: customFieldValues.map((item) => ({
+              productId: id,
+              fieldId: item.fieldId,
+              value: item.value,
+            })),
+          });
+        }
+      }
+
+      return tx.product.update({
+        where: { id },
+        data,
+        include: {
+          variants: true,
+          customFieldValues: {
+            include: { field: true },
+            orderBy: { field: { order: 'asc' } },
+          },
+        },
+      });
+    }, PRODUCT_TRANSACTION_OPTIONS);
 
     await this.webhooks.emit(organizationId, 'product_updated', {
       productId: updated.id,
@@ -345,11 +371,89 @@ export class ProductsService {
     return `${prefix}-${String(num ?? 1).padStart(5, '0')}`;
   }
 
-  private validateCustomFieldValues(_fields: CustomField[], _values: ProductCustomFieldValueDto[]) {
-    return true;
+  private normalizeCustomFieldValues(fields: CustomField[], values: ProductCustomFieldValueDto[]): NormalizedCustomFieldValue[] {
+    const fieldsById = new Map(fields.map((field) => [field.id, field]));
+    const inputByFieldId = new Map<string, ProductCustomFieldValueDto>();
+
+    for (const item of values ?? []) {
+      if (!item?.fieldId) continue;
+      if (!fieldsById.has(item.fieldId)) {
+        throw new BadRequestException('One or more product attributes are invalid or inactive');
+      }
+      if (inputByFieldId.has(item.fieldId)) {
+        throw new BadRequestException('Duplicate product attribute values are not allowed');
+      }
+      inputByFieldId.set(item.fieldId, item);
+    }
+
+    const normalized: NormalizedCustomFieldValue[] = [];
+
+    for (const field of fields) {
+      const input = inputByFieldId.get(field.id);
+      const rawValue = input?.value ?? field.defaultValue;
+      const hasValue = !this.isEmptyCustomValue(rawValue);
+
+      if (field.required && !hasValue) {
+        throw new BadRequestException(`Product attribute "${field.label}" is required`);
+      }
+
+      if (!hasValue) continue;
+
+      normalized.push({
+        fieldId: field.id,
+        value: this.normalizeCustomFieldValue(field, rawValue),
+      });
+    }
+
+    return normalized;
   }
 
-  private buildCustomFieldValueCreates(_fields: CustomField[], _values: ProductCustomFieldValueDto[]) {
-    return [] as any[];
+  private normalizeCustomFieldValue(field: CustomField, rawValue: unknown): Prisma.InputJsonValue {
+    switch (field.type) {
+      case CustomFieldType.number: {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be a valid number`);
+        }
+        return value;
+      }
+      case CustomFieldType.boolean: {
+        if (typeof rawValue === 'boolean') return rawValue;
+        if (rawValue === 'true') return true;
+        if (rawValue === 'false') return false;
+        throw new BadRequestException(`Product attribute "${field.label}" must be true or false`);
+      }
+      case CustomFieldType.select: {
+        const value = String(rawValue).trim();
+        if (!field.options.includes(value)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must match one of its configured options`);
+        }
+        return value;
+      }
+      case CustomFieldType.date: {
+        const value = String(rawValue).trim();
+        if (Number.isNaN(Date.parse(value))) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be a valid date`);
+        }
+        return value;
+      }
+      case CustomFieldType.json: {
+        if (typeof rawValue === 'string') {
+          try {
+            return JSON.parse(rawValue) as Prisma.InputJsonValue;
+          } catch {
+            throw new BadRequestException(`Product attribute "${field.label}" must be valid JSON`);
+          }
+        }
+        return rawValue as Prisma.InputJsonValue;
+      }
+      case CustomFieldType.text:
+      default:
+        return String(rawValue).trim();
+    }
+  }
+
+  private isEmptyCustomValue(value: unknown) {
+    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
   }
 }
