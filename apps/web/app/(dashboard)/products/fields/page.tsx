@@ -9,8 +9,8 @@ export default function ProductFieldsPage() {
     <PageShell className="space-y-6 pb-10">
       <PageHeader
         eyebrow="Product setup"
-        title="Product fields"
-        description="Manage one unified product field system: default NexStock fields plus additional business fields for imports, integrations, APIs, and product forms."
+        title="Product attributes"
+        description="Manage the attributes that describe your products: default NexStock fields plus business-specific details used for imports, integrations, APIs, and product forms."
         actions={
           <Button disabled variant="outline" className="rounded-xl bg-background/70">
             <Plus className="h-4 w-4" />
@@ -23,18 +23,18 @@ export default function ProductFieldsPage() {
         <div className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
           <IntroMetric
             icon={PackageSearch}
-            title="Default fields"
+            title="Default attributes"
             description="Name, SKU, price, quantity, low-stock level, category, description, and images are built into every product."
           />
           <IntroMetric
             icon={DatabaseZap}
-            title="Additional fields"
-            description="Add business-specific fields like brand, supplier code, color, material, warranty, or external category."
+            title="Custom attributes"
+            description="Add business-specific attributes like brand, supplier code, color, material, warranty, barcode, or external category."
           />
           <IntroMetric
             icon={ShieldCheck}
             title="Used everywhere"
-            description="Fields are available in product forms, import/export files, integrations, mapping, and developer APIs."
+            description="Attributes are available in product forms, import/export files, integrations, mapping, and developer APIs."
           />
         </div>
       </section>
