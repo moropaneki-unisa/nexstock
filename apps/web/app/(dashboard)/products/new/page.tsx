@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, PackagePlus, SlidersHorizontal } from "lucide-react";
 
-import { ProductForm } from "@/components/products/product-form-clean";
+import { ProductForm } from "@/components/products/product-form-cost-first";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 
@@ -11,7 +11,7 @@ export default function NewProductPage() {
       <PageHeader
         eyebrow="Products"
         title="Create product"
-        description="Create products with a clean flow: identity, selling price and stock, supplier costing, images, attributes, then review."
+        description="Create products in the right order: product identity, supplier cost price, selling price and stock, images, attributes, then review."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
@@ -28,8 +28,8 @@ export default function NewProductPage() {
         <div className="flex items-center gap-3 p-5">
           <span className="flex h-10 w-10 items-center justify-center bg-primary/10 text-primary"><PackagePlus className="h-5 w-5" /></span>
           <div>
-            <h2 className="text-lg font-semibold tracking-tight">Clean product workflow</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Pricing handles selling price and stock only. Suppliers handle vendor costs and preferred cost source.</p>
+            <h2 className="text-lg font-semibold tracking-tight">Cost-first product workflow</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Supplier cost comes before selling price, so margin can be calculated before save.</p>
           </div>
         </div>
       </section>
