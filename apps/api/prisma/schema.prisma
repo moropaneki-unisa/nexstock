@@ -247,30 +247,49 @@ model Task {
 }
 
 model Supplier {
-  id             String            @id @default(uuid())
-  organizationId String
-  name           String
-  contactName    String?
-  email          String?
-  phone          String?
-  website        String?
-  country        String?
-  city           String?
-  currency       String            @default("USD")
-  paymentTerms   String?
-  leadTimeDays   Int?
-  notes          String?
-  status         SupplierStatus    @default(active)
-  metadata       Json?
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  products       ProductSupplier[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id              String            @id @default(uuid())
+  organizationId  String
+  name            String
+  supplierType    String            @default("vendor")
+  category        String?
+  rating          String            @default("unrated")
+  contactName     String?
+  email           String?
+  phone           String?
+  website         String?
+  addressLine1    String?
+  addressLine2    String?
+  country         String?
+  province        String?
+  city            String?
+  postalCode      String?
+  currency        String            @default("USD")
+  paymentTerms    String?
+  paymentMethod   String?
+  taxStatus       String            @default("unknown")
+  taxNumber       String?
+  shippingTerms   String?
+  incoterm        String?
+  accountNumber   String?
+  leadTimeDays    Int?
+  minimumOrderQty Int?
+  lastOrderAt     DateTime?
+  notes           String?
+  customFields    Json?
+  status          SupplierStatus    @default(active)
+  metadata        Json?
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products        ProductSupplier[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
   @@index([organizationId, currency])
   @@index([organizationId, country])
+  @@index([organizationId, supplierType])
+  @@index([organizationId, category])
+  @@index([organizationId, rating])
 }
 
 model ProductSupplier {
