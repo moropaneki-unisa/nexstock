@@ -66,7 +66,7 @@ const defaultForm = {
   priority: "medium" as TaskPriority,
   category: "Launch",
   dueAt: "",
-  reminderEnabled: true,
+  reminderEnabled: false,
   reminderAt: "",
 };
 
@@ -130,6 +130,11 @@ export default function MyTasksPage() {
       return;
     }
 
+    if (form.reminderEnabled && !form.reminderAt && !form.dueAt) {
+      setError("Choose a due date or reminder time before enabling reminders.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     const payload = {
@@ -140,7 +145,7 @@ export default function MyTasksPage() {
       category: form.category.trim() || null,
       dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : null,
       reminderEnabled: form.reminderEnabled,
-      reminderAt: form.reminderEnabled ? new Date(form.reminderAt || form.dueAt).toISOString() : null,
+      reminderAt: form.reminderEnabled && (form.reminderAt || form.dueAt) ? new Date(form.reminderAt || form.dueAt).toISOString() : null,
     };
 
     try {
