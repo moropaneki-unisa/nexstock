@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Eye, Loader2, PackageSearch } from "lucide-react";
+import { ArrowLeft, Eye, Loader2 } from "lucide-react";
 
-import { ProductForm } from "@/components/products/product-form-currency";
+import { ProductForm } from "@/components/products/product-form-strict";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
@@ -19,25 +19,14 @@ export default function EditProductPage() {
 
   useEffect(() => {
     if (!params.id) return;
-
     let active = true;
     setLoading(true);
     setError(null);
-
     apiFetch<Product>(`/api/products/${params.id}`)
-      .then((result) => {
-        if (active) setProduct(result);
-      })
-      .catch((err) => {
-        if (active) setError(err.message ?? "Failed to load product");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+      .then((result) => { if (active) setProduct(result); })
+      .catch((err) => { if (active) setError(err.message ?? "Failed to load product"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [params.id]);
 
   return (
@@ -45,21 +34,15 @@ export default function EditProductPage() {
       <PageHeader
         eyebrow="Products"
         title={product ? `Edit ${product.name}` : "Edit product"}
-        description="Update product details, pricing, images, custom fields, and inventory values in one clean workflow."
+        description="Update product details with base-currency selling price and supplier-inherited cost currency."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
-              <Link href="/products">
-                <ArrowLeft className="h-4 w-4" />
-                Back to products
-              </Link>
+              <Link href="/products"><ArrowLeft className="h-4 w-4" />Back to products</Link>
             </Button>
             {product && (
               <Button asChild className="rounded-xl shadow-sm">
-                <Link href={`/products/${product.id}`}>
-                  <Eye className="h-4 w-4" />
-                  View product
-                </Link>
+                <Link href={`/products/${product.id}`}><Eye className="h-4 w-4" />View product</Link>
               </Button>
             )}
           </div>
@@ -68,20 +51,10 @@ export default function EditProductPage() {
 
       {loading ? (
         <div className="border bg-card/95 p-8">
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Loading product editor...
-          </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="h-24 animate-pulse bg-muted" />
-            ))}
-          </div>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading product editor...</div>
         </div>
       ) : error ? (
-        <div className="border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
-          {error}
-        </div>
+        <div className="border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">{error}</div>
       ) : product ? (
         <>
           <section className="border bg-card/95">
@@ -94,9 +67,7 @@ export default function EditProductPage() {
           <ProductForm mode="edit" product={product} />
         </>
       ) : (
-        <div className="border bg-card/95 p-6 text-sm text-muted-foreground">
-          Product not found.
-        </div>
+        <div className="border bg-card/95 p-6 text-sm text-muted-foreground">Product not found.</div>
       )}
     </PageShell>
   );
