@@ -1,10 +1,25 @@
 import { SupplierStatus } from '@prisma/client';
-import { IsBoolean, IsDateString, IsEmail, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEmail, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString()
   @MaxLength(160)
   name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  supplierType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  rating?: string;
 
   @IsOptional()
   @IsString()
@@ -27,13 +42,33 @@ export class CreateSupplierDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(160)
+  addressLine1?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  addressLine2?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(80)
   country?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(80)
+  province?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  postalCode?: string;
 
   @IsOptional()
   @IsString()
@@ -46,9 +81,52 @@ export class CreateSupplierDto {
   paymentTerms?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  taxStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  taxNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  shippingTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  incoterm?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  accountNumber?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   leadTimeDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  minimumOrderQty?: number;
+
+  @IsOptional()
+  @IsDateString()
+  lastOrderAt?: string;
+
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
