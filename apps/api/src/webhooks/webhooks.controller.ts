@@ -4,6 +4,7 @@ import { IsArray, IsOptional, IsString, IsUrl } from 'class-validator';
 import { randomBytes } from 'crypto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhookEventsService } from './webhook-events.service';
 
@@ -25,6 +26,7 @@ export class WebhooksController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webhookEvents: WebhookEventsService,
+    private readonly planLimits: PlanLimitsService,
   ) {}
 
   @Get()
@@ -37,7 +39,9 @@ export class WebhooksController {
   }
 
   @Post()
-  create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateWebhookDto) {
+  async create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateWebhookDto) {
+    await this.planLimits.assertCanCreateWebhook(user.organizationId);
+
     return this.prisma.webhook.create({
       data: {
         organizationId: user.organizationId,
