@@ -78,6 +78,7 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -185,13 +186,20 @@ export default function MyTasksPage() {
   }
 
   async function quickUpdate(task: Task, status: TaskStatus) {
+    if (task.status === status) return;
     setError(null);
     setSuccess(null);
+    setUpdatingTaskId(task.id);
+    const previousTasks = tasks;
+    setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status } : item));
     try {
       await apiFetch(`/api/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
       await loadTasks();
     } catch (err) {
+      setTasks(previousTasks);
       setError(err instanceof Error ? err.message : "Failed to update task");
+    } finally {
+      setUpdatingTaskId(null);
     }
   }
 
@@ -243,7 +251,7 @@ export default function MyTasksPage() {
           <div className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading tasks...</div>
         ) : filteredTasks.length ? (
           <div className="grid gap-4 p-4 lg:grid-cols-2 xl:grid-cols-3">
-            {filteredTasks.map((task) => <TaskCard key={task.id} task={task} onEdit={() => openEdit(task)} onDelete={() => void deleteTask(task)} onComplete={() => void quickUpdate(task, task.status === "done" ? "todo" : "done")} />)}
+            {filteredTasks.map((task) => <TaskCard key={task.id} task={task} updating={updatingTaskId === task.id} onEdit={() => openEdit(task)} onDelete={() => void deleteTask(task)} onStatusChange={(status) => void quickUpdate(task, status)} />)}
           </div>
         ) : (
           <div className="p-10 text-center text-sm text-muted-foreground">No tasks found. Create your first launch task or add the launch checklist.</div>
@@ -297,7 +305,7 @@ export default function MyTasksPage() {
             <div className="border bg-muted/15 p-4">
               <label className="flex items-start gap-3 text-sm">
                 <input type="checkbox" checked={form.reminderEnabled} onChange={(event) => setForm((current) => ({ ...current, reminderEnabled: event.target.checked }))} className="mt-1" />
-                <span><span className="font-semibold">Send reminder</span><span className="block text-muted-foreground">The backend stores reminder timing. A scheduler/cron can trigger due reminders through the task reminder service.</span></span>
+                <span><span className="font-semibold">Send reminder</span><span className="block text-muted-foreground">Reminders are sent by the server scheduler when the reminder time is due.</span></span>
               </label>
               {form.reminderEnabled && <label className="mt-4 block space-y-2"><Label>Reminder time</Label><Input value={form.reminderAt} onChange={(event) => setForm((current) => ({ ...current, reminderAt: event.target.value }))} type="datetime-local" /></label>}
             </div>
@@ -321,14 +329,14 @@ function FilterButton({ active, onClick, children }: { active: boolean; onClick:
   return <button type="button" onClick={onClick} className={cn("rounded-xl border px-3 py-2 text-sm font-semibold transition", active ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted/50")}>{children}</button>;
 }
 
-function TaskCard({ task, onEdit, onDelete, onComplete }: { task: Task; onEdit: () => void; onDelete: () => void; onComplete: () => void }) {
+function TaskCard({ task, updating, onEdit, onDelete, onStatusChange }: { task: Task; updating: boolean; onEdit: () => void; onDelete: () => void; onStatusChange: (status: TaskStatus) => void }) {
   const overdue = isOverdue(task);
   return (
     <article className={cn("border bg-background p-4 transition hover:shadow-sm", task.status === "done" && "opacity-75", overdue && "border-destructive/40 bg-destructive/5")}>
       <div className="flex items-start justify-between gap-3">
-        <button type="button" onClick={onComplete} className="mt-1 text-muted-foreground transition hover:text-foreground" aria-label="Toggle complete">
+        <div className="mt-1 text-muted-foreground">
           {task.status === "done" ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : <Circle className="h-5 w-5" />}
-        </button>
+        </div>
         <div className="min-w-0 flex-1">
           <h3 className={cn("font-semibold tracking-tight", task.status === "done" && "line-through")}>{task.title}</h3>
           {task.description && <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{task.description}</p>}
@@ -336,23 +344,32 @@ function TaskCard({ task, onEdit, onDelete, onComplete }: { task: Task; onEdit: 
         <Button type="button" variant="ghost" size="sm" onClick={onDelete} className="rounded-xl text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
       </div>
 
+      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+        <label className="space-y-1">
+          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Status</span>
+          <div className="relative">
+            <select value={task.status} onChange={(event) => onStatusChange(event.target.value as TaskStatus)} disabled={updating} className="h-10 w-full border bg-background px-3 pr-8 text-sm font-semibold capitalize outline-none transition focus:border-primary disabled:opacity-60">
+              {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            {updating && <Loader2 className="pointer-events-none absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />}
+          </div>
+        </label>
+        <button type="button" onClick={onEdit} className="self-end rounded-xl border bg-background px-3 py-2 text-sm font-semibold hover:bg-muted/50">Edit details</button>
+      </div>
+
       <div className="mt-4 flex flex-wrap gap-2">
-        <Badge variant={task.status === "done" ? "default" : task.status === "blocked" ? "destructive" : "secondary"}>{statusLabel(task.status)}</Badge>
         <Badge variant="outline">{task.priority}</Badge>
         {task.category && <Badge variant="outline">{task.category}</Badge>}
         {task.reminderEnabled && <Badge variant="outline" className="gap-1"><Bell className="h-3 w-3" />Reminder</Badge>}
+        {overdue && <Badge variant="destructive">Overdue</Badge>}
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3 text-xs text-muted-foreground">
         <span>{task.dueAt ? `Due ${formatDate(task.dueAt)}` : "No due date"}</span>
-        <button type="button" onClick={onEdit} className="font-semibold text-foreground hover:underline">Edit</button>
+        {task.reminderEnabled && <span>{task.reminderSentAt ? "Reminder sent" : task.reminderAt ? `Reminder ${formatDate(task.reminderAt)}` : "Reminder enabled"}</span>}
       </div>
     </article>
   );
-}
-
-function statusLabel(status: TaskStatus) {
-  return status.replace("_", " ");
 }
 
 function formatDate(value: string) {
