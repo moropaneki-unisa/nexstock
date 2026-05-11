@@ -7,6 +7,7 @@ import {
   BarChart3,
   Boxes,
   Building2,
+  CheckSquare,
   Code2,
   DatabaseZap,
   Home,
@@ -48,6 +49,7 @@ const sections: NavSection[] = [
     label: "Workspace",
     items: [
       { href: "/dashboard", label: "Dashboard", description: "Operations command center", icon: Home },
+      { href: "/my-tasks", label: "My tasks", description: "Launch work, reminders", icon: CheckSquare },
       { href: "/products", label: "Products", description: "Catalog, stock, images", icon: Boxes },
       { href: "/products/fields", label: "Product fields", description: "Default and additional fields", icon: DatabaseZap },
     ],
@@ -57,6 +59,7 @@ const sections: NavSection[] = [
     items: [
       { href: "/integrations", label: "Integrations", description: "Apps, mapping, import/export", icon: Code2, activePrefixes: ["/integrations", "/integration"] },
       { href: "/imports", label: "Import data", description: "Upload, map, validate, import", icon: UploadCloud, activePrefixes: ["/imports"] },
+      { href: "/data-tools", label: "Data tools", description: "Sanitize and convert", icon: Sparkles },
       { href: "/api-keys", label: "API keys", description: "Developer access", icon: KeyRound },
       { href: "/webhooks", label: "Webhooks", description: "Event delivery", icon: Webhook },
     ],
