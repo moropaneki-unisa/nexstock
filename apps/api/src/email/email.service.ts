@@ -106,4 +106,25 @@ export class EmailService {
       html: `<div><h1>You now have access to ${params.organizationName}</h1><p>${params.inviterEmail} added you to the workspace.</p><p><a href="${loginUrl}">Sign in</a></p></div>`,
     });
   }
+
+  async sendTaskReminderEmail(params: {
+    email: string;
+    name?: string | null;
+    organizationName: string;
+    title: string;
+    description?: string | null;
+    dueAt?: Date | null;
+    priority: string;
+    taskUrl: string;
+  }) {
+    const dueLabel = params.dueAt ? params.dueAt.toLocaleString() : 'No due date set';
+    const greeting = params.name ? `Hi ${params.name}` : 'Hi';
+
+    return this.sendEmail({
+      to: params.email,
+      subject: `Task reminder: ${params.title}`,
+      text: `${greeting}, this is a reminder for your NexStock task: ${params.title}. Workspace: ${params.organizationName}. Priority: ${params.priority}. Due: ${dueLabel}. ${params.description || ''} Open tasks: ${params.taskUrl}`,
+      html: `<div><h1>Task reminder</h1><p>${greeting}, this is a reminder for your NexStock task.</p><h2>${params.title}</h2><p><strong>Workspace:</strong> ${params.organizationName}</p><p><strong>Priority:</strong> ${params.priority}</p><p><strong>Due:</strong> ${dueLabel}</p>${params.description ? `<p>${params.description}</p>` : ''}<p><a href="${params.taskUrl}">Open My Tasks</a></p><p>${params.taskUrl}</p></div>`,
+    });
+  }
 }
