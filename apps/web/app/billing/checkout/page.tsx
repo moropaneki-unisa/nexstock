@@ -60,8 +60,7 @@ function getReferenceFromSearch(params: URLSearchParams) {
     params.get("transaction_id") ||
     params.get("_ptxn") ||
     params.get("reference") ||
-    params.get("trxref") ||
-    window.localStorage.getItem(PADDLE_REFERENCE_KEY)
+    params.get("trxref")
   );
 }
 
@@ -70,6 +69,7 @@ export default function BillingCheckoutPage() {
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("starter");
   const [reference, setReference] = useState<string | null>(null);
   const [paddleReady, setPaddleReady] = useState(false);
+  const [paddleLoadFailed, setPaddleLoadFailed] = useState(false);
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const checkoutStartedRef = useRef(false);
   const plan = plans[selectedPlan];
@@ -87,7 +87,19 @@ export default function BillingCheckoutPage() {
   }, []);
 
   useEffect(() => {
-    if (!reference || status === "checkout") return;
+    if (paddleReady || paddleLoadFailed || status !== "idle") return;
+    const timeout = window.setTimeout(() => {
+      if (!window.Paddle) {
+        setPaddleLoadFailed(true);
+        setError("Payment checkout tools did not load. Check NEXT_PUBLIC_PADDLE_CLIENT_TOKEN and make sure Paddle scripts are not blocked, then refresh.");
+      }
+    }, 9000);
+
+    return () => window.clearTimeout(timeout);
+  }, [paddleLoadFailed, paddleReady, status]);
+
+  useEffect(() => {
+    if (!reference || status === "checkout" || status === "starting") return;
     let cancelled = false;
 
     async function verify() {
@@ -124,7 +136,7 @@ export default function BillingCheckoutPage() {
       setError("Payment could not be completed. Please check your payment method and try again.");
     }
     if (event.name === "checkout.completed") {
-      const transactionId = event.data?.transaction_id || reference;
+      const transactionId = event.data?.transaction_id || reference || window.localStorage.getItem(PADDLE_REFERENCE_KEY);
       if (transactionId) {
         window.localStorage.setItem(PADDLE_REFERENCE_KEY, transactionId);
         setReference(transactionId);
@@ -135,35 +147,50 @@ export default function BillingCheckoutPage() {
   }
 
   function initializePaddle() {
-    if (!window.Paddle || !paddleClientToken) return;
-
-    if (paddleEnvironment === "sandbox") {
-      window.Paddle.Environment?.set("sandbox");
+    if (!paddleClientToken) {
+      setPaddleLoadFailed(true);
+      setError("Paddle checkout is not configured. Add NEXT_PUBLIC_PADDLE_CLIENT_TOKEN to the web environment and redeploy the web app.");
+      return;
     }
 
-    const options = {
-      token: paddleClientToken,
-      eventCallback: handlePaddleEvent,
-      checkout: {
-        settings: {
-          displayMode: "inline",
-          variant: "one-page",
-          theme: "light",
-          frameTarget: PADDLE_FRAME_TARGET,
-          frameInitialHeight: "520",
-          frameStyle: "width: 100%; min-width: 312px; background-color: transparent; border: none;",
+    if (!window.Paddle) return;
+
+    try {
+      if (paddleEnvironment === "sandbox") {
+        window.Paddle.Environment?.set("sandbox");
+      }
+
+      const options = {
+        token: paddleClientToken,
+        eventCallback: handlePaddleEvent,
+        checkout: {
+          settings: {
+            displayMode: "inline",
+            variant: "one-page",
+            theme: "light",
+            frameTarget: PADDLE_FRAME_TARGET,
+            frameInitialHeight: "520",
+            frameStyle: "width: 100%; min-width: 312px; background-color: transparent; border: none;",
+          },
         },
-      },
-    };
+      };
 
-    if (window.__nexstockPaddleInitialized && window.Paddle.Update) {
-      window.Paddle.Update({ eventCallback: handlePaddleEvent });
-    } else if (!window.__nexstockPaddleInitialized) {
-      window.Paddle.Initialize(options);
-      window.__nexstockPaddleInitialized = true;
+      if (window.__nexstockPaddleInitialized && window.Paddle.Update) {
+        window.Paddle.Update({ eventCallback: handlePaddleEvent });
+      } else if (!window.__nexstockPaddleInitialized) {
+        window.Paddle.Initialize(options);
+        window.__nexstockPaddleInitialized = true;
+      }
+
+      setPaddleReady(true);
+      setPaddleLoadFailed(false);
+      if (error?.includes("Payment checkout tools did not load") || error?.includes("Paddle checkout is not configured")) {
+        setError(null);
+      }
+    } catch (err) {
+      setPaddleLoadFailed(true);
+      setError(err instanceof Error ? err.message : "Could not initialize Paddle checkout");
     }
-
-    setPaddleReady(true);
   }
 
   function changePlan(nextPlan: PaidPlan) {
@@ -183,18 +210,18 @@ export default function BillingCheckoutPage() {
 
     if (!paddleClientToken) {
       setStatus("failed");
-      setError("Paddle checkout is not configured. Add NEXT_PUBLIC_PADDLE_CLIENT_TOKEN to the web environment.");
+      setCheckoutVisible(false);
+      setError("Paddle checkout is not configured. Add NEXT_PUBLIC_PADDLE_CLIENT_TOKEN to the web environment and redeploy the web app.");
       return;
     }
 
     try {
-      if (!window.Paddle) throw new Error("Paddle checkout script is still loading. Try again in a moment.");
+      if (!window.Paddle) throw new Error("Paddle checkout script has not loaded. Refresh the page or check whether the browser/network is blocking cdn.paddle.com.");
       if (!paddleReady) initializePaddle();
 
       const checkout = await initializeSubscriptionCheckout(selectedPlan);
       if (!checkout.reference) throw new Error("Paddle transaction was not returned");
       window.localStorage.setItem(PADDLE_REFERENCE_KEY, checkout.reference);
-      setReference(checkout.reference);
       checkoutStartedRef.current = true;
 
       window.Paddle.Checkout.open({
@@ -231,7 +258,7 @@ export default function BillingCheckoutPage() {
 
   return (
     <>
-      <Script src="https://cdn.paddle.com/paddle/v2/paddle.js" strategy="afterInteractive" onLoad={initializePaddle} />
+      <Script src="https://cdn.paddle.com/paddle/v2/paddle.js" strategy="afterInteractive" onLoad={initializePaddle} onError={() => { setPaddleLoadFailed(true); setError("Could not load Paddle checkout script from cdn.paddle.com. Check network/ad-blockers or try again."); }} />
       <AuthShell
         eyebrow="Secure subscription"
         title="Pay without leaving NexStock."
@@ -302,7 +329,7 @@ export default function BillingCheckoutPage() {
 
           <div className="border-t p-5">
             {!checkoutVisible && status !== "verifying" && status !== "success" ? (
-              <Button onClick={startCheckout} className="w-full rounded-xl py-6 font-semibold" disabled={status === "starting" || !paddleReady}>
+              <Button onClick={startCheckout} className="w-full rounded-xl py-6 font-semibold" disabled={status === "starting"}>
                 {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Continue to secure payment <ArrowRight className="h-4 w-4" /></>}
               </Button>
             ) : (
@@ -310,7 +337,7 @@ export default function BillingCheckoutPage() {
                 {status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying payment...</> : status === "success" ? "Payment verified" : "Checkout is open above"}
               </Button>
             )}
-            {!paddleReady && <p className="mt-3 text-center text-xs text-muted-foreground">Loading secure payment tools...</p>}
+            {!paddleReady && !paddleLoadFailed && <p className="mt-3 text-center text-xs text-muted-foreground">Loading secure payment tools...</p>}
           </div>
         </AuthCard>
       </AuthShell>
