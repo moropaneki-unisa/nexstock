@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, CalendarClock, CheckCircle2, Circle, Clock3, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, Bell, CalendarClock, CheckCircle2, Circle, Clock3, Loader2, Plus, Rocket, Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,8 @@ type TaskResponse = {
   };
 };
 
+type SeedResponse = { created: number; skipped: number; total: number };
+
 const statusOptions: Array<{ value: TaskStatus; label: string }> = [
   { value: "todo", label: "To do" },
   { value: "in_progress", label: "In progress" },
@@ -75,7 +77,9 @@ export default function MyTasksPage() {
   const [summary, setSummary] = useState<TaskResponse["summary"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "all">("all");
@@ -124,6 +128,21 @@ export default function MyTasksPage() {
     setOpen(true);
   }
 
+  async function seedLaunchChecklist() {
+    setSeeding(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await apiFetch<SeedResponse>("/api/tasks/launch-checklist", { method: "POST" });
+      setSuccess(result.created > 0 ? `Added ${result.created} launch tasks. ${result.skipped} already existed.` : `Launch checklist already exists. ${result.skipped} tasks were skipped.`);
+      await loadTasks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add launch checklist");
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   async function saveTask() {
     if (!form.title.trim()) {
       setError("Task title is required");
@@ -137,6 +156,7 @@ export default function MyTasksPage() {
 
     setSaving(true);
     setError(null);
+    setSuccess(null);
     const payload = {
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -166,6 +186,7 @@ export default function MyTasksPage() {
 
   async function quickUpdate(task: Task, status: TaskStatus) {
     setError(null);
+    setSuccess(null);
     try {
       await apiFetch(`/api/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
       await loadTasks();
@@ -177,6 +198,7 @@ export default function MyTasksPage() {
   async function deleteTask(task: Task) {
     if (!window.confirm(`Delete task "${task.title}"?`)) return;
     setError(null);
+    setSuccess(null);
     try {
       await apiFetch(`/api/tasks/${task.id}`, { method: "DELETE" });
       await loadTasks();
@@ -191,10 +213,11 @@ export default function MyTasksPage() {
         eyebrow="Personal task manager"
         title="My tasks"
         description="Create launch, demo, product, and customer tasks. Set due dates and reminders so work does not get missed before go-live."
-        actions={<Button type="button" onClick={openCreate} className="rounded-xl shadow-sm"><Plus className="h-4 w-4" />New task</Button>}
+        actions={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={seedLaunchChecklist} disabled={seeding} className="rounded-xl bg-background/70"><Rocket className="h-4 w-4" />{seeding ? "Adding checklist..." : "Add launch checklist"}</Button><Button type="button" onClick={openCreate} className="rounded-xl shadow-sm"><Plus className="h-4 w-4" />New task</Button></div>}
       />
 
       {error && <div className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
+      {success && <div className="border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{success}</div>}
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <Metric icon={Circle} label="Total" value={summary?.total ?? 0} />
@@ -223,7 +246,7 @@ export default function MyTasksPage() {
             {filteredTasks.map((task) => <TaskCard key={task.id} task={task} onEdit={() => openEdit(task)} onDelete={() => void deleteTask(task)} onComplete={() => void quickUpdate(task, task.status === "done" ? "todo" : "done")} />)}
           </div>
         ) : (
-          <div className="p-10 text-center text-sm text-muted-foreground">No tasks found. Create your first launch task.</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">No tasks found. Create your first launch task or add the launch checklist.</div>
         )}
       </section>
 
