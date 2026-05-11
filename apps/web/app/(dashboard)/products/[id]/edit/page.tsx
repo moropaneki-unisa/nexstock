@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Eye, Loader2 } from "lucide-react";
 
-import { ProductForm } from "@/components/products/product-form-clean";
+import { ProductForm } from "@/components/products/product-form-cost-first";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
@@ -34,7 +34,7 @@ export default function EditProductPage() {
       <PageHeader
         eyebrow="Products"
         title={product ? `Edit ${product.name}` : "Edit product"}
-        description="Update product details in a clean flow without repeating supplier costing fields in the pricing stage."
+        description="Update product details in the right order: supplier cost first, then selling price and margin."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline" className="rounded-xl bg-background/70">
