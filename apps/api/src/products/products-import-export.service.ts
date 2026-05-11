@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CustomField, CustomFieldType, Prisma, ProductStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type UploadedSpreadsheetFile = {
@@ -48,7 +49,10 @@ const CORE_EXPORT_HEADERS = [
 
 @Injectable()
 export class ProductsImportExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly planLimits: PlanLimitsService,
+  ) {}
 
   async exportProducts(organizationId: string, format: 'csv' | 'xlsx' = 'csv') {
     const [products, fields] = await Promise.all([
@@ -113,14 +117,18 @@ export class ProductsImportExportService {
     if (file.size > 10 * 1024 * 1024) throw new BadRequestException('Import file must be 10MB or smaller');
 
     const rows = this.parseFile(file);
+    await this.planLimits.assertCanImportRows(organizationId, rows.length);
     const result: ProductImportResult = { created: 0, updated: 0, skipped: 0, total: rows.length, errors: [] };
 
     if (!rows.length) return result;
 
-    const [organization, activeFields] = await Promise.all([
+    const [organization, activeFields, existingProductCount] = await Promise.all([
       this.prisma.organization.findUnique({ where: { id: organizationId } }),
       this.prisma.customField.findMany({ where: { organizationId, isActive: true } }),
+      this.prisma.product.count({ where: { organizationId, deletedAt: null } }),
     ]);
+
+    await this.planLimits.assertWithinLimit(organizationId, 'products', existingProductCount + rows.length);
 
     if (!organization) throw new BadRequestException('Organization not found');
     const currencySettings = this.organizationCurrencySettings(organization);
