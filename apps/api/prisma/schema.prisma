@@ -36,6 +36,11 @@ enum ProductStatus {
   draft
 }
 
+enum SupplierStatus {
+  active
+  archived
+}
+
 enum TaskStatus {
   todo
   in_progress
@@ -165,6 +170,7 @@ model Organization {
   nextSkuNumber      Int            @default(1)
   memberships        Membership[]
   products           Product[]
+  suppliers          Supplier[]
   customFields       CustomField[]
   apiKeys            ApiKey[]
   webhooks           Webhook[]
@@ -240,6 +246,58 @@ model Task {
   @@index([reminderEnabled, reminderAt, reminderSentAt])
 }
 
+model Supplier {
+  id             String            @id @default(uuid())
+  organizationId String
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  website        String?
+  country        String?
+  city           String?
+  currency       String            @default("USD")
+  paymentTerms   String?
+  leadTimeDays   Int?
+  notes          String?
+  status         SupplierStatus    @default(active)
+  metadata       Json?
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       ProductSupplier[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+  @@index([organizationId, currency])
+  @@index([organizationId, country])
+}
+
+model ProductSupplier {
+  id              String    @id @default(uuid())
+  organizationId  String
+  productId       String
+  supplierId      String
+  supplierSku     String?
+  cost            Decimal?  @db.Decimal(12, 2)
+  currency        String    @default("USD")
+  minimumOrderQty Int?
+  leadTimeDays    Int?
+  isPreferred     Boolean   @default(false)
+  lastPurchaseAt  DateTime?
+  notes           String?
+  metadata        Json?
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier        Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([productId, supplierId])
+  @@index([organizationId, productId])
+  @@index([organizationId, supplierId])
+  @@index([organizationId, isPreferred])
+}
+
 model Product {
   id                 String                    @id @default(uuid())
   organizationId     String
@@ -263,6 +321,7 @@ model Product {
   variants           ProductVariant[]
   inventoryLogs      InventoryLog[]
   customFieldValues  ProductCustomFieldValue[]
+  productSuppliers   ProductSupplier[]
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
 
