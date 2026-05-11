@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CustomField, CustomFieldType, Prisma } from '@prisma/client';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhookEventsService } from '../webhooks/webhook-events.service';
 import { v2 as cloudinary } from 'cloudinary';
@@ -36,6 +37,7 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly webhooks: WebhookEventsService,
+    private readonly planLimits: PlanLimitsService,
   ) {}
 
   async uploadImage(file: Express.Multer.File) {
@@ -163,6 +165,7 @@ export class ProductsService {
   }
 
   async create(organizationId: string, dto: CreateProductDto) {
+    await this.planLimits.assertCanCreateProduct(organizationId);
     const quantity = dto.quantity ?? 0;
 
     const product = await this.prisma.$transaction(async (tx) => {
