@@ -19,6 +19,11 @@ export class TasksController {
     return this.tasks.create(user, dto);
   }
 
+  @Post('launch-checklist')
+  createLaunchChecklist(@CurrentUser() user: CurrentUserPayload) {
+    return this.tasks.createLaunchChecklist(user);
+  }
+
   @Patch(':id')
   update(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() dto: UpdateTaskDto) {
     return this.tasks.update(user, id, dto);
