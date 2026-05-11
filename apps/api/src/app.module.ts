@@ -15,6 +15,7 @@ import { PlanLimitsModule } from './plan-limits/plan-limits.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
 import { PublicApiModule } from './public-api/public-api.module';
+import { SuppliersModule } from './suppliers/suppliers.module';
 import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -31,6 +32,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     DashboardModule,
     ProductsModule,
     InventoryModule,
+    SuppliersModule,
     ApiKeysModule,
     PublicApiModule,
     WebhooksModule,
