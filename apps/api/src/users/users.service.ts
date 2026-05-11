@@ -16,9 +16,27 @@ export class UsersService {
   async getProfile(user: CurrentUserPayload) {
     const record = await this.db.user.findUnique({
       where: { id: user.id },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        emailVerifiedAt: true,
+        createdAt: true,
+        updatedAt: true,
         memberships: {
-          include: { organization: true },
+          select: {
+            id: true,
+            organizationId: true,
+            role: true,
+            createdAt: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -26,7 +44,26 @@ export class UsersService {
 
     if (!record) throw new BadRequestException('User profile not found');
 
-    const activeMembership = record.memberships.find((membership) => membership.organizationId === user.organizationId) ?? record.memberships[0];
+    const activeMembership =
+      record.memberships.find((membership) => membership.organizationId === user.organizationId) ??
+      record.memberships[0] ??
+      null;
+
+    const organization = activeMembership?.organization
+      ? {
+          id: activeMembership.organization.id,
+          name: activeMembership.organization.name,
+          slug: activeMembership.organization.slug,
+          role: activeMembership.role,
+        }
+      : user.organizationId
+        ? {
+            id: user.organizationId,
+            name: 'Workspace',
+            slug: '',
+            role: user.role,
+          }
+        : null;
 
     return {
       id: record.id,
@@ -35,14 +72,7 @@ export class UsersService {
       emailVerifiedAt: record.emailVerifiedAt,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
-      organization: activeMembership
-        ? {
-            id: activeMembership.organization.id,
-            name: activeMembership.organization.name,
-            slug: activeMembership.organization.slug,
-            role: activeMembership.role,
-          }
-        : null,
+      organization,
     };
   }
 
@@ -60,6 +90,7 @@ export class UsersService {
 
       const existing = await this.db.user.findUnique({ where: { id: user.id }, select: { passwordHash: true } });
       if (!existing) throw new BadRequestException('User profile not found');
+      if (existing.passwordHash === 'temporary') throw new BadRequestException('Set your password from the invitation flow before changing it here');
 
       const isValid = await bcrypt.compare(dto.currentPassword, existing.passwordHash);
       if (!isValid) throw new BadRequestException('Current password is incorrect');
