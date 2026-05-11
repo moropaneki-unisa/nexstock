@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { TaskPriority, TaskStatus } from '@prisma/client';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { EmailService } from '../email/email.service';
@@ -7,37 +7,52 @@ import { CreateTaskDto, UpdateTaskDto } from './dto';
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(
     private readonly db: PrismaService,
     private readonly email: EmailService,
   ) {}
 
-  async list(user: CurrentUserPayload) {
-    const tasks = await this.db.task.findMany({
-      where: {
-        organizationId: user.organizationId,
-        userId: user.id,
-      },
-      orderBy: [
-        { status: 'asc' },
-        { dueAt: 'asc' },
-        { priority: 'desc' },
-        { createdAt: 'desc' },
-      ],
-    });
+  private emptySummary() {
+    return { total: 0, todo: 0, inProgress: 0, blocked: 0, done: 0, dueToday: 0, overdue: 0 };
+  }
 
-    return {
-      tasks,
-      summary: {
-        total: tasks.length,
-        todo: tasks.filter((task) => task.status === TaskStatus.todo).length,
-        inProgress: tasks.filter((task) => task.status === TaskStatus.in_progress).length,
-        blocked: tasks.filter((task) => task.status === TaskStatus.blocked).length,
-        done: tasks.filter((task) => task.status === TaskStatus.done).length,
-        dueToday: tasks.filter((task) => this.isDueToday(task.dueAt)).length,
-        overdue: tasks.filter((task) => this.isOverdue(task.dueAt, task.status)).length,
-      },
-    };
+  async list(user: CurrentUserPayload) {
+    try {
+      const tasks = await this.db.task.findMany({
+        where: {
+          organizationId: user.organizationId,
+          userId: user.id,
+        },
+        orderBy: [
+          { status: 'asc' },
+          { dueAt: 'asc' },
+          { priority: 'desc' },
+          { createdAt: 'desc' },
+        ],
+      });
+
+      return {
+        tasks,
+        summary: {
+          total: tasks.length,
+          todo: tasks.filter((task) => task.status === TaskStatus.todo).length,
+          inProgress: tasks.filter((task) => task.status === TaskStatus.in_progress).length,
+          blocked: tasks.filter((task) => task.status === TaskStatus.blocked).length,
+          done: tasks.filter((task) => task.status === TaskStatus.done).length,
+          dueToday: tasks.filter((task) => this.isDueToday(task.dueAt)).length,
+          overdue: tasks.filter((task) => this.isOverdue(task.dueAt, task.status)).length,
+        },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Task') || message.includes('task') || message.includes('relation') || message.includes('does not exist')) {
+        this.logger.error(`Tasks table is not ready. Run prisma migrate deploy. Original error: ${message}`);
+        return { tasks: [], summary: this.emptySummary() };
+      }
+      throw error;
+    }
   }
 
   async create(user: CurrentUserPayload, dto: CreateTaskDto) {
