@@ -12,9 +12,7 @@ export class SuppliersService {
     return this.db.supplier.findMany({
       where: { organizationId: user.organizationId },
       orderBy: [{ status: 'asc' }, { name: 'asc' }],
-      include: {
-        _count: { select: { products: true } },
-      },
+      include: { _count: { select: { products: true } } },
     });
   }
 
@@ -24,15 +22,12 @@ export class SuppliersService {
       include: {
         products: {
           include: {
-            product: {
-              select: { id: true, name: true, sku: true, price: true, priceCurrency: true, quantity: true, category: true, images: true },
-            },
+            product: { select: { id: true, name: true, sku: true, price: true, priceCurrency: true, quantity: true, category: true, images: true } },
           },
           orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }],
         },
       },
     });
-
     if (!supplier) throw new NotFoundException('Supplier not found');
     return supplier;
   }
@@ -40,22 +35,7 @@ export class SuppliersService {
   async create(user: CurrentUserPayload, dto: CreateSupplierDto) {
     const name = this.requiredText(dto.name, 'Supplier name is required');
     try {
-      return await this.db.supplier.create({
-        data: {
-          organizationId: user.organizationId,
-          name,
-          contactName: this.optionalText(dto.contactName),
-          email: this.optionalText(dto.email),
-          phone: this.optionalText(dto.phone),
-          website: this.optionalText(dto.website),
-          country: this.optionalText(dto.country),
-          city: this.optionalText(dto.city),
-          currency: this.currency(dto.currency),
-          paymentTerms: this.optionalText(dto.paymentTerms),
-          leadTimeDays: dto.leadTimeDays,
-          notes: this.optionalText(dto.notes),
-        },
-      });
+      return await this.db.supplier.create({ data: this.supplierCreateData(user.organizationId, name, dto) });
     } catch (error) {
       if ((error as any)?.code === 'P2002') throw new BadRequestException('A supplier with this name already exists');
       throw error;
@@ -65,23 +45,7 @@ export class SuppliersService {
   async update(user: CurrentUserPayload, id: string, dto: UpdateSupplierDto) {
     await this.ensureSupplier(user, id);
     try {
-      return await this.db.supplier.update({
-        where: { id },
-        data: {
-          name: dto.name === undefined ? undefined : this.requiredText(dto.name, 'Supplier name is required'),
-          contactName: dto.contactName === undefined ? undefined : this.optionalText(dto.contactName),
-          email: dto.email === undefined ? undefined : this.optionalText(dto.email),
-          phone: dto.phone === undefined ? undefined : this.optionalText(dto.phone),
-          website: dto.website === undefined ? undefined : this.optionalText(dto.website),
-          country: dto.country === undefined ? undefined : this.optionalText(dto.country),
-          city: dto.city === undefined ? undefined : this.optionalText(dto.city),
-          currency: dto.currency === undefined ? undefined : this.currency(dto.currency),
-          paymentTerms: dto.paymentTerms === undefined ? undefined : this.optionalText(dto.paymentTerms),
-          leadTimeDays: dto.leadTimeDays,
-          notes: dto.notes === undefined ? undefined : this.optionalText(dto.notes),
-          status: dto.status,
-        },
-      });
+      return await this.db.supplier.update({ where: { id }, data: this.supplierUpdateData(dto) });
     } catch (error) {
       if ((error as any)?.code === 'P2002') throw new BadRequestException('A supplier with this name already exists');
       throw error;
@@ -95,23 +59,12 @@ export class SuppliersService {
 
   async listProductSuppliers(user: CurrentUserPayload, productId: string) {
     await this.ensureProduct(user, productId);
-    return this.db.productSupplier.findMany({
-      where: { organizationId: user.organizationId, productId },
-      include: { supplier: true },
-      orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }],
-    });
+    return this.db.productSupplier.findMany({ where: { organizationId: user.organizationId, productId }, include: { supplier: true }, orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }] });
   }
 
   async linkProductSupplier(user: CurrentUserPayload, productId: string, dto: LinkProductSupplierDto) {
     await Promise.all([this.ensureProduct(user, productId), this.ensureSupplier(user, dto.supplierId)]);
-
-    if (dto.isPreferred) {
-      await this.db.productSupplier.updateMany({
-        where: { organizationId: user.organizationId, productId },
-        data: { isPreferred: false },
-      });
-    }
-
+    if (dto.isPreferred) await this.db.productSupplier.updateMany({ where: { organizationId: user.organizationId, productId }, data: { isPreferred: false } });
     try {
       return await this.db.productSupplier.create({
         data: {
@@ -139,14 +92,7 @@ export class SuppliersService {
     const existing = await this.ensureProductSupplier(user, productId, linkId);
     const supplierId = dto.supplierId ?? existing.supplierId;
     await Promise.all([this.ensureProduct(user, productId), this.ensureSupplier(user, supplierId)]);
-
-    if (dto.isPreferred) {
-      await this.db.productSupplier.updateMany({
-        where: { organizationId: user.organizationId, productId, id: { not: linkId } },
-        data: { isPreferred: false },
-      });
-    }
-
+    if (dto.isPreferred) await this.db.productSupplier.updateMany({ where: { organizationId: user.organizationId, productId, id: { not: linkId } }, data: { isPreferred: false } });
     return this.db.productSupplier.update({
       where: { id: linkId },
       data: {
@@ -168,6 +114,72 @@ export class SuppliersService {
     await this.ensureProductSupplier(user, productId, linkId);
     await this.db.productSupplier.delete({ where: { id: linkId } });
     return { ok: true };
+  }
+
+  private supplierCreateData(organizationId: string, name: string, dto: CreateSupplierDto): Prisma.SupplierUncheckedCreateInput {
+    return {
+      organizationId,
+      name,
+      supplierType: this.option(dto.supplierType, 'vendor'),
+      category: this.optionalText(dto.category),
+      rating: this.option(dto.rating, 'unrated'),
+      contactName: this.optionalText(dto.contactName),
+      email: this.optionalText(dto.email),
+      phone: this.optionalText(dto.phone),
+      website: this.optionalText(dto.website),
+      addressLine1: this.optionalText(dto.addressLine1),
+      addressLine2: this.optionalText(dto.addressLine2),
+      country: this.optionalText(dto.country),
+      province: this.optionalText(dto.province),
+      city: this.optionalText(dto.city),
+      postalCode: this.optionalText(dto.postalCode),
+      currency: this.currency(dto.currency),
+      paymentTerms: this.optionalText(dto.paymentTerms),
+      paymentMethod: this.optionalText(dto.paymentMethod),
+      taxStatus: this.option(dto.taxStatus, 'unknown'),
+      taxNumber: this.optionalText(dto.taxNumber),
+      shippingTerms: this.optionalText(dto.shippingTerms),
+      incoterm: this.optionalText(dto.incoterm),
+      accountNumber: this.optionalText(dto.accountNumber),
+      leadTimeDays: dto.leadTimeDays,
+      minimumOrderQty: dto.minimumOrderQty,
+      lastOrderAt: dto.lastOrderAt ? new Date(dto.lastOrderAt) : undefined,
+      customFields: dto.customFields ?? undefined,
+      notes: this.optionalText(dto.notes),
+    };
+  }
+
+  private supplierUpdateData(dto: UpdateSupplierDto): Prisma.SupplierUncheckedUpdateInput {
+    return {
+      name: dto.name === undefined ? undefined : this.requiredText(dto.name, 'Supplier name is required'),
+      supplierType: dto.supplierType === undefined ? undefined : this.option(dto.supplierType, 'vendor'),
+      category: dto.category === undefined ? undefined : this.optionalText(dto.category),
+      rating: dto.rating === undefined ? undefined : this.option(dto.rating, 'unrated'),
+      contactName: dto.contactName === undefined ? undefined : this.optionalText(dto.contactName),
+      email: dto.email === undefined ? undefined : this.optionalText(dto.email),
+      phone: dto.phone === undefined ? undefined : this.optionalText(dto.phone),
+      website: dto.website === undefined ? undefined : this.optionalText(dto.website),
+      addressLine1: dto.addressLine1 === undefined ? undefined : this.optionalText(dto.addressLine1),
+      addressLine2: dto.addressLine2 === undefined ? undefined : this.optionalText(dto.addressLine2),
+      country: dto.country === undefined ? undefined : this.optionalText(dto.country),
+      province: dto.province === undefined ? undefined : this.optionalText(dto.province),
+      city: dto.city === undefined ? undefined : this.optionalText(dto.city),
+      postalCode: dto.postalCode === undefined ? undefined : this.optionalText(dto.postalCode),
+      currency: dto.currency === undefined ? undefined : this.currency(dto.currency),
+      paymentTerms: dto.paymentTerms === undefined ? undefined : this.optionalText(dto.paymentTerms),
+      paymentMethod: dto.paymentMethod === undefined ? undefined : this.optionalText(dto.paymentMethod),
+      taxStatus: dto.taxStatus === undefined ? undefined : this.option(dto.taxStatus, 'unknown'),
+      taxNumber: dto.taxNumber === undefined ? undefined : this.optionalText(dto.taxNumber),
+      shippingTerms: dto.shippingTerms === undefined ? undefined : this.optionalText(dto.shippingTerms),
+      incoterm: dto.incoterm === undefined ? undefined : this.optionalText(dto.incoterm),
+      accountNumber: dto.accountNumber === undefined ? undefined : this.optionalText(dto.accountNumber),
+      leadTimeDays: dto.leadTimeDays,
+      minimumOrderQty: dto.minimumOrderQty,
+      lastOrderAt: dto.lastOrderAt === undefined ? undefined : dto.lastOrderAt ? new Date(dto.lastOrderAt) : null,
+      customFields: dto.customFields === undefined ? undefined : dto.customFields,
+      notes: dto.notes === undefined ? undefined : this.optionalText(dto.notes),
+      status: dto.status,
+    };
   }
 
   private async ensureSupplier(user: CurrentUserPayload, id: string) {
@@ -198,6 +210,10 @@ export class SuppliersService {
     if (value === undefined || value === null) return null;
     const text = value.trim();
     return text || null;
+  }
+
+  private option(value: string | null | undefined, fallback: string) {
+    return this.optionalText(value) ?? fallback;
   }
 
   private currency(value: string | undefined | null) {
