@@ -3,6 +3,7 @@ import { Plan, Prisma, UserRole } from '@prisma/client';
 import axios from 'axios';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { EmailService } from '../email/email.service';
@@ -85,6 +86,7 @@ export class OrganizationService {
   constructor(
     private readonly db: PrismaService,
     private readonly email: EmailService,
+    private readonly planLimits: PlanLimitsService,
   ) {}
 
   async getOrganization(user: CurrentUserPayload) {
@@ -99,6 +101,8 @@ export class OrganizationService {
     });
 
     if (!org) throw new NotFoundException('Organization not found');
+
+    const planUsage = await this.planLimits.getUsage(user.organizationId);
 
     return {
       id: org.id,
@@ -125,6 +129,8 @@ export class OrganizationService {
       province: org.province,
       postalCode: org.postalCode,
       country: org.country,
+      planLimits: planUsage.limits,
+      planUsage: planUsage.usage,
       stats: {
         members: org.memberships.length,
         apiKeys: org.apiKeys.filter((key) => !key.revokedAt).length,
@@ -176,6 +182,7 @@ export class OrganizationService {
       if (!current) throw new NotFoundException('Organization not found');
       const baseCurrency = this.normalizeCurrencyCode(dto.baseCurrency ?? current.baseCurrency ?? 'ZAR');
       const enabledCurrencies = this.normalizeCurrencyList(baseCurrency, dto.enabledCurrencies ?? current.enabledCurrencies ?? [baseCurrency]);
+      await this.planLimits.assertCanEnableCurrencies(user.organizationId, enabledCurrencies.length);
       const manualRates = this.normalizeExchangeRates(dto.exchangeRates ?? current.exchangeRates, baseCurrency, enabledCurrencies);
       const rates = dto.autoRefreshRates === false ? manualRates : await this.fetchLiveRatesWithFallback(baseCurrency, enabledCurrencies, manualRates);
       data.baseCurrency = baseCurrency;
@@ -209,6 +216,7 @@ export class OrganizationService {
 
     const baseCurrency = this.normalizeCurrencyCode(org.baseCurrency || 'ZAR');
     const enabledCurrencies = this.normalizeCurrencyList(baseCurrency, org.enabledCurrencies ?? [baseCurrency]);
+    await this.planLimits.assertCanEnableCurrencies(user.organizationId, enabledCurrencies.length);
     const currentRates = this.normalizeExchangeRates(org.exchangeRates, baseCurrency, enabledCurrencies);
     const exchangeRates = await this.fetchLiveRatesWithFallback(baseCurrency, enabledCurrencies, currentRates);
 
@@ -220,6 +228,7 @@ export class OrganizationService {
 
   async inviteUser(user: CurrentUserPayload, emailInput: string, roleInput: string) {
     requireAdmin(user);
+    await this.planLimits.assertCanInviteMember(user.organizationId);
     const email = emailInput?.toLowerCase().trim();
     if (!email) throw new BadRequestException('Email is required');
     const role = this.normalizeRole(roleInput);
