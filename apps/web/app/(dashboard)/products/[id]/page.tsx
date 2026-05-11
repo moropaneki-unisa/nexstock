@@ -30,6 +30,7 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [attributesOpen, setAttributesOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [delta, setDelta] = useState("");
   const [reason, setReason] = useState("");
   const [adjusting, setAdjusting] = useState(false);
@@ -59,6 +60,15 @@ export default function ProductDetailPage() {
     void loadProduct();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
+
+  useEffect(() => {
+    const images = product?.images ?? [];
+    if (images.length === 0) {
+      setSelectedImage(null);
+      return;
+    }
+    setSelectedImage((current) => (current && images.includes(current) ? current : images[0]));
+  }, [product?.images]);
 
   async function submitStockAdjustment() {
     if (!product) return;
@@ -136,14 +146,53 @@ export default function ProductDetailPage() {
     return <PageShell className="space-y-4"><Button asChild variant="outline" className="w-fit rounded-xl bg-background/70"><Link href="/products"><ArrowLeft className="h-4 w-4" />Back to products</Link></Button><div className="border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">{error ?? "Product not found."}</div></PageShell>;
   }
 
-  const primaryImage = product.images?.[0];
-  const imageCount = product.images?.length ?? 0;
+  const productImages = product.images ?? [];
+  const primaryImage = selectedImage || productImages[0];
+  const imageCount = productImages.length;
 
   return (
     <PageShell className="space-y-6 pb-10">
       <PageHeader eyebrow="Product profile" title={cleanText(product.name) || "Product"} description={`Review product identity, pricing in ${baseCurrency}, inventory, images, attributes, and stock movement from one profile.`} actions={<div className="flex flex-wrap gap-2"><Button asChild variant="outline" className="rounded-xl bg-background/70"><Link href="/products"><ArrowLeft className="h-4 w-4" />Back to products</Link></Button><Button type="button" variant="outline" onClick={() => setAdjustOpen(true)} className="rounded-xl bg-background/70"><Warehouse className="h-4 w-4" />Adjust stock</Button><Button asChild className="rounded-xl shadow-sm"><Link href={`/products/${product.id}/edit`}><Edit className="h-4 w-4" />Edit product</Link></Button></div>} />
       <section className="border bg-card/95"><div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4"><Metric label="SKU" value={product.sku} /><Metric label="Stock" value={`${product.quantity} units`} /><Metric label={`Price (${priceCurrency})`} value={formatMoney(product.price, priceCurrency)} /><Metric label="Status" value={lowStock ? "Low stock" : product.status || "active"} status /></div></section>
-      <section className="grid gap-6 xl:grid-cols-[18rem_1fr]"><aside className="space-y-6"><section className="border bg-card/95"><div className="relative aspect-square overflow-hidden bg-muted">{primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="h-10 w-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}<div className="absolute left-3 top-3"><ProductStatusBadge product={product} lowStock={lowStock} /></div></div>{imageCount > 0 && <div className="grid grid-cols-4 gap-2 border-t p-3">{product.images?.slice(0, 4).map((image, index) => <img key={`${image}-${index}`} src={image} alt={`Product image ${index + 1}`} className="h-12 w-full border object-cover" />)}</div>}</section><section className="border bg-card/95"><SectionHeader icon={FileText} title="Quick facts" /><div className="divide-y border-t"><SideFact label="SKU" value={product.sku} mono /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={`${imageCount}`} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={product.updatedAt ? formatDate(product.updatedAt) : "Not updated"} /></div></section></aside><main className="space-y-6"><section className="border bg-card/95"><SectionHeader icon={FileText} title="Product details" description="Core product details stored on every product record." badge={`${defaultFields.length} fields`} /><FieldGrid fields={defaultFields} /></section><section className="border bg-card/95"><button type="button" onClick={() => setAttributesOpen((open) => !open)} className="flex w-full items-start justify-between gap-4 p-5 text-left transition hover:bg-muted/25" aria-expanded={attributesOpen}><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><DatabaseZap className="h-5 w-5" />Attributes</h2><p className="mt-1 text-sm text-muted-foreground">Show or hide custom business attributes for this product.</p></div><div className="flex shrink-0 items-center gap-2"><Badge variant="secondary">{customAttributes.length} custom</Badge><ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", attributesOpen && "rotate-180")} /></div></button>{attributesOpen && <div className="border-t">{customAttributes.length > 0 ? <FieldGrid fields={customAttributes} /> : <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No custom attributes have been saved for this product yet.</div>}</div>}</section><section className="border bg-card/95"><SectionHeader icon={History} title="Inventory movement" description="Every stock adjustment is recorded with before/after quantity and reason." badge={`${product.inventoryLogs?.length ?? 0} logs`} /><div className="border-t">{product.inventoryLogs?.length ? <div className="divide-y">{product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />)}</div> : <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No inventory movement yet.</div>}</div></section></main></section>
+      <section className="grid gap-6 xl:grid-cols-[18rem_1fr]">
+        <aside className="space-y-6">
+          <section className="border bg-card/95">
+            <div className="relative aspect-square overflow-hidden bg-muted">
+              {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="h-10 w-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}
+              <div className="absolute left-3 top-3"><ProductStatusBadge product={product} lowStock={lowStock} /></div>
+              {imageCount > 1 && <Badge variant="secondary" className="absolute bottom-3 right-3 bg-background/90">{productImages.findIndex((image) => image === primaryImage) + 1} / {imageCount}</Badge>}
+            </div>
+            {imageCount > 0 && (
+              <div className="border-t p-3">
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>Click an image to preview it</span>
+                  <span>{imageCount} total</span>
+                </div>
+                <div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto pr-1">
+                  {productImages.map((image, index) => {
+                    const active = image === primaryImage;
+                    return (
+                      <button
+                        key={`${image}-${index}`}
+                        type="button"
+                        onClick={() => setSelectedImage(image)}
+                        className={cn("group relative h-14 overflow-hidden border bg-muted transition hover:border-primary", active ? "border-primary ring-2 ring-primary/30" : "border-border")}
+                        aria-label={`View product image ${index + 1}`}
+                        aria-pressed={active}
+                      >
+                        <img src={image} alt={`Product image ${index + 1}`} className="h-full w-full object-cover transition group-hover:scale-105" />
+                        {active && <span className="absolute inset-x-0 bottom-0 bg-primary px-1 py-0.5 text-[0.6rem] font-semibold text-primary-foreground">Viewing</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+          <section className="border bg-card/95"><SectionHeader icon={FileText} title="Quick facts" /><div className="divide-y border-t"><SideFact label="SKU" value={product.sku} mono /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={`${imageCount}`} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={product.updatedAt ? formatDate(product.updatedAt) : "Not updated"} /></div></section>
+        </aside>
+        <main className="space-y-6"><section className="border bg-card/95"><SectionHeader icon={FileText} title="Product details" description="Core product details stored on every product record." badge={`${defaultFields.length} fields`} /><FieldGrid fields={defaultFields} /></section><section className="border bg-card/95"><button type="button" onClick={() => setAttributesOpen((open) => !open)} className="flex w-full items-start justify-between gap-4 p-5 text-left transition hover:bg-muted/25" aria-expanded={attributesOpen}><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><DatabaseZap className="h-5 w-5" />Attributes</h2><p className="mt-1 text-sm text-muted-foreground">Show or hide custom business attributes for this product.</p></div><div className="flex shrink-0 items-center gap-2"><Badge variant="secondary">{customAttributes.length} custom</Badge><ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", attributesOpen && "rotate-180")} /></div></button>{attributesOpen && <div className="border-t">{customAttributes.length > 0 ? <FieldGrid fields={customAttributes} /> : <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No custom attributes have been saved for this product yet.</div>}</div>}</section><section className="border bg-card/95"><SectionHeader icon={History} title="Inventory movement" description="Every stock adjustment is recorded with before/after quantity and reason." badge={`${product.inventoryLogs?.length ?? 0} logs`} /><div className="border-t">{product.inventoryLogs?.length ? <div className="divide-y">{product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />)}</div> : <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No inventory movement yet.</div>}</div></section></main>
+      </section>
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}><DialogContent><DialogHeader><DialogTitle>Adjust stock</DialogTitle><DialogDescription>Current stock is {product.quantity} units. Add stock with a positive number or reduce stock with a negative number.</DialogDescription></DialogHeader><div className="space-y-4">{adjustError && <div className="border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{adjustError}</div>}<label className="space-y-2"><Label>Adjustment quantity</Label><Input value={delta} onChange={(event) => setDelta(event.target.value)} type="number" step="1" placeholder="Example: 10 or -3" /></label><label className="space-y-2"><Label>Reason</Label><Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Stock count correction, supplier delivery, damaged goods..." className="min-h-24" /></label></div><DialogFooter><Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} disabled={adjusting}>Cancel</Button><Button type="button" onClick={submitStockAdjustment} disabled={adjusting}>{adjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Warehouse className="h-4 w-4" />}Save adjustment</Button></DialogFooter></DialogContent></Dialog>
     </PageShell>
   );
