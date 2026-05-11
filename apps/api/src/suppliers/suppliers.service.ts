@@ -1,8 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SupplierStatus } from '@prisma/client';
+import { Prisma, Supplier, SupplierStatus } from '@prisma/client';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupplierDto, LinkProductSupplierDto, UpdateProductSupplierDto, UpdateSupplierDto } from './dto';
+
+type OrganizationCurrencyRules = {
+  baseCurrency: string;
+  enabledCurrencies: string[];
+  supplierPrefix?: string | null;
+  nextSupplierNumber: number;
+};
 
 @Injectable()
 export class SuppliersService {
@@ -34,18 +41,22 @@ export class SuppliersService {
 
   async create(user: CurrentUserPayload, dto: CreateSupplierDto) {
     const name = this.requiredText(dto.name, 'Supplier name is required');
+    const organization = await this.getOrganizationCurrencyRules(user.organizationId);
+    const supplierCode = await this.generateSupplierCode(user.organizationId, organization);
+
     try {
-      return await this.db.supplier.create({ data: this.supplierCreateData(user.organizationId, name, dto) });
+      return await this.db.supplier.create({ data: this.supplierCreateData(user.organizationId, supplierCode, name, dto, organization) });
     } catch (error) {
-      if ((error as any)?.code === 'P2002') throw new BadRequestException('A supplier with this name already exists');
+      if ((error as any)?.code === 'P2002') throw new BadRequestException('A supplier with this name or supplier code already exists');
       throw error;
     }
   }
 
   async update(user: CurrentUserPayload, id: string, dto: UpdateSupplierDto) {
     await this.ensureSupplier(user, id);
+    const organization = await this.getOrganizationCurrencyRules(user.organizationId);
     try {
-      return await this.db.supplier.update({ where: { id }, data: this.supplierUpdateData(dto) });
+      return await this.db.supplier.update({ where: { id }, data: this.supplierUpdateData(dto, organization) });
     } catch (error) {
       if ((error as any)?.code === 'P2002') throw new BadRequestException('A supplier with this name already exists');
       throw error;
@@ -63,17 +74,23 @@ export class SuppliersService {
   }
 
   async linkProductSupplier(user: CurrentUserPayload, productId: string, dto: LinkProductSupplierDto) {
-    await Promise.all([this.ensureProduct(user, productId), this.ensureSupplier(user, dto.supplierId)]);
+    const [_, supplier, organization] = await Promise.all([
+      this.ensureProduct(user, productId),
+      this.ensureActiveSupplier(user, dto.supplierId),
+      this.getOrganizationCurrencyRules(user.organizationId),
+    ]);
+    const currency = this.enabledCurrency(dto.currency ?? supplier.currency, organization);
+
     if (dto.isPreferred) await this.db.productSupplier.updateMany({ where: { organizationId: user.organizationId, productId }, data: { isPreferred: false } });
     try {
       return await this.db.productSupplier.create({
         data: {
           organizationId: user.organizationId,
           productId,
-          supplierId: dto.supplierId,
+          supplierId: supplier.id,
           supplierSku: this.optionalText(dto.supplierSku),
           cost: dto.cost === undefined ? undefined : new Prisma.Decimal(dto.cost),
-          currency: this.currency(dto.currency),
+          currency,
           minimumOrderQty: dto.minimumOrderQty,
           leadTimeDays: dto.leadTimeDays,
           isPreferred: dto.isPreferred ?? false,
@@ -91,15 +108,19 @@ export class SuppliersService {
   async updateProductSupplier(user: CurrentUserPayload, productId: string, linkId: string, dto: UpdateProductSupplierDto) {
     const existing = await this.ensureProductSupplier(user, productId, linkId);
     const supplierId = dto.supplierId ?? existing.supplierId;
-    await Promise.all([this.ensureProduct(user, productId), this.ensureSupplier(user, supplierId)]);
+    const [_, supplier, organization] = await Promise.all([
+      this.ensureProduct(user, productId),
+      this.ensureActiveSupplier(user, supplierId),
+      this.getOrganizationCurrencyRules(user.organizationId),
+    ]);
     if (dto.isPreferred) await this.db.productSupplier.updateMany({ where: { organizationId: user.organizationId, productId, id: { not: linkId } }, data: { isPreferred: false } });
     return this.db.productSupplier.update({
       where: { id: linkId },
       data: {
-        supplierId,
+        supplierId: supplier.id,
         supplierSku: dto.supplierSku === undefined ? undefined : this.optionalText(dto.supplierSku),
         cost: dto.cost === undefined ? undefined : new Prisma.Decimal(dto.cost),
-        currency: dto.currency === undefined ? undefined : this.currency(dto.currency),
+        currency: dto.currency === undefined ? undefined : this.enabledCurrency(dto.currency, organization),
         minimumOrderQty: dto.minimumOrderQty,
         leadTimeDays: dto.leadTimeDays,
         isPreferred: dto.isPreferred,
@@ -116,9 +137,10 @@ export class SuppliersService {
     return { ok: true };
   }
 
-  private supplierCreateData(organizationId: string, name: string, dto: CreateSupplierDto): Prisma.SupplierUncheckedCreateInput {
+  private supplierCreateData(organizationId: string, supplierCode: string, name: string, dto: CreateSupplierDto, organization: OrganizationCurrencyRules): Prisma.SupplierUncheckedCreateInput {
     return {
       organizationId,
+      supplierCode,
       name,
       supplierType: this.option(dto.supplierType, 'vendor'),
       category: this.optionalText(dto.category),
@@ -133,7 +155,7 @@ export class SuppliersService {
       province: this.optionalText(dto.province),
       city: this.optionalText(dto.city),
       postalCode: this.optionalText(dto.postalCode),
-      currency: this.currency(dto.currency),
+      currency: this.enabledCurrency(dto.currency, organization),
       paymentTerms: this.optionalText(dto.paymentTerms),
       paymentMethod: this.optionalText(dto.paymentMethod),
       taxStatus: this.option(dto.taxStatus, 'unknown'),
@@ -149,7 +171,7 @@ export class SuppliersService {
     };
   }
 
-  private supplierUpdateData(dto: UpdateSupplierDto): Prisma.SupplierUncheckedUpdateInput {
+  private supplierUpdateData(dto: UpdateSupplierDto, organization: OrganizationCurrencyRules): Prisma.SupplierUncheckedUpdateInput {
     return {
       name: dto.name === undefined ? undefined : this.requiredText(dto.name, 'Supplier name is required'),
       supplierType: dto.supplierType === undefined ? undefined : this.option(dto.supplierType, 'vendor'),
@@ -165,7 +187,7 @@ export class SuppliersService {
       province: dto.province === undefined ? undefined : this.optionalText(dto.province),
       city: dto.city === undefined ? undefined : this.optionalText(dto.city),
       postalCode: dto.postalCode === undefined ? undefined : this.optionalText(dto.postalCode),
-      currency: dto.currency === undefined ? undefined : this.currency(dto.currency),
+      currency: dto.currency === undefined ? undefined : this.enabledCurrency(dto.currency, organization),
       paymentTerms: dto.paymentTerms === undefined ? undefined : this.optionalText(dto.paymentTerms),
       paymentMethod: dto.paymentMethod === undefined ? undefined : this.optionalText(dto.paymentMethod),
       taxStatus: dto.taxStatus === undefined ? undefined : this.option(dto.taxStatus, 'unknown'),
@@ -182,9 +204,34 @@ export class SuppliersService {
     };
   }
 
+  private async getOrganizationCurrencyRules(organizationId: string): Promise<OrganizationCurrencyRules> {
+    const organization = await this.db.organization.findUnique({
+      where: { id: organizationId },
+      select: { baseCurrency: true, enabledCurrencies: true, supplierPrefix: true, nextSupplierNumber: true },
+    });
+    if (!organization) throw new NotFoundException('Organization not found');
+    const baseCurrency = this.currency(organization.baseCurrency || 'USD');
+    const enabledCurrencies = Array.from(new Set([baseCurrency, ...(organization.enabledCurrencies || [])].map((code) => this.currency(code))));
+    return { baseCurrency, enabledCurrencies, supplierPrefix: organization.supplierPrefix, nextSupplierNumber: organization.nextSupplierNumber };
+  }
+
+  private async generateSupplierCode(organizationId: string, organization: OrganizationCurrencyRules) {
+    const prefix = this.safeCodePrefix(organization.supplierPrefix || 'SUP');
+    const nextNumber = organization.nextSupplierNumber || 1;
+    const supplierCode = `${prefix}-${String(nextNumber).padStart(5, '0')}`;
+    await this.db.organization.update({ where: { id: organizationId }, data: { nextSupplierNumber: { increment: 1 } } });
+    return supplierCode;
+  }
+
   private async ensureSupplier(user: CurrentUserPayload, id: string) {
     const supplier = await this.db.supplier.findFirst({ where: { id, organizationId: user.organizationId } });
     if (!supplier) throw new NotFoundException('Supplier not found');
+    return supplier;
+  }
+
+  private async ensureActiveSupplier(user: CurrentUserPayload, id: string): Promise<Supplier> {
+    const supplier = await this.ensureSupplier(user, id);
+    if (supplier.status !== SupplierStatus.active) throw new BadRequestException('Archived suppliers cannot be linked to products');
     return supplier;
   }
 
@@ -221,9 +268,22 @@ export class SuppliersService {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
   }
 
+  private enabledCurrency(value: string | undefined | null, organization: OrganizationCurrencyRules) {
+    const code = this.currency(value || organization.baseCurrency);
+    if (!organization.enabledCurrencies.includes(code)) {
+      throw new BadRequestException(`Currency ${code} is not enabled for this organization`);
+    }
+    return code;
+  }
+
   private currency(value: string | undefined | null) {
     const code = String(value || 'USD').trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(code)) throw new BadRequestException('Currency must be a 3-letter ISO code');
     return code;
+  }
+
+  private safeCodePrefix(value: string) {
+    const prefix = value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    return prefix || 'SUP';
   }
 }
