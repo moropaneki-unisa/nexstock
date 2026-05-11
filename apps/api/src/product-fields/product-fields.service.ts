@@ -4,12 +4,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CustomFieldType } from '@prisma/client';
+import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductFieldDto, UpdateProductFieldDto } from './dto';
 
 @Injectable()
 export class ProductFieldsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly planLimits: PlanLimitsService,
+  ) {}
 
   list(organizationId: string) {
     return this.prisma.customField.findMany({
@@ -19,6 +23,7 @@ export class ProductFieldsService {
   }
 
   async create(organizationId: string, dto: CreateProductFieldDto) {
+    await this.planLimits.assertCanCreateCustomField(organizationId);
     const key = this.generateKeyFromLabel(dto.label);
 
     if (!key) {
@@ -74,6 +79,10 @@ export class ProductFieldsService {
 
     if (!existing) {
       throw new NotFoundException('Product field not found');
+    }
+
+    if (existing.isActive === false && dto.isActive === true) {
+      await this.planLimits.assertCanCreateCustomField(organizationId);
     }
 
     const nextLabel = dto.label?.trim();
