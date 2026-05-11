@@ -1,15 +1,18 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, CircleDollarSign, DatabaseZap, ImageIcon, Loader2, PackagePlus, Save, ShieldCheck, Truck, UploadCloud, Warehouse, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, CircleDollarSign, DatabaseZap, ImageIcon, Loader2, PackagePlus, Plus, Save, ShieldCheck, Star, Trash2, Truck, UploadCloud, Warehouse, X } from "lucide-react";
 
 import { normalizeExchangeRates, type Organization } from "@/components/organization/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
 import { DEFAULT_CURRENCY, formatMoney, normalizeCurrencyCode, normalizeCurrencyList } from "@/lib/currencies";
@@ -40,9 +43,10 @@ type ProductSupplierLink = {
 };
 
 type CurrencyState = { baseCurrency: string; enabledCurrencies: string[]; exchangeRates: Array<{ code: string; rateToBase: number }> };
-type StepId = "basics" | "pricing" | "supplier" | "images" | "attributes" | "review";
+type StepId = "basics" | "pricing" | "suppliers" | "images" | "attributes" | "review";
 
-type SupplierForm = {
+type SupplierRow = {
+  rowId: string;
   linkId?: string;
   supplierId: string;
   supplierSku: string;
@@ -59,13 +63,15 @@ type ProductFormStrictProps = { product?: Product; mode?: "create" | "edit" };
 const steps: Array<{ id: StepId; title: string; description: string }> = [
   { id: "basics", title: "Basics", description: "Name and category" },
   { id: "pricing", title: "Pricing", description: "Base selling price" },
-  { id: "supplier", title: "Supplier", description: "Cost source" },
+  { id: "suppliers", title: "Suppliers", description: "Cost source" },
   { id: "images", title: "Images", description: "Product media" },
   { id: "attributes", title: "Attributes", description: "Custom fields" },
   { id: "review", title: "Review", description: "Save product" },
 ];
 
-const emptySupplier: SupplierForm = { supplierId: "", supplierSku: "", cost: "", currency: DEFAULT_CURRENCY, minimumOrderQty: "", leadTimeDays: "", isPreferred: true, notes: "" };
+function newSupplierRow(baseCurrency: string): SupplierRow {
+  return { rowId: crypto.randomUUID(), supplierId: "", supplierSku: "", cost: "", currency: baseCurrency, minimumOrderQty: "", leadTimeDays: "", isPreferred: false, notes: "" };
+}
 
 export function ProductForm({ product, mode = "create" }: ProductFormStrictProps) {
   const router = useRouter();
@@ -76,8 +82,8 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
   const [currency, setCurrency] = useState<CurrencyState>({ baseCurrency: DEFAULT_CURRENCY, enabledCurrencies: [DEFAULT_CURRENCY], exchangeRates: [] });
   const [fields, setFields] = useState<ProductField[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [supplierLinks, setSupplierLinks] = useState<ProductSupplierLink[]>([]);
-  const [supplier, setSupplier] = useState<SupplierForm>(emptySupplier);
+  const [supplierRows, setSupplierRows] = useState<SupplierRow[]>([]);
+  const [removedLinkIds, setRemovedLinkIds] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(product?.images ?? []);
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -86,7 +92,6 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
     for (const item of product?.customFieldValues ?? []) values[item.fieldId] = typeof item.value === "object" ? JSON.stringify(item.value) : String(item.value ?? "");
     return values;
   });
-
   const [form, setForm] = useState({
     name: product?.name ?? "",
     category: product?.category ?? "",
@@ -96,12 +101,13 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
     lowStockLevel: String(product?.lowStockLevel ?? 5),
   });
 
-  const selectedSupplier = useMemo(() => suppliers.find((item) => item.id === supplier.supplierId) ?? supplierLinks.find((link) => link.supplierId === supplier.supplierId)?.supplier, [supplier.supplierId, supplierLinks, suppliers]);
+  const preferredRow = useMemo(() => supplierRows.find((row) => row.isPreferred) ?? supplierRows.find((row) => row.supplierId), [supplierRows]);
+  const preferredSupplier = preferredRow ? suppliers.find((supplier) => supplier.id === preferredRow.supplierId) : undefined;
   const price = Number(form.price || 0);
-  const cost = supplier.cost === "" ? undefined : Number(supplier.cost);
-  const costCurrency = supplier.supplierId ? supplier.currency : undefined;
+  const preferredCost = preferredRow?.cost === "" || !preferredRow ? undefined : Number(preferredRow.cost);
+  const costCurrency = preferredRow?.supplierId ? preferredRow.currency : undefined;
   const rate = costCurrency ? rateFor(costCurrency, currency) : undefined;
-  const convertedCost = cost === undefined || rate === undefined ? undefined : Number((cost * rate).toFixed(2));
+  const convertedCost = preferredCost === undefined || rate === undefined ? undefined : Number((preferredCost * rate).toFixed(2));
   const margin = convertedCost === undefined ? "-" : calculateMargin(price, convertedCost);
 
   useEffect(() => {
@@ -117,15 +123,14 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
       setCurrency({ baseCurrency, enabledCurrencies: normalizeCurrencyList(baseCurrency, org?.enabledCurrencies ?? []), exchangeRates: normalizeExchangeRates(org?.exchangeRates) });
       setFields(productFields.filter((field) => field.isActive).sort((a, b) => a.order - b.order));
       setSuppliers(supplierList.filter((item) => item.status !== "archived"));
-      setSupplierLinks(links);
-      const preferred = links.find((link) => link.isPreferred) ?? links[0];
-      if (preferred) setSupplierFromLink(preferred, baseCurrency);
+      setSupplierRows(links.map((link) => rowFromLink(link, baseCurrency)));
     });
     return () => { active = false; };
   }, [product?.id]);
 
-  function setSupplierFromLink(link: ProductSupplierLink, baseCurrency: string) {
-    setSupplier({
+  function rowFromLink(link: ProductSupplierLink, baseCurrency: string): SupplierRow {
+    return {
+      rowId: link.id,
       linkId: link.id,
       supplierId: link.supplierId,
       supplierSku: link.supplierSku ?? "",
@@ -135,21 +140,44 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
       leadTimeDays: link.leadTimeDays == null ? "" : String(link.leadTimeDays),
       isPreferred: link.isPreferred,
       notes: link.notes ?? "",
+    };
+  }
+
+  function addSupplierRow() {
+    setSupplierRows((current) => {
+      const next = newSupplierRow(currency.baseCurrency);
+      next.isPreferred = current.length === 0;
+      return [...current, next];
     });
   }
 
-  function selectSupplier(supplierId: string) {
-    const item = suppliers.find((entry) => entry.id === supplierId);
-    const existing = supplierLinks.find((link) => link.supplierId === supplierId);
-    if (existing) return setSupplierFromLink(existing, currency.baseCurrency);
-    setSupplier((current) => ({
-      ...current,
+  function updateSupplierRow(rowId: string, patch: Partial<SupplierRow>) {
+    setSupplierRows((current) => current.map((row) => row.rowId === rowId ? { ...row, ...patch } : row));
+  }
+
+  function selectSupplier(rowId: string, supplierId: string) {
+    const supplier = suppliers.find((item) => item.id === supplierId);
+    setSupplierRows((current) => current.map((row) => row.rowId === rowId ? {
+      ...row,
       supplierId,
-      linkId: undefined,
-      currency: normalizeCurrencyCode(item?.currency || currency.baseCurrency),
-      leadTimeDays: item?.leadTimeDays == null ? current.leadTimeDays : String(item.leadTimeDays),
-      minimumOrderQty: item?.minimumOrderQty == null ? current.minimumOrderQty : String(item.minimumOrderQty),
-    }));
+      currency: normalizeCurrencyCode(supplier?.currency || currency.baseCurrency),
+      minimumOrderQty: row.minimumOrderQty || (supplier?.minimumOrderQty == null ? "" : String(supplier.minimumOrderQty)),
+      leadTimeDays: row.leadTimeDays || (supplier?.leadTimeDays == null ? "" : String(supplier.leadTimeDays)),
+    } : row));
+  }
+
+  function makePreferred(rowId: string) {
+    setSupplierRows((current) => current.map((row) => ({ ...row, isPreferred: row.rowId === rowId })));
+  }
+
+  function removeSupplierRow(rowId: string) {
+    setSupplierRows((current) => {
+      const row = current.find((item) => item.rowId === rowId);
+      if (row?.linkId) setRemovedLinkIds((ids) => [...ids, row.linkId!]);
+      const remaining = current.filter((item) => item.rowId !== rowId);
+      if (row?.isPreferred && remaining.length > 0) remaining[0] = { ...remaining[0], isPreferred: true };
+      return remaining;
+    });
   }
 
   async function uploadImage(files: FileList | null) {
@@ -186,6 +214,8 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
     if (!form.name.trim()) return setError("Product name is required.");
     if (!Number.isFinite(price) || price < 0) return setError("Selling price must be zero or more.");
     if (!isEdit && Number(form.quantity) < 0) return setError("Initial quantity cannot be below zero.");
+    const duplicateSupplier = findDuplicateSupplier(supplierRows);
+    if (duplicateSupplier) return setError("Each supplier can only be linked to this product once.");
 
     const missingField = fields.find((field) => field.required && !String(customValues[field.id] ?? "").trim());
     if (missingField) {
@@ -204,7 +234,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
       description: form.description.trim() || undefined,
       price,
       priceCurrency: currency.baseCurrency,
-      cost,
+      cost: preferredCost,
       costCurrency,
       exchangeRateToBase: rate,
       convertedCost,
@@ -220,7 +250,7 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
         ? await apiFetch<Product>(`/api/products/${product.id}`, { method: "PATCH", body: JSON.stringify(payload) })
         : await apiFetch<Product>("/api/products", { method: "POST", body: JSON.stringify(payload) });
 
-      if (saved.id && supplier.supplierId) await saveProductSupplier(saved.id);
+      await saveProductSuppliers(saved.id);
       router.push(`/products/${saved.id}`);
       router.refresh();
     } catch (err) {
@@ -230,20 +260,26 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
     }
   }
 
-  async function saveProductSupplier(productId: string) {
-    const supplierCost = supplier.cost === "" ? undefined : Number(supplier.cost);
-    const payload = {
-      supplierId: supplier.supplierId,
-      supplierSku: supplier.supplierSku.trim() || undefined,
-      cost: supplierCost,
-      currency: supplier.currency,
-      minimumOrderQty: supplier.minimumOrderQty === "" ? undefined : Number(supplier.minimumOrderQty),
-      leadTimeDays: supplier.leadTimeDays === "" ? undefined : Number(supplier.leadTimeDays),
-      isPreferred: supplier.isPreferred,
-      notes: supplier.notes.trim() || undefined,
-    };
-    if (supplier.linkId) await apiFetch(`/api/products/${productId}/suppliers/${supplier.linkId}`, { method: "PATCH", body: JSON.stringify(payload) });
-    else await apiFetch(`/api/products/${productId}/suppliers`, { method: "POST", body: JSON.stringify(payload) });
+  async function saveProductSuppliers(productId: string) {
+    for (const linkId of removedLinkIds) await apiFetch(`/api/products/${productId}/suppliers/${linkId}`, { method: "DELETE" });
+    const validRows = supplierRows.filter((row) => row.supplierId);
+    const preferredId = validRows.find((row) => row.isPreferred)?.rowId ?? validRows[0]?.rowId;
+
+    for (const row of validRows) {
+      const rowCost = row.cost === "" ? undefined : Number(row.cost);
+      const payload = {
+        supplierId: row.supplierId,
+        supplierSku: row.supplierSku.trim() || undefined,
+        cost: rowCost,
+        currency: row.currency,
+        minimumOrderQty: row.minimumOrderQty === "" ? undefined : Number(row.minimumOrderQty),
+        leadTimeDays: row.leadTimeDays === "" ? undefined : Number(row.leadTimeDays),
+        isPreferred: row.rowId === preferredId,
+        notes: row.notes.trim() || undefined,
+      };
+      if (row.linkId) await apiFetch(`/api/products/${productId}/suppliers/${row.linkId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      else await apiFetch(`/api/products/${productId}/suppliers`, { method: "POST", body: JSON.stringify(payload) });
+    }
   }
 
   const stepIndex = steps.findIndex((item) => item.id === step);
@@ -251,42 +287,49 @@ export function ProductForm({ product, mode = "create" }: ProductFormStrictProps
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
       <div className="space-y-6">
-        {error && <div className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</div>}
+        {error && <Card className="border-destructive/30 bg-destructive/10"><CardContent className="p-4 text-sm text-destructive"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</CardContent></Card>}
 
-        <section className="border bg-card/95">
-          <div className="grid divide-y md:grid-cols-6 md:divide-x md:divide-y-0">
-            {steps.map((item, index) => <button key={item.id} type="button" onClick={() => setStep(item.id)} className={`p-4 text-left transition hover:bg-muted/40 ${step === item.id ? "bg-primary/10" : ""}`}><div className="flex items-center gap-2"><span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step === item.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{index + 1}</span><span className="text-sm font-semibold">{item.title}</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p></button>)}
-          </div>
-        </section>
+        <Card>
+          <CardContent className="p-0">
+            <div className="grid divide-y md:grid-cols-6 md:divide-x md:divide-y-0">
+              {steps.map((item, index) => <button key={item.id} type="button" onClick={() => setStep(item.id)} className={`p-4 text-left transition hover:bg-muted/40 ${step === item.id ? "bg-primary/10" : ""}`}><div className="flex items-center gap-2"><span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${step === item.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{index + 1}</span><span className="text-sm font-semibold">{item.title}</span></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p></button>)}
+            </div>
+          </CardContent>
+        </Card>
 
-        {step === "basics" && <Panel icon={PackagePlus} title="Basic product details" badge="Step 1"><div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0"><div className="divide-y">{isEdit && product?.sku && <ReadOnly label="Generated SKU" value={product.sku} />}<Field label="Product name" required><Input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} className="rounded-xl" /></Field><Field label="Category"><Input value={form.category} onChange={(e) => setForm((c) => ({ ...c, category: e.target.value }))} className="rounded-xl" /></Field></div><Field label="Description"><Textarea value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} className="min-h-44 rounded-xl" /></Field></div></Panel>}
+        {step === "basics" && <Panel icon={PackagePlus} title="Basic product details" badge="Step 1"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-4">{isEdit && product?.sku && <ReadOnly label="Generated SKU" value={product.sku} />}<Field label="Product name" required><Input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} /></Field><Field label="Category"><Input value={form.category} onChange={(e) => setForm((c) => ({ ...c, category: e.target.value }))} /></Field></div><Field label="Description"><Textarea value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} className="min-h-44" /></Field></div></Panel>}
 
-        {step === "pricing" && <Panel icon={CircleDollarSign} title="Pricing and inventory" description={`Selling price is locked to ${currency.baseCurrency}. Cost is inherited from the selected supplier.`} badge="Step 2"><div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0"><div className="divide-y"><Field label="Selling price" required><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((c) => ({ ...c, price: e.target.value }))} className="rounded-xl" /></Field><ReadOnly label="Selling currency" value={`${currency.baseCurrency} (base currency)`} /><ReadOnly label="Product cost source" value={selectedSupplier ? `${selectedSupplier.supplierCode} · ${selectedSupplier.name}` : "Choose supplier in Supplier step"} /><ReadOnly label="Cost currency" value={costCurrency ? `${costCurrency} (supplier currency)` : "Not set"} /></div><div className="divide-y"><ReadOnly label="Product cost" value={cost === undefined ? "Not set" : formatMoney(cost, costCurrency ?? currency.baseCurrency)} /><ReadOnly label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "Not set" : formatMoney(convertedCost, currency.baseCurrency)} />{isEdit ? <ReadOnly label="Current stock" value={`${product?.quantity ?? 0} units`} /> : <Field label="Initial quantity" required><Input type="number" min="0" value={form.quantity} onChange={(e) => setForm((c) => ({ ...c, quantity: e.target.value }))} className="rounded-xl" /></Field>}<Field label="Low-stock alert" required><Input type="number" min="0" value={form.lowStockLevel} onChange={(e) => setForm((c) => ({ ...c, lowStockLevel: e.target.value }))} className="rounded-xl" /></Field></div></div></Panel>}
+        {step === "pricing" && <Panel icon={CircleDollarSign} title="Pricing and inventory" description={`Selling price is locked to ${currency.baseCurrency}. Product cost comes from the preferred supplier.`} badge="Step 2"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-4"><Field label="Selling price" required><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((c) => ({ ...c, price: e.target.value }))} /></Field><ReadOnly label="Selling currency" value={`${currency.baseCurrency} (base currency)`} /><ReadOnly label="Preferred cost source" value={preferredSupplier ? `${preferredSupplier.supplierCode} · ${preferredSupplier.name}` : "Choose preferred supplier in Suppliers step"} /></div><div className="space-y-4"><ReadOnly label="Product cost" value={preferredCost === undefined ? "Not set" : formatMoney(preferredCost, costCurrency ?? currency.baseCurrency)} /><ReadOnly label="Cost currency" value={costCurrency ? `${costCurrency} (preferred supplier currency)` : "Not set"} /><ReadOnly label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "Not set" : formatMoney(convertedCost, currency.baseCurrency)} />{isEdit ? <ReadOnly label="Current stock" value={`${product?.quantity ?? 0} units`} /> : <Field label="Initial quantity" required><Input type="number" min="0" value={form.quantity} onChange={(e) => setForm((c) => ({ ...c, quantity: e.target.value }))} /></Field>}<Field label="Low-stock alert" required><Input type="number" min="0" value={form.lowStockLevel} onChange={(e) => setForm((c) => ({ ...c, lowStockLevel: e.target.value }))} /></Field></div></div></Panel>}
 
-        {step === "supplier" && <Panel icon={Truck} title="Supplier and inherited cost" description="Supplier currency is read-only from the supplier record. Product cost and currency inherit from this supplier." badge="Step 3"><div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0"><div className="divide-y"><Field label="Supplier"><Select value={supplier.supplierId || "none"} onValueChange={(value) => selectSupplier(value === "none" ? "" : value)}><SelectTrigger className="rounded-xl"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent><SelectItem value="none">No supplier linked</SelectItem>{suppliers.map((item) => <SelectItem key={item.id} value={item.id}>{item.supplierCode} · {item.name}</SelectItem>)}</SelectContent></Select></Field><ReadOnly label="Supplier code" value={selectedSupplier?.supplierCode || "Choose supplier"} /><ReadOnly label="Supplier currency" value={selectedSupplier ? `${supplier.currency} (from supplier)` : "Choose supplier"} /><Field label="Supplier product SKU"><Input value={supplier.supplierSku} onChange={(e) => setSupplier((c) => ({ ...c, supplierSku: e.target.value }))} className="rounded-xl" /></Field><Field label="Preferred supplier"><label className="flex items-center gap-3 border bg-muted/15 p-4 text-sm"><input type="checkbox" checked={supplier.isPreferred} onChange={(e) => setSupplier((c) => ({ ...c, isPreferred: e.target.checked }))} /><span>Mark as preferred cost source</span></label></Field></div><div className="divide-y"><Field label={`Supplier cost (${supplier.currency})`}><Input type="number" min="0" step="0.01" value={supplier.cost} onChange={(e) => setSupplier((c) => ({ ...c, cost: e.target.value }))} className="rounded-xl" /></Field><ReadOnly label={`Exchange rate to ${currency.baseCurrency}`} value={rate ? String(rate) : "Not set"} /><ReadOnly label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "Not set" : formatMoney(convertedCost, currency.baseCurrency)} /><ReadOnly label="Margin" value={margin} /><Field label="MOQ / lead time"><div className="grid gap-3 sm:grid-cols-2"><Input type="number" min="0" value={supplier.minimumOrderQty} onChange={(e) => setSupplier((c) => ({ ...c, minimumOrderQty: e.target.value }))} placeholder="MOQ" className="rounded-xl" /><Input type="number" min="0" value={supplier.leadTimeDays} onChange={(e) => setSupplier((c) => ({ ...c, leadTimeDays: e.target.value }))} placeholder="Lead days" className="rounded-xl" /></div></Field></div></div><div className="border-t p-5"><div className="border bg-emerald-50 p-4 text-sm text-emerald-900"><CheckCircle2 className="mr-2 inline h-4 w-4" />Product cost currency is inherited from supplier currency. Selling price remains in base currency.</div><Textarea value={supplier.notes} onChange={(e) => setSupplier((c) => ({ ...c, notes: e.target.value }))} className="mt-4 min-h-24 rounded-xl" placeholder="Supplier notes..." /></div></Panel>}
+        {step === "suppliers" && <Panel icon={Truck} title="Multiple suppliers" description="Add many suppliers to one product. Only the preferred supplier drives the product cost." badge="Step 3"><div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="text-sm text-muted-foreground">Preferred supplier cost becomes product cost. Other suppliers remain available as backups and for comparison.</div><Button type="button" variant="outline" onClick={addSupplierRow}><Plus className="h-4 w-4" />Add supplier</Button></div>{supplierRows.length === 0 ? <Card className="border-dashed"><CardContent className="p-8 text-center text-sm text-muted-foreground">No suppliers linked yet. Add at least one supplier to enable strict cost sourcing.</CardContent></Card> : <SupplierRowsTable rows={supplierRows} suppliers={suppliers} baseCurrency={currency.baseCurrency} currency={currency} price={price} onSelectSupplier={selectSupplier} onUpdate={updateSupplierRow} onPreferred={makePreferred} onRemove={removeSupplierRow} />}</div></Panel>}
 
-        {step === "images" && <Panel icon={ImageIcon} title="Product images" badge="Step 4"><div className="space-y-5 border-t p-5"><label className="flex cursor-pointer flex-col items-center justify-center border border-dashed bg-muted/20 p-8 text-center transition hover:bg-muted/45">{uploading ? <Loader2 className="mb-3 h-8 w-8 animate-spin" /> : <UploadCloud className="mb-3 h-8 w-8" />}<span className="text-sm font-medium">Upload product images</span><Input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={(event) => uploadImage(event.target.files)} /></label><div className="grid gap-2 md:grid-cols-[1fr_auto]"><Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/product.jpg" className="rounded-xl" /><Button type="button" variant="outline" onClick={addImageUrl} className="rounded-xl bg-background/70">Add image URL</Button></div>{images.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{images.map((image, index) => <div key={`${image}-${index}`} className="group relative overflow-hidden border bg-muted/30"><img src={image} alt={`Product image ${index + 1}`} className="h-44 w-full object-cover" /><Badge className="absolute left-2 top-2 bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge><button type="button" onClick={() => setImages((current) => current.filter((_, i) => i !== index))} className="absolute right-2 top-2 bg-background/90 p-1.5"><X className="h-4 w-4" /></button></div>)}</div> : <div className="border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No images added yet</div>}</div></Panel>}
+        {step === "images" && <Panel icon={ImageIcon} title="Product images" badge="Step 4"><div className="space-y-5"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-8 text-center transition hover:bg-muted/45">{uploading ? <Loader2 className="mb-3 h-8 w-8 animate-spin" /> : <UploadCloud className="mb-3 h-8 w-8" />}<span className="text-sm font-medium">Upload product images</span><Input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={(event) => uploadImage(event.target.files)} /></label><div className="grid gap-2 md:grid-cols-[1fr_auto]"><Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/product.jpg" /><Button type="button" variant="outline" onClick={addImageUrl}>Add image URL</Button></div>{images.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{images.map((image, index) => <Card key={`${image}-${index}`} className="group relative overflow-hidden"><img src={image} alt={`Product image ${index + 1}`} className="h-44 w-full object-cover" /><Badge className="absolute left-2 top-2 bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge><button type="button" onClick={() => setImages((current) => current.filter((_, i) => i !== index))} className="absolute right-2 top-2 rounded-md bg-background/90 p-1.5"><X className="h-4 w-4" /></button></Card>)}</div> : <Card className="border-dashed"><CardContent className="p-8 text-center text-sm text-muted-foreground">No images added yet</CardContent></Card>}</div></Panel>}
 
-        {step === "attributes" && <Panel icon={DatabaseZap} title="Product attributes" badge="Step 5"><div className="grid gap-4 border-t p-5 md:grid-cols-2">{fields.length === 0 ? <div className="text-sm text-muted-foreground">No custom attributes configured.</div> : fields.map((field) => <Field key={field.id} label={field.label} required={field.required}><AttributeInput field={field} value={customValues[field.id] ?? ""} onChange={(value) => setCustomValues((current) => ({ ...current, [field.id]: value }))} /></Field>)}</div></Panel>}
+        {step === "attributes" && <Panel icon={DatabaseZap} title="Product attributes" badge="Step 5"><div className="grid gap-4 md:grid-cols-2">{fields.length === 0 ? <div className="text-sm text-muted-foreground">No custom attributes configured.</div> : fields.map((field) => <Field key={field.id} label={field.label} required={field.required}><AttributeInput field={field} value={customValues[field.id] ?? ""} onChange={(value) => setCustomValues((current) => ({ ...current, [field.id]: value }))} /></Field>)}</div></Panel>}
 
-        {step === "review" && <Panel icon={ShieldCheck} title="Review product" badge="Final"><div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0"><div className="divide-y"><Review label="Name" value={form.name || "Missing"} /><Review label="Category" value={form.category || "Uncategorized"} /><Review label={`Selling price (${currency.baseCurrency})`} value={formatMoney(price, currency.baseCurrency)} /><Review label={costCurrency ? `Cost (${costCurrency})` : "Cost"} value={cost === undefined ? "Not set" : formatMoney(cost, costCurrency ?? currency.baseCurrency)} /><Review label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "Not set" : formatMoney(convertedCost, currency.baseCurrency)} /></div><div className="divide-y"><Review label="Supplier" value={selectedSupplier ? `${selectedSupplier.supplierCode} · ${selectedSupplier.name}` : "Not linked"} /><Review label="Supplier product SKU" value={supplier.supplierSku || "Not set"} /><Review label="Margin" value={margin} /><Review label="Images" value={`${images.length}`} /><Review label="Low-stock alert" value={`${form.lowStockLevel} units`} /></div></div></Panel>}
+        {step === "review" && <Panel icon={ShieldCheck} title="Review product" badge="Final"><div className="grid gap-4 md:grid-cols-2"><Card><CardHeader><CardTitle>Product</CardTitle><CardDescription>Base-currency selling information</CardDescription></CardHeader><CardContent className="space-y-3"><Review label="Name" value={form.name || "Missing"} /><Review label="Category" value={form.category || "Uncategorized"} /><Review label={`Selling price (${currency.baseCurrency})`} value={formatMoney(price, currency.baseCurrency)} /><Review label={costCurrency ? `Preferred cost (${costCurrency})` : "Preferred cost"} value={preferredCost === undefined ? "Not set" : formatMoney(preferredCost, costCurrency ?? currency.baseCurrency)} /><Review label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "Not set" : formatMoney(convertedCost, currency.baseCurrency)} /></CardContent></Card><Card><CardHeader><CardTitle>Suppliers</CardTitle><CardDescription>{supplierRows.filter((row) => row.supplierId).length} supplier links</CardDescription></CardHeader><CardContent className="space-y-3"><Review label="Preferred" value={preferredSupplier ? `${preferredSupplier.supplierCode} · ${preferredSupplier.name}` : "Not set"} /><Review label="Margin" value={margin} /><Review label="Images" value={`${images.length}`} /><Review label="Low-stock alert" value={`${form.lowStockLevel} units`} /></CardContent></Card></div></Panel>}
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border bg-card/95 p-4"><Button type="button" variant="outline" onClick={() => setStep(steps[Math.max(stepIndex - 1, 0)].id)} disabled={stepIndex === 0 || saving} className="rounded-xl bg-background/70"><ArrowLeft className="h-4 w-4" />Back</Button><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={saving} className="rounded-xl bg-background/70">Cancel</Button>{step === "review" ? <Button type="button" onClick={saveProduct} disabled={saving || uploading} className="rounded-xl">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? <Save className="h-4 w-4" /> : <PackagePlus className="h-4 w-4" />}{saving ? "Saving..." : isEdit ? "Update product" : "Create product"}</Button> : <Button type="button" onClick={() => setStep(steps[Math.min(stepIndex + 1, steps.length - 1)].id)} disabled={saving} className="rounded-xl">Continue<ArrowRight className="h-4 w-4" /></Button>}</div></div>
+        <Card><CardContent className="flex flex-wrap items-center justify-between gap-3 p-4"><Button type="button" variant="outline" onClick={() => setStep(steps[Math.max(stepIndex - 1, 0)].id)} disabled={stepIndex === 0 || saving}><ArrowLeft className="h-4 w-4" />Back</Button><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={saving}>Cancel</Button>{step === "review" ? <Button type="button" onClick={saveProduct} disabled={saving || uploading}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? <Save className="h-4 w-4" /> : <PackagePlus className="h-4 w-4" />}{saving ? "Saving..." : isEdit ? "Update product" : "Create product"}</Button> : <Button type="button" onClick={() => setStep(steps[Math.min(stepIndex + 1, steps.length - 1)].id)} disabled={saving}>Continue<ArrowRight className="h-4 w-4" /></Button>}</div></CardContent></Card>
       </div>
 
-      <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start"><section className="border bg-card/95"><Header icon={ShieldCheck} title="Readiness" /><div className="divide-y border-t"><Ready label="Basic details" ready={Boolean(form.name.trim())} /><Ready label="Base selling price" ready={price >= 0} /><Ready label="Supplier cost source" ready={!supplier.supplierId || Boolean(selectedSupplier?.supplierCode)} /><Ready label="Inventory" ready={isEdit ? Number(form.lowStockLevel) >= 0 : Number(form.quantity) >= 0 && Number(form.lowStockLevel) >= 0} /></div></section><section className="border bg-card/95"><Header icon={Warehouse} title="Cost summary" /><div className="divide-y border-t"><Side label="Selling currency" value={currency.baseCurrency} /><Side label="Cost currency" value={costCurrency ?? "Not set"} /><Side label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "-" : formatMoney(convertedCost, currency.baseCurrency)} /><Side label="Margin" value={margin} /><Side label="Supplier" value={selectedSupplier?.supplierCode || "Not linked"} /></div></section></aside>
+      <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start"><Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" />Readiness</CardTitle></CardHeader><CardContent className="space-y-2"><Ready label="Basic details" ready={Boolean(form.name.trim())} /><Ready label="Base selling price" ready={price >= 0} /><Ready label="Preferred supplier" ready={!supplierRows.length || Boolean(preferredSupplier)} /><Ready label="Inventory" ready={isEdit ? Number(form.lowStockLevel) >= 0 : Number(form.quantity) >= 0 && Number(form.lowStockLevel) >= 0} /></CardContent></Card><Card><CardHeader><CardTitle className="flex items-center gap-2"><Warehouse className="h-5 w-5" />Cost summary</CardTitle></CardHeader><CardContent className="space-y-3"><Side label="Selling currency" value={currency.baseCurrency} /><Side label="Cost currency" value={costCurrency ?? "Not set"} /><Side label={`Converted cost (${currency.baseCurrency})`} value={convertedCost === undefined ? "-" : formatMoney(convertedCost, currency.baseCurrency)} /><Side label="Margin" value={margin} /><Side label="Suppliers" value={`${supplierRows.filter((row) => row.supplierId).length}`} /></CardContent></Card></aside>
     </div>
   );
 }
 
-function Panel({ icon, title, description, badge, children }: { icon: any; title: string; description?: string; badge?: string; children: React.ReactNode }) { return <section className="border bg-card/95"><Header icon={icon} title={title} description={description} badge={badge} />{children}</section>; }
-function Header({ icon: Icon, title, description, badge }: { icon: any; title: string; description?: string; badge?: string }) { return <div className="flex items-start justify-between gap-4 p-5"><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Icon className="h-5 w-5" />{title}</h2>{description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div>{badge && <Badge variant="secondary">{badge}</Badge>}</div>; }
-function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) { return <div className="p-4"><Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}{required && <span className="ml-1 text-destructive">*</span>}</Label><div className="mt-3">{children}</div></div>; }
-function ReadOnly({ label, value }: { label: string; value: string }) { return <div className="p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 font-mono text-sm font-semibold">{value}</p></div>; }
-function Review({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-4 p-4 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
-function Ready({ label, ready }: { label: string; ready: boolean }) { return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}{label}</span><Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Needed"}</Badge></div>; }
-function Side({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
-function AttributeInput({ field, value, onChange }: { field: ProductField; value: string; onChange: (value: string) => void }) { if (field.type === "select") return <Select value={value} onValueChange={onChange}><SelectTrigger className="rounded-xl"><SelectValue placeholder={`Select ${field.label.toLowerCase()}`} /></SelectTrigger><SelectContent>{(field.options ?? []).map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select>; if (field.type === "boolean") return <Select value={value} onValueChange={onChange}><SelectTrigger className="rounded-xl"><SelectValue placeholder="Select true or false" /></SelectTrigger><SelectContent><SelectItem value="true">True</SelectItem><SelectItem value="false">False</SelectItem></SelectContent></Select>; if (field.type === "json") return <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 rounded-xl font-mono text-sm" />; return <Input className="rounded-xl" type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={value} onChange={(event) => onChange(event.target.value)} />; }
+function SupplierRowsTable({ rows, suppliers, currency, price, onSelectSupplier, onUpdate, onPreferred, onRemove }: { rows: SupplierRow[]; suppliers: Supplier[]; baseCurrency: string; currency: CurrencyState; price: number; onSelectSupplier: (rowId: string, supplierId: string) => void; onUpdate: (rowId: string, patch: Partial<SupplierRow>) => void; onPreferred: (rowId: string) => void; onRemove: (rowId: string) => void }) {
+  return <Card><Table><TableHeader><TableRow><TableHead>Preferred</TableHead><TableHead>Supplier</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Cost</TableHead><TableHead>Currency</TableHead><TableHead>Converted</TableHead><TableHead>MOQ</TableHead><TableHead>Lead</TableHead><TableHead></TableHead></TableRow></TableHeader><TableBody>{rows.map((row) => { const selected = suppliers.find((supplier) => supplier.id === row.supplierId); const cost = row.cost === "" ? undefined : Number(row.cost); const rate = rateFor(row.currency, currency); const converted = cost === undefined || Number.isNaN(cost) ? undefined : Number((cost * rate).toFixed(2)); return <TableRow key={row.rowId} className={row.isPreferred ? "bg-primary/5" : undefined}><TableCell><Button type="button" size="sm" variant={row.isPreferred ? "default" : "outline"} onClick={() => onPreferred(row.rowId)}><Star className="h-4 w-4" />{row.isPreferred ? "Preferred" : "Use"}</Button></TableCell><TableCell className="min-w-[16rem]"><Select value={row.supplierId || "none"} onValueChange={(value) => onSelectSupplier(row.rowId, value === "none" ? "" : value)}><SelectTrigger><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent><SelectItem value="none">Choose supplier</SelectItem>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select>{selected && <p className="mt-1 font-mono text-xs text-muted-foreground">{selected.supplierCode}</p>}</TableCell><TableCell><Input value={row.supplierSku} onChange={(event) => onUpdate(row.rowId, { supplierSku: event.target.value })} placeholder="Vendor SKU" /></TableCell><TableCell><Input type="number" min="0" step="0.01" value={row.cost} onChange={(event) => onUpdate(row.rowId, { cost: event.target.value })} placeholder="0.00" /></TableCell><TableCell><Badge variant="secondary">{row.supplierId ? row.currency : "-"}</Badge></TableCell><TableCell>{converted === undefined ? "-" : <div><p className="font-medium">{formatMoney(converted, currency.baseCurrency)}</p><p className="text-xs text-muted-foreground">Margin {calculateMargin(price, converted)}</p></div>}</TableCell><TableCell><Input className="w-20" type="number" min="0" value={row.minimumOrderQty} onChange={(event) => onUpdate(row.rowId, { minimumOrderQty: event.target.value })} /></TableCell><TableCell><Input className="w-20" type="number" min="0" value={row.leadTimeDays} onChange={(event) => onUpdate(row.rowId, { leadTimeDays: event.target.value })} /></TableCell><TableCell><Button type="button" size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => onRemove(row.rowId)}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>; })}</TableBody></Table></Card>;
+}
+
+function Panel({ icon, title, description, badge, children }: { icon: any; title: string; description?: string; badge?: string; children: React.ReactNode }) { return <Card><CardHeader><div className="flex items-start justify-between gap-4"><div><CardTitle className="flex items-center gap-2"><IconWrap icon={icon} />{title}</CardTitle>{description && <CardDescription className="mt-1">{description}</CardDescription>}</div>{badge && <Badge variant="secondary">{badge}</Badge>}</div></CardHeader><CardContent>{children}</CardContent></Card>; }
+function IconWrap({ icon: Icon }: { icon: any }) { return <Icon className="h-5 w-5" />; }
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) { return <div className="space-y-2"><Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}{required && <span className="ml-1 text-destructive">*</span>}</Label>{children}</div>; }
+function ReadOnly({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 font-mono text-sm font-semibold">{value}</p></div>; }
+function Review({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-4 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
+function Ready({ label, ready }: { label: string; ready: boolean }) { return <div className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"><span className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}{label}</span><Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Needed"}</Badge></div>; }
+function Side({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
+function AttributeInput({ field, value, onChange }: { field: ProductField; value: string; onChange: (value: string) => void }) { if (field.type === "select") return <Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue placeholder={`Select ${field.label.toLowerCase()}`} /></SelectTrigger><SelectContent>{(field.options ?? []).map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select>; if (field.type === "boolean") return <Select value={value} onValueChange={onChange}><SelectTrigger><SelectValue placeholder="Select true or false" /></SelectTrigger><SelectContent><SelectItem value="true">True</SelectItem><SelectItem value="false">False</SelectItem></SelectContent></Select>; if (field.type === "json") return <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 font-mono text-sm" />; return <Input type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={value} onChange={(event) => onChange(event.target.value)} />; }
 function rateFor(code: string, state: CurrencyState) { const normalized = normalizeCurrencyCode(code || state.baseCurrency); if (normalized === state.baseCurrency) return 1; return state.exchangeRates.find((rate) => rate.code === normalized)?.rateToBase ?? 1; }
 function calculateMargin(price: number, cost?: number) { if (!price || !cost) return "-"; return `${Math.round(((price - cost) / price) * 100)}%`; }
 function parseFieldValue(field: ProductField, raw?: string) { if (raw === undefined || raw === null || String(raw).trim() === "") return undefined; if (field.type === "number") { const value = Number(raw); return Number.isNaN(value) ? undefined : value; } if (field.type === "boolean") return raw === "true"; if (field.type === "json") { try { return JSON.parse(raw); } catch { return raw; } } return raw; }
+function findDuplicateSupplier(rows: SupplierRow[]) { const seen = new Set<string>(); for (const row of rows) { if (!row.supplierId) continue; if (seen.has(row.supplierId)) return row.supplierId; seen.add(row.supplierId); } return null; }
