@@ -163,11 +163,13 @@ model Organization {
   postalCode         String?
   country            String?
   skuPrefix          String?
+  supplierPrefix     String?        @default("SUP")
   baseCurrency       String         @default("ZAR")
   enabledCurrencies  String[]       @default(["ZAR"])
   exchangeRates      Json?
   onboardingComplete Boolean        @default(false)
   nextSkuNumber      Int            @default(1)
+  nextSupplierNumber Int            @default(1)
   memberships        Membership[]
   products           Product[]
   suppliers          Supplier[]
@@ -249,6 +251,7 @@ model Task {
 model Supplier {
   id              String            @id @default(uuid())
   organizationId  String
+  supplierCode    String
   name            String
   supplierType    String            @default("vendor")
   category        String?
@@ -284,6 +287,7 @@ model Supplier {
   updatedAt       DateTime          @updatedAt
 
   @@unique([organizationId, name])
+  @@unique([organizationId, supplierCode])
   @@index([organizationId, status])
   @@index([organizationId, currency])
   @@index([organizationId, country])
