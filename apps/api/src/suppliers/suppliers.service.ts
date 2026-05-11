@@ -144,7 +144,7 @@ export class SuppliersService {
       leadTimeDays: dto.leadTimeDays,
       minimumOrderQty: dto.minimumOrderQty,
       lastOrderAt: dto.lastOrderAt ? new Date(dto.lastOrderAt) : undefined,
-      customFields: dto.customFields ?? undefined,
+      customFields: this.jsonObject(dto.customFields),
       notes: this.optionalText(dto.notes),
     };
   }
@@ -176,7 +176,7 @@ export class SuppliersService {
       leadTimeDays: dto.leadTimeDays,
       minimumOrderQty: dto.minimumOrderQty,
       lastOrderAt: dto.lastOrderAt === undefined ? undefined : dto.lastOrderAt ? new Date(dto.lastOrderAt) : null,
-      customFields: dto.customFields === undefined ? undefined : dto.customFields,
+      customFields: dto.customFields === undefined ? undefined : this.jsonObject(dto.customFields),
       notes: dto.notes === undefined ? undefined : this.optionalText(dto.notes),
       status: dto.status,
     };
@@ -214,6 +214,11 @@ export class SuppliersService {
 
   private option(value: string | null | undefined, fallback: string) {
     return this.optionalText(value) ?? fallback;
+  }
+
+  private jsonObject(value: Record<string, unknown> | undefined): Prisma.InputJsonObject | undefined {
+    if (value === undefined) return undefined;
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
   }
 
   private currency(value: string | undefined | null) {
