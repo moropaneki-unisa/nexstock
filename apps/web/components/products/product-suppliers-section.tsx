@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Loader2, Pencil, Plus, Star, Trash2, Truck } from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, Pencil, Plus, Star, Trash2, Truck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ const emptyForm = {
 };
 
 export function ProductSuppliersSection({ productId, baseCurrency }: ProductSuppliersSectionProps) {
+  const [expanded, setExpanded] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [links, setLinks] = useState<ProductSupplierLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -173,6 +174,7 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
       }
       setOpen(false);
       setEditing(null);
+      setExpanded(true);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save product supplier");
@@ -188,6 +190,7 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
     try {
       await apiFetch(`/api/products/${productId}/suppliers/${link.id}`, { method: "DELETE" });
       setSuccess("Supplier removed from product.");
+      setExpanded(true);
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to remove product supplier");
@@ -196,33 +199,47 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
 
   return (
     <section className="border bg-card/95">
-      <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        className="flex w-full items-start justify-between gap-4 p-5 text-left transition hover:bg-muted/25"
+        aria-expanded={expanded}
+      >
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Truck className="h-5 w-5" />Suppliers</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Link vendors, manufacturers, and raw-material suppliers to this product with cost, supplier SKU, MOQ, lead time, and preferred supplier status.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Show or hide suppliers linked to this product, including supplier SKU, cost, MOQ, lead time, and preferred supplier.</p>
           {preferred && <p className="mt-2 text-xs text-muted-foreground">Preferred supplier: <span className="font-semibold text-foreground">{preferred.supplier.name}</span></p>}
         </div>
-        <Button type="button" variant="outline" onClick={openCreate} disabled={loading || availableSuppliers.length === 0} className="rounded-xl bg-background/70">
-          <Plus className="h-4 w-4" />Link supplier
-        </Button>
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="secondary">{links.length} linked</Badge>
+          <ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+        </div>
+      </button>
 
-      {error && <div className="border-t border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
-      {success && <div className="border-t border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{success}</div>}
+      {expanded && (
+        <div className="border-t">
+          <div className="flex justify-end border-b p-4">
+            <Button type="button" variant="outline" onClick={openCreate} disabled={loading || availableSuppliers.length === 0} className="rounded-xl bg-background/70">
+              <Plus className="h-4 w-4" />Link supplier
+            </Button>
+          </div>
 
-      <div className="border-t">
-        {loading ? (
-          <div className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading product suppliers...</div>
-        ) : links.length ? (
-          <div className="grid gap-4 p-4 xl:grid-cols-2">
-            {links.map((link) => <SupplierLinkCard key={link.id} link={link} baseCurrency={baseCurrency} onEdit={() => openEdit(link)} onRemove={() => void removeLink(link)} />)}
-          </div>
-        ) : (
-          <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-            No suppliers linked yet. Link this product to a supplier so future purchase orders, receiving, and cost comparisons have the right foundation.
-          </div>
-        )}
-      </div>
+          {error && <div className="border-b border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
+          {success && <div className="border-b border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{success}</div>}
+
+          {loading ? (
+            <div className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading product suppliers...</div>
+          ) : links.length ? (
+            <div className="grid gap-4 p-4 xl:grid-cols-2">
+              {links.map((link) => <SupplierLinkCard key={link.id} link={link} baseCurrency={baseCurrency} onEdit={() => openEdit(link)} onRemove={() => void removeLink(link)} />)}
+            </div>
+          ) : (
+            <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+              No suppliers linked yet. Link this product to a supplier so future purchase orders, receiving, and cost comparisons have the right foundation.
+            </div>
+          )}
+        </div>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-3xl">
