@@ -4,7 +4,7 @@ import Link from "next/link";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CheckCircle2, CreditCard, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, CreditCard, Loader2, RefreshCcw, ShieldCheck } from "lucide-react";
 
 import { AuthCard, AuthShell } from "@/components/marketing/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -56,18 +56,20 @@ function getPaidPlan(value: string | null): PaidPlan {
 }
 
 function getReferenceFromSearch(params: URLSearchParams) {
-  return (
-    params.get("transaction_id") ||
-    params.get("_ptxn") ||
-    params.get("reference") ||
-    params.get("trxref")
-  );
+  return params.get("transaction_id") || params.get("_ptxn") || params.get("reference") || params.get("trxref");
+}
+
+function hasCompletedPaymentSignal(params: URLSearchParams) {
+  const checkoutStatus = `${params.get("status") || params.get("checkout_status") || params.get("payment_status") || params.get("result") || params.get("paddle_status") || ""}`.toLowerCase();
+  const successFlag = `${params.get("success") || params.get("completed") || ""}`.toLowerCase();
+  return ["paid", "completed", "complete", "success", "succeeded"].includes(checkoutStatus) || successFlag === "true" || successFlag === "1";
 }
 
 export default function BillingCheckoutPage() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("starter");
   const [reference, setReference] = useState<string | null>(null);
+  const [shouldVerify, setShouldVerify] = useState(false);
   const [paddleReady, setPaddleReady] = useState(false);
   const [paddleLoadFailed, setPaddleLoadFailed] = useState(false);
   const [checkoutVisible, setCheckoutVisible] = useState(false);
@@ -80,10 +82,31 @@ export default function BillingCheckoutPage() {
     const params = new URLSearchParams(window.location.search);
     const nextPlan = getPaidPlan(params.get("plan") || window.localStorage.getItem(PLAN_STORAGE_KEY));
     const nextReference = getReferenceFromSearch(params);
+    const completedSignal = hasCompletedPaymentSignal(params);
+
     setSelectedPlan(nextPlan);
-    setReference(nextReference);
     window.localStorage.setItem(PLAN_STORAGE_KEY, nextPlan);
-    if (nextReference) setStatus("verifying");
+
+    if (nextReference && completedSignal) {
+      setReference(nextReference);
+      setShouldVerify(true);
+      setStatus("verifying");
+      return;
+    }
+
+    if (nextReference && !completedSignal) {
+      window.localStorage.setItem(PADDLE_REFERENCE_KEY, nextReference);
+      setReference(null);
+      setShouldVerify(false);
+      setStatus("idle");
+      setError("Checkout was opened but payment has not been completed yet. Click continue to reopen secure payment, or start a new checkout.");
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete("_ptxn");
+      nextUrl.searchParams.delete("transaction_id");
+      nextUrl.searchParams.delete("reference");
+      nextUrl.searchParams.delete("trxref");
+      window.history.replaceState(null, "", nextUrl.toString());
+    }
   }, []);
 
   useEffect(() => {
@@ -99,7 +122,7 @@ export default function BillingCheckoutPage() {
   }, [paddleLoadFailed, paddleReady, status]);
 
   useEffect(() => {
-    if (!reference || status === "checkout" || status === "starting") return;
+    if (!reference || !shouldVerify || status === "checkout" || status === "starting") return;
     let cancelled = false;
 
     async function verify() {
@@ -115,10 +138,12 @@ export default function BillingCheckoutPage() {
           window.setTimeout(() => router.push("/organization/edit?setup=1"), 1200);
           return;
         }
+        setShouldVerify(false);
         setStatus("failed");
-        setError(result.status ? `Payment is currently ${result.status}. If you completed payment, wait a few seconds and refresh.` : "Payment could not be verified. Please try again or contact support.");
+        setError(result.status ? `Payment is currently ${result.status}. Complete the checkout first, then verification will run automatically.` : "Payment could not be verified yet. Complete checkout first or start a new checkout.");
       } catch (err) {
         if (cancelled) return;
+        setShouldVerify(false);
         setStatus("failed");
         setError(err instanceof Error ? err.message : "Could not verify payment");
       }
@@ -126,12 +151,13 @@ export default function BillingCheckoutPage() {
 
     verify();
     return () => { cancelled = true; };
-  }, [reference, router, status]);
+  }, [reference, router, shouldVerify, status]);
 
   function handlePaddleEvent(event: PaddleEvent) {
     if (event.name === "checkout.loaded") setStatus("checkout");
     if (event.name === "checkout.payment.initiated") setStatus("checkout");
     if (event.name === "checkout.payment.failed" || event.name === "checkout.error" || event.name === "checkout.payment.error") {
+      setShouldVerify(false);
       setStatus("failed");
       setError("Payment could not be completed. Please check your payment method and try again.");
     }
@@ -140,6 +166,7 @@ export default function BillingCheckoutPage() {
       if (transactionId) {
         window.localStorage.setItem(PADDLE_REFERENCE_KEY, transactionId);
         setReference(transactionId);
+        setShouldVerify(true);
       }
       setStatus("verifying");
       setCheckoutVisible(false);
@@ -194,7 +221,7 @@ export default function BillingCheckoutPage() {
   }
 
   function changePlan(nextPlan: PaidPlan) {
-    if (status === "starting" || status === "checkout" || reference) return;
+    if (status === "starting" || status === "checkout") return;
     setSelectedPlan(nextPlan);
     window.localStorage.setItem(PLAN_STORAGE_KEY, nextPlan);
     const nextUrl = new URL(window.location.href);
@@ -206,6 +233,7 @@ export default function BillingCheckoutPage() {
   async function startCheckout() {
     setStatus("starting");
     setError(null);
+    setShouldVerify(false);
     setCheckoutVisible(true);
 
     if (!paddleClientToken) {
@@ -221,6 +249,7 @@ export default function BillingCheckoutPage() {
 
       const checkout = await initializeSubscriptionCheckout(selectedPlan);
       if (!checkout.reference) throw new Error("Paddle transaction was not returned");
+      setReference(null);
       window.localStorage.setItem(PADDLE_REFERENCE_KEY, checkout.reference);
       checkoutStartedRef.current = true;
 
@@ -250,10 +279,17 @@ export default function BillingCheckoutPage() {
     } catch {}
     checkoutStartedRef.current = false;
     setReference(null);
+    setShouldVerify(false);
     setCheckoutVisible(false);
     setStatus("idle");
     setError(null);
     window.localStorage.removeItem(PADDLE_REFERENCE_KEY);
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete("_ptxn");
+    nextUrl.searchParams.delete("transaction_id");
+    nextUrl.searchParams.delete("reference");
+    nextUrl.searchParams.delete("trxref");
+    window.history.replaceState(null, "", nextUrl.toString());
   }
 
   return (
@@ -275,14 +311,14 @@ export default function BillingCheckoutPage() {
           description="Choose the subscription that fits your product operations, then complete payment in the embedded checkout."
           footer={<Link href="/#pricing" className="font-medium text-foreground hover:underline">Compare all plans</Link>}
         >
-          {!reference && !checkoutVisible && (
+          {!checkoutVisible && (
             <div className="grid gap-3 border-t p-5 sm:grid-cols-2">
               {(["starter", "growth"] as PaidPlan[]).map((option) => (
                 <button
                   key={option}
                   type="button"
                   onClick={() => changePlan(option)}
-                  disabled={status === "starting"}
+                  disabled={status === "starting" || status === "verifying"}
                   className={`rounded-2xl border p-4 text-left transition ${selectedPlan === option ? "border-primary bg-primary/5 ring-2 ring-primary" : "bg-background hover:bg-muted/50"}`}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -329,9 +365,12 @@ export default function BillingCheckoutPage() {
 
           <div className="border-t p-5">
             {!checkoutVisible && status !== "verifying" && status !== "success" ? (
-              <Button onClick={startCheckout} className="w-full rounded-xl py-6 font-semibold" disabled={status === "starting"}>
-                {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Continue to secure payment <ArrowRight className="h-4 w-4" /></>}
-              </Button>
+              <div className="space-y-3">
+                <Button onClick={startCheckout} className="w-full rounded-xl py-6 font-semibold" disabled={status === "starting"}>
+                  {status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting checkout...</> : <>Continue to secure payment <ArrowRight className="h-4 w-4" /></>}
+                </Button>
+                {(status === "failed" || error) && <Button type="button" variant="outline" onClick={resetCheckout} className="w-full rounded-xl py-6 font-semibold"><RefreshCcw className="h-4 w-4" />Start fresh checkout</Button>}
+              </div>
             ) : (
               <Button className="w-full rounded-xl py-6 font-semibold" disabled>
                 {status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying payment...</> : status === "success" ? "Payment verified" : "Checkout is open above"}
