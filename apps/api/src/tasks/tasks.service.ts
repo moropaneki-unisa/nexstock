@@ -5,6 +5,143 @@ import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto, UpdateTaskDto } from './dto';
 
+type LaunchChecklistTask = {
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  category: string;
+  dueOffsetDays: number;
+};
+
+const LAUNCH_CHECKLIST_TASKS: LaunchChecklistTask[] = [
+  {
+    title: 'Fix and verify My Tasks production deployment',
+    priority: TaskPriority.urgent,
+    category: 'Launch',
+    dueOffsetDays: 0,
+    description: 'Confirm tasks can be created, edited, completed, deleted, and loaded on deployed nexstock.co.za without API errors.',
+  },
+  {
+    title: 'Complete data sanitation and converter workflow',
+    priority: TaskPriority.urgent,
+    category: 'Data',
+    dueOffsetDays: 1,
+    description: 'Finish the data tools page for JSON, CSV, and XLSX sanitation. Confirm users can upload ugly data, clean it, preview it, and export to JSON, CSV, or XLSX.',
+  },
+  {
+    title: 'Test full product import after sanitation',
+    priority: TaskPriority.high,
+    category: 'Import',
+    dueOffsetDays: 3,
+    description: 'Test importing sanitized CSV, JSON, and XLSX product data into NexStock. Confirm products, prices, stock, categories, custom fields, and images import correctly.',
+  },
+  {
+    title: 'Finish Paddle payment testing',
+    priority: TaskPriority.urgent,
+    category: 'Payment',
+    dueOffsetDays: 3,
+    description: 'Test Starter and Growth payment from plan selection to inline checkout, payment success, plan update, organization setup redirect, and dashboard access.',
+  },
+  {
+    title: 'Verify subscription limits',
+    priority: TaskPriority.high,
+    category: 'Billing',
+    dueOffsetDays: 4,
+    description: 'Test product, attribute, API key, webhook, currency, member, and import row limits for Free, Starter, and Growth plans.',
+  },
+  {
+    title: 'Prepare demo test company',
+    priority: TaskPriority.high,
+    category: 'Demo',
+    dueOffsetDays: 5,
+    description: 'Create a clean demo organization with realistic products, images, attributes, currencies, API keys, and dashboard data.',
+  },
+  {
+    title: 'Create sample messy import files',
+    priority: TaskPriority.high,
+    category: 'Demo',
+    dueOffsetDays: 5,
+    description: 'Prepare one messy CSV, one messy JSON, and one messy XLSX file to demonstrate the data sanitation feature.',
+  },
+  {
+    title: 'Run complete user journey test',
+    priority: TaskPriority.urgent,
+    category: 'QA',
+    dueOffsetDays: 6,
+    description: 'Test landing page to signup to email verification to plan selection to payment to organization setup to dashboard to products to import to product details.',
+  },
+  {
+    title: 'Mobile QA for main pages',
+    priority: TaskPriority.high,
+    category: 'QA',
+    dueOffsetDays: 6,
+    description: 'Test dashboard, products, product details, imports, data tools, organization, billing, profile, and my tasks on mobile.',
+  },
+  {
+    title: 'Clean user-facing error messages',
+    priority: TaskPriority.medium,
+    category: 'UX',
+    dueOffsetDays: 7,
+    description: 'Replace raw internal server errors with friendly messages and clear next actions across billing, imports, profile, tasks, and products.',
+  },
+  {
+    title: 'Confirm production environment variables',
+    priority: TaskPriority.urgent,
+    category: 'Deployment',
+    dueOffsetDays: 2,
+    description: 'Verify API and web environment variables for Paddle, Resend, database, frontend URL, API URL, JWT secrets, Cloudinary, and CORS.',
+  },
+  {
+    title: 'Confirm production migrations are automatic',
+    priority: TaskPriority.high,
+    category: 'Deployment',
+    dueOffsetDays: 2,
+    description: 'Confirm npm run deploy runs install, Prisma generate, Prisma migrate deploy, and API build successfully on DigitalOcean.',
+  },
+  {
+    title: 'Set up task reminder scheduler',
+    priority: TaskPriority.medium,
+    category: 'Automation',
+    dueOffsetDays: 8,
+    description: 'Add a cron or scheduled endpoint to call the task reminder service and send reminders when task reminder dates are due.',
+  },
+  {
+    title: 'Test email delivery',
+    priority: TaskPriority.high,
+    category: 'Email',
+    dueOffsetDays: 4,
+    description: 'Test verification OTP, password reset, organization invite, and task reminder emails using production Resend settings.',
+  },
+  {
+    title: 'Review landing page pricing and copy',
+    priority: TaskPriority.medium,
+    category: 'Marketing',
+    dueOffsetDays: 9,
+    description: 'Make sure the landing page clearly explains Free, Starter, Growth, and Business-later plans with realistic benefits.',
+  },
+  {
+    title: 'Add demo script',
+    priority: TaskPriority.medium,
+    category: 'Demo',
+    dueOffsetDays: 10,
+    description: 'Write a 5-minute demo flow showing the problem, NexStock solution, product import, data sanitation, product details, currency, and subscription flow.',
+  },
+  {
+    title: 'Create first beta user checklist',
+    priority: TaskPriority.medium,
+    category: 'Launch',
+    dueOffsetDays: 10,
+    description: 'Prepare a checklist for first beta testers: signup, create organization, import products, add attributes, test images, review dashboard, give feedback.',
+  },
+  {
+    title: 'Review legal pages',
+    priority: TaskPriority.medium,
+    category: 'Legal',
+    dueOffsetDays: 12,
+    description: 'Confirm Terms, Privacy Policy, Refund Policy, and pricing links are visible and acceptable for Paddle verification and user trust.',
+  },
+];
+
 @Injectable()
 export class TasksService {
   private readonly logger = new Logger(TasksService.name);
@@ -78,6 +215,50 @@ export class TasksService {
           completedAt: dto.status === TaskStatus.done ? new Date() : null,
         },
       });
+    } catch (error) {
+      this.handleTaskMutationError(error);
+    }
+  }
+
+  async createLaunchChecklist(user: CurrentUserPayload) {
+    try {
+      const existing = await this.db.task.findMany({
+        where: {
+          organizationId: user.organizationId,
+          userId: user.id,
+          title: { in: LAUNCH_CHECKLIST_TASKS.map((task) => task.title) },
+        },
+        select: { title: true },
+      });
+      const existingTitles = new Set(existing.map((task) => task.title));
+      const now = new Date();
+      const tasksToCreate = LAUNCH_CHECKLIST_TASKS.filter((task) => !existingTitles.has(task.title));
+
+      if (tasksToCreate.length > 0) {
+        await this.db.task.createMany({
+          data: tasksToCreate.map((task) => {
+            const dueAt = this.dateWithOffset(now, task.dueOffsetDays);
+            return {
+              organizationId: user.organizationId,
+              userId: user.id,
+              title: task.title,
+              description: task.description,
+              status: TaskStatus.todo,
+              priority: task.priority,
+              category: task.category,
+              dueAt,
+              reminderEnabled: true,
+              reminderAt: dueAt,
+            };
+          }),
+        });
+      }
+
+      return {
+        created: tasksToCreate.length,
+        skipped: existing.length,
+        total: LAUNCH_CHECKLIST_TASKS.length,
+      };
     } catch (error) {
       this.handleTaskMutationError(error);
     }
@@ -198,6 +379,13 @@ export class TasksService {
     const reminderAt = this.optionalDate(value) ?? dueAt;
     if (!reminderAt) throw new BadRequestException('Reminder date is required when reminders are enabled');
     return reminderAt;
+  }
+
+  private dateWithOffset(base: Date, offsetDays: number) {
+    const next = new Date(base);
+    next.setDate(base.getDate() + offsetDays);
+    next.setHours(9, 0, 0, 0);
+    return next;
   }
 
   private isDueToday(value: Date | null) {
