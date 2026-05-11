@@ -1,0 +1,20 @@
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "supplierType" TEXT NOT NULL DEFAULT 'vendor';
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "category" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "rating" TEXT NOT NULL DEFAULT 'unrated';
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "addressLine1" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "addressLine2" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "province" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "postalCode" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "taxStatus" TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "taxNumber" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "shippingTerms" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "incoterm" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "accountNumber" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "minimumOrderQty" INTEGER;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "lastOrderAt" TIMESTAMP(3);
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "customFields" JSONB;
+
+CREATE INDEX IF NOT EXISTS "Supplier_organizationId_supplierType_idx" ON "Supplier"("organizationId", "supplierType");
+CREATE INDEX IF NOT EXISTS "Supplier_organizationId_category_idx" ON "Supplier"("organizationId", "category");
+CREATE INDEX IF NOT EXISTS "Supplier_organizationId_rating_idx" ON "Supplier"("organizationId", "rating");
