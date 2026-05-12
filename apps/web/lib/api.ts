@@ -238,14 +238,14 @@ export async function resetPassword(payload: { email: string; token: string; pas
 export type SubscriptionPlan = "starter" | "growth";
 
 export async function initializeSubscriptionCheckout(plan: SubscriptionPlan) {
-  return apiFetch<{ authorization_url?: string; checkout_url?: string; reference?: string; provider?: string }>("/api/billing/paddle/initialize", {
+  return apiFetch<{ authorization_url?: string; checkout_url?: string; reference?: string; provider?: string }>("/api/billing/lemon-squeezy/initialize", {
     method: "POST",
     body: JSON.stringify({ plan }),
   });
 }
 
 export async function verifySubscriptionPayment(reference: string) {
-  return apiFetch<{ success: boolean; plan?: string; status?: string }>(`/api/billing/paddle/verify/${encodeURIComponent(reference)}`);
+  return apiFetch<{ success: boolean; plan?: string; status?: string }>(`/api/billing/lemon-squeezy/verify/${encodeURIComponent(reference)}`);
 }
 
 export async function logout() {
