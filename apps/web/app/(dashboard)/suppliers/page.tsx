@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Building2, Clock3, Loader2, Mail, Pencil, Phone, Plus, RotateCcw, Save, Search, SlidersHorizontal, Trash2, Truck } from "lucide-react";
+import { Archive, ArrowRight, Building2, Clock3, Loader2, Mail, Pencil, Phone, Plus, RotateCcw, Save, Search, SlidersHorizontal, Trash2, Truck } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { apiFetch } from "@/lib/api";
@@ -55,7 +56,6 @@ type Supplier = {
 const controlClass = "h-10 w-full rounded-none border-border bg-background text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring";
 const selectClass = "h-10 w-full rounded-none border border-border bg-background px-3 text-sm shadow-none outline-none focus:ring-1 focus:ring-ring";
 const labelClass = "text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground";
-const badgeClass = "rounded-none";
 
 const supplierTypes = [
   { value: "vendor", label: "Vendor / Reseller" },
@@ -86,6 +86,7 @@ export default function SuppliersPage() {
   const [organization, setOrganization] = useState<OrganizationSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bulkRunning, setBulkRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -93,6 +94,7 @@ export default function SuppliersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SupplierStatus | "all">("active");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [customFields, setCustomFields] = useState<CustomFieldRow[]>([]);
 
@@ -130,12 +132,28 @@ export default function SuppliersPage() {
     });
   }, [search, statusFilter, suppliers, typeFilter]);
 
+  useEffect(() => {
+    const visibleIds = new Set(filteredSuppliers.map((supplier) => supplier.id));
+    setSelectedIds((current) => current.filter((id) => visibleIds.has(id)));
+  }, [filteredSuppliers]);
+
+  const selectedSuppliers = filteredSuppliers.filter((supplier) => selectedIds.includes(supplier.id));
+  const allVisibleSelected = filteredSuppliers.length > 0 && filteredSuppliers.every((supplier) => selectedIds.includes(supplier.id));
+
   const stats = useMemo(() => ({
     total: suppliers.length,
     active: suppliers.filter((supplier) => supplier.status === "active").length,
     preferred: suppliers.filter((supplier) => supplier.rating === "preferred").length,
     products: suppliers.reduce((sum, supplier) => sum + (supplier._count?.products ?? 0), 0),
   }), [suppliers]);
+
+  function toggleSelection(id: string) {
+    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds(allVisibleSelected ? [] : filteredSuppliers.map((supplier) => supplier.id));
+  }
 
   function openCreate() {
     setEditing(null);
@@ -198,7 +216,6 @@ export default function SuppliersPage() {
   }
 
   async function archiveSupplier(supplier: Supplier) {
-    if (!window.confirm(`Archive supplier "${supplier.name}"?`)) return;
     setError(null);
     setSuccess(null);
     try {
@@ -211,7 +228,6 @@ export default function SuppliersPage() {
   }
 
   async function reactivateSupplier(supplier: Supplier) {
-    if (!window.confirm(`Reactivate supplier "${supplier.name}"?`)) return;
     setError(null);
     setSuccess(null);
     try {
@@ -224,13 +240,48 @@ export default function SuppliersPage() {
     }
   }
 
+  async function bulkArchiveSelected() {
+    if (selectedSuppliers.length === 0) return;
+    setBulkRunning(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await Promise.all(selectedSuppliers.map((supplier) => apiFetch(`/api/suppliers/${supplier.id}`, { method: "DELETE" })));
+      setSuccess(`${selectedSuppliers.length} supplier${selectedSuppliers.length === 1 ? "" : "s"} archived`);
+      setSelectedIds([]);
+      await loadSuppliers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to archive selected suppliers");
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
+  async function bulkReactivateSelected() {
+    if (selectedSuppliers.length === 0) return;
+    setBulkRunning(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await Promise.all(selectedSuppliers.map((supplier) => apiFetch(`/api/suppliers/${supplier.id}/reactivate`, { method: "PATCH" })));
+      setSuccess(`${selectedSuppliers.length} supplier${selectedSuppliers.length === 1 ? "" : "s"} reactivated`);
+      setSelectedIds([]);
+      setStatusFilter("active");
+      await loadSuppliers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reactivate selected suppliers");
+    } finally {
+      setBulkRunning(false);
+    }
+  }
+
   return (
     <PageShell className="space-y-6 pb-10">
       <PageHeader eyebrow="Supply operations" title="Suppliers" description="Strict supplier codes and controlled currencies keep purchasing data clean while custom fields keep the workflow flexible." actions={<Button type="button" onClick={openCreate} className="rounded-none shadow-none"><Plus className="h-4 w-4" />New supplier</Button>} />
       {error && <div className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
       {success && <div className="border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{success}</div>}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Metric icon={Truck} label="Total suppliers" value={stats.total} /><Metric icon={Building2} label="Active" value={stats.active} /><Metric icon={SlidersHorizontal} label="Preferred" value={stats.preferred} /><Metric icon={Clock3} label="Product links" value={stats.products} /></section>
+      <section className="border bg-card/95"><div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4"><Metric icon={Truck} label="Total suppliers" value={stats.total} /><Metric icon={Building2} label="Active" value={stats.active} /><Metric icon={SlidersHorizontal} label="Preferred" value={stats.preferred} /><Metric icon={Clock3} label="Product links" value={stats.products} /></div></section>
 
       <section className="border bg-card/95">
         <div className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -244,7 +295,10 @@ export default function SuppliersPage() {
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as SupplierStatus | "all")} className={selectClass}><option value="active">Active</option><option value="archived">Archived</option><option value="all">All</option></select>
           </div>
         </div>
-        {loading ? <div className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading suppliers...</div> : filteredSuppliers.length ? <div className="grid gap-4 p-4 xl:grid-cols-2">{filteredSuppliers.map((supplier) => <SupplierCard key={supplier.id} supplier={supplier} onEdit={() => openEdit(supplier)} onArchive={() => void archiveSupplier(supplier)} onReactivate={() => void reactivateSupplier(supplier)} />)}</div> : <div className="p-10 text-center text-sm text-muted-foreground">No suppliers found. Add your first supplier to start building purchasing workflows.</div>}
+
+        {selectedIds.length > 0 && <div className="flex flex-col gap-3 border-b bg-primary/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"><p><span className="font-semibold">{selectedIds.length}</span> supplier{selectedIds.length === 1 ? "" : "s"} selected.</p><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" className="rounded-none bg-background/70" onClick={() => setSelectedIds([])}>Clear selection</Button><Button type="button" variant="outline" size="sm" className="rounded-none bg-background/70" disabled={bulkRunning} onClick={bulkReactivateSelected}><RotateCcw className="h-4 w-4" />Reactivate selected</Button><Button type="button" variant="destructive" size="sm" className="rounded-none" disabled={bulkRunning} onClick={bulkArchiveSelected}>{bulkRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}Archive selected</Button></div></div>}
+
+        {loading ? <div className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading suppliers...</div> : filteredSuppliers.length ? <div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead className="w-10 pl-5"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible suppliers" className="h-4 w-4 border-muted-foreground" /></TableHead><TableHead>Supplier</TableHead><TableHead>Type</TableHead><TableHead>Contact</TableHead><TableHead>Currency</TableHead><TableHead>Terms</TableHead><TableHead>Links</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader><TableBody>{filteredSuppliers.map((supplier) => <SupplierRow key={supplier.id} supplier={supplier} selected={selectedIds.includes(supplier.id)} onToggleSelected={() => toggleSelection(supplier.id)} onEdit={() => openEdit(supplier)} onArchive={() => void archiveSupplier(supplier)} onReactivate={() => void reactivateSupplier(supplier)} />)}</TableBody></Table></div> : <div className="p-10 text-center text-sm text-muted-foreground">No suppliers found. Add your first supplier to start building purchasing workflows.</div>}
       </section>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -257,15 +311,9 @@ export default function SuppliersPage() {
             <FormSection title="Supplier classification" description="Controlled dropdowns make supplier reporting reliable.">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">{editing && <Field label="Supplier code"><Input value={editing.supplierCode} readOnly className={cn(controlClass, "bg-muted font-mono")} /></Field>}<Field label="Supplier name"><Input className={controlClass} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="ABC Equipment Supplies" /></Field><SelectField label="Supplier type" value={form.supplierType} onChange={(value) => setForm((current) => ({ ...current, supplierType: value }))} options={supplierTypes} /><SelectField label="Category" value={form.category} onChange={(value) => setForm((current) => ({ ...current, category: value }))} options={categories.map((value) => ({ value, label: value }))} /><SelectField label="Rating" value={form.rating} onChange={(value) => setForm((current) => ({ ...current, rating: value }))} options={ratings.map((value) => ({ value, label: titleCase(value) }))} /></div>
             </FormSection>
-            <FormSection title="Contact and address" description="Keep communication and supplier location details in one place.">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"><Field label="Contact person"><Input className={controlClass} value={form.contactName} onChange={(e) => setForm((c) => ({ ...c, contactName: e.target.value }))} /></Field><Field label="Email"><Input className={controlClass} value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} type="email" /></Field><Field label="Phone"><Input className={controlClass} value={form.phone} onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))} /></Field><Field label="Website"><Input className={controlClass} value={form.website} onChange={(e) => setForm((c) => ({ ...c, website: e.target.value }))} /></Field><Field label="Country"><Input className={controlClass} value={form.country} onChange={(e) => setForm((c) => ({ ...c, country: e.target.value }))} /></Field><Field label="Province / state"><Input className={controlClass} value={form.province} onChange={(e) => setForm((c) => ({ ...c, province: e.target.value }))} /></Field><Field label="City"><Input className={controlClass} value={form.city} onChange={(e) => setForm((c) => ({ ...c, city: e.target.value }))} /></Field><Field label="Postal code"><Input className={controlClass} value={form.postalCode} onChange={(e) => setForm((c) => ({ ...c, postalCode: e.target.value }))} /></Field><Field label="Address line 1"><Input className={controlClass} value={form.addressLine1} onChange={(e) => setForm((c) => ({ ...c, addressLine1: e.target.value }))} /></Field><Field label="Address line 2"><Input className={controlClass} value={form.addressLine2} onChange={(e) => setForm((c) => ({ ...c, addressLine2: e.target.value }))} /></Field></div>
-            </FormSection>
-            <FormSection title="Purchasing, tax, and logistics" description="Currencies are controlled by organization settings to prevent bad purchase data.">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"><SelectField label="Currency" value={form.currency} onChange={(value) => setForm((c) => ({ ...c, currency: value }))} options={enabledCurrencies.map((value) => ({ value, label: value }))} /><SelectField label="Payment terms" value={form.paymentTerms} onChange={(value) => setForm((c) => ({ ...c, paymentTerms: value }))} options={paymentTerms.map((value) => ({ value, label: value }))} /><SelectField label="Payment method" value={form.paymentMethod} onChange={(value) => setForm((c) => ({ ...c, paymentMethod: value }))} options={paymentMethods.map((value) => ({ value, label: value }))} /><SelectField label="Tax status" value={form.taxStatus} onChange={(value) => setForm((c) => ({ ...c, taxStatus: value }))} options={taxStatuses.map((value) => ({ value, label: titleCase(value) }))} /><Field label="Tax / VAT number"><Input className={controlClass} value={form.taxNumber} onChange={(e) => setForm((c) => ({ ...c, taxNumber: e.target.value }))} /></Field><SelectField label="Shipping terms" value={form.shippingTerms} onChange={(value) => setForm((c) => ({ ...c, shippingTerms: value }))} options={shippingTerms.map((value) => ({ value, label: value }))} /><SelectField label="Incoterm" value={form.incoterm} onChange={(value) => setForm((c) => ({ ...c, incoterm: value }))} options={incoterms.map((value) => ({ value, label: value || "Not applicable" }))} /><Field label="Supplier account no."><Input className={controlClass} value={form.accountNumber} onChange={(e) => setForm((c) => ({ ...c, accountNumber: e.target.value }))} /></Field><Field label="Lead time days"><Input className={controlClass} value={form.leadTimeDays} onChange={(e) => setForm((c) => ({ ...c, leadTimeDays: e.target.value }))} type="number" min="0" /></Field><Field label="Minimum order qty"><Input className={controlClass} value={form.minimumOrderQty} onChange={(e) => setForm((c) => ({ ...c, minimumOrderQty: e.target.value }))} type="number" min="0" /></Field><Field label="Last order date"><Input className={controlClass} value={form.lastOrderAt} onChange={(e) => setForm((c) => ({ ...c, lastOrderAt: e.target.value }))} type="date" /></Field></div>
-            </FormSection>
-            <FormSection title="Custom supplier fields" description="Flexible supplier-specific data without making core fields messy.">
-              <div className="space-y-3">{customFields.map((row, index) => <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"><Input className={controlClass} value={row.key} onChange={(e) => updateCustomField(index, { key: e.target.value })} placeholder="Field name" /><Input className={controlClass} value={row.value} onChange={(e) => updateCustomField(index, { value: e.target.value })} placeholder="Value" /><Button type="button" variant="ghost" onClick={() => removeCustomField(index)} className="h-10 w-10 rounded-none p-0 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></div>)}<Button type="button" variant="outline" onClick={() => setCustomFields((current) => [...current, { key: "", value: "" }])} className="rounded-none bg-background/70"><Plus className="h-4 w-4" />Add custom field</Button></div>
-            </FormSection>
+            <FormSection title="Contact and address" description="Keep communication and supplier location details in one place."><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"><Field label="Contact person"><Input className={controlClass} value={form.contactName} onChange={(e) => setForm((c) => ({ ...c, contactName: e.target.value }))} /></Field><Field label="Email"><Input className={controlClass} value={form.email} onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))} type="email" /></Field><Field label="Phone"><Input className={controlClass} value={form.phone} onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))} /></Field><Field label="Website"><Input className={controlClass} value={form.website} onChange={(e) => setForm((c) => ({ ...c, website: e.target.value }))} /></Field><Field label="Country"><Input className={controlClass} value={form.country} onChange={(e) => setForm((c) => ({ ...c, country: e.target.value }))} /></Field><Field label="Province / state"><Input className={controlClass} value={form.province} onChange={(e) => setForm((c) => ({ ...c, province: e.target.value }))} /></Field><Field label="City"><Input className={controlClass} value={form.city} onChange={(e) => setForm((c) => ({ ...c, city: e.target.value }))} /></Field><Field label="Postal code"><Input className={controlClass} value={form.postalCode} onChange={(e) => setForm((c) => ({ ...c, postalCode: e.target.value }))} /></Field><Field label="Address line 1"><Input className={controlClass} value={form.addressLine1} onChange={(e) => setForm((c) => ({ ...c, addressLine1: e.target.value }))} /></Field><Field label="Address line 2"><Input className={controlClass} value={form.addressLine2} onChange={(e) => setForm((c) => ({ ...c, addressLine2: e.target.value }))} /></Field></div></FormSection>
+            <FormSection title="Purchasing, tax, and logistics" description="Currencies are controlled by organization settings to prevent bad purchase data."><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"><SelectField label="Currency" value={form.currency} onChange={(value) => setForm((c) => ({ ...c, currency: value }))} options={enabledCurrencies.map((value) => ({ value, label: value }))} /><SelectField label="Payment terms" value={form.paymentTerms} onChange={(value) => setForm((c) => ({ ...c, paymentTerms: value }))} options={paymentTerms.map((value) => ({ value, label: value }))} /><SelectField label="Payment method" value={form.paymentMethod} onChange={(value) => setForm((c) => ({ ...c, paymentMethod: value }))} options={paymentMethods.map((value) => ({ value, label: value }))} /><SelectField label="Tax status" value={form.taxStatus} onChange={(value) => setForm((c) => ({ ...c, taxStatus: value }))} options={taxStatuses.map((value) => ({ value, label: titleCase(value) }))} /><Field label="Tax / VAT number"><Input className={controlClass} value={form.taxNumber} onChange={(e) => setForm((c) => ({ ...c, taxNumber: e.target.value }))} /></Field><SelectField label="Shipping terms" value={form.shippingTerms} onChange={(value) => setForm((c) => ({ ...c, shippingTerms: value }))} options={shippingTerms.map((value) => ({ value, label: value }))} /><SelectField label="Incoterm" value={form.incoterm} onChange={(value) => setForm((c) => ({ ...c, incoterm: value }))} options={incoterms.map((value) => ({ value, label: value || "Not applicable" }))} /><Field label="Supplier account no."><Input className={controlClass} value={form.accountNumber} onChange={(e) => setForm((c) => ({ ...c, accountNumber: e.target.value }))} /></Field><Field label="Lead time days"><Input className={controlClass} value={form.leadTimeDays} onChange={(e) => setForm((c) => ({ ...c, leadTimeDays: e.target.value }))} type="number" min="0" /></Field><Field label="Minimum order qty"><Input className={controlClass} value={form.minimumOrderQty} onChange={(e) => setForm((c) => ({ ...c, minimumOrderQty: e.target.value }))} type="number" min="0" /></Field><Field label="Last order date"><Input className={controlClass} value={form.lastOrderAt} onChange={(e) => setForm((c) => ({ ...c, lastOrderAt: e.target.value }))} type="date" /></Field></div></FormSection>
+            <FormSection title="Custom supplier fields" description="Flexible supplier-specific data without making core fields messy."><div className="space-y-3">{customFields.map((row, index) => <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]"><Input className={controlClass} value={row.key} onChange={(e) => updateCustomField(index, { key: e.target.value })} placeholder="Field name" /><Input className={controlClass} value={row.value} onChange={(e) => updateCustomField(index, { value: e.target.value })} placeholder="Value" /><Button type="button" variant="ghost" onClick={() => removeCustomField(index)} className="h-10 w-10 rounded-none p-0 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></div>)}<Button type="button" variant="outline" onClick={() => setCustomFields((current) => [...current, { key: "", value: "" }])} className="rounded-none bg-background/70"><Plus className="h-4 w-4" />Add custom field</Button></div></FormSection>
             <FormSection title="Notes" description="Use notes for contract conditions, supplier risks, documents needed, or delivery instructions."><Textarea value={form.notes} onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))} className="min-h-24 rounded-none border-border bg-background text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring" /></FormSection>
           </div>
           <DialogFooter><Button type="button" variant="outline" className="rounded-none" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button type="button" className="rounded-none" onClick={saveSupplier} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{editing ? "Save changes" : "Create supplier"}</Button></DialogFooter>
@@ -278,15 +326,14 @@ export default function SuppliersPage() {
   function removeCustomField(index: number) { setCustomFields((current) => current.filter((_, rowIndex) => rowIndex !== index)); }
 }
 
-function SupplierCard({ supplier, onEdit, onArchive, onReactivate }: { supplier: Supplier; onEdit: () => void; onArchive: () => void; onReactivate: () => void }) {
-  return <article className={cn("border bg-background transition hover:bg-muted/20", supplier.status === "archived" && "opacity-70")}><div className="flex items-start justify-between gap-3 border-b p-4"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-base font-semibold tracking-tight">{supplier.name}</h3><Badge variant="outline" className={cn(badgeClass, "font-mono")}>{supplier.supplierCode}</Badge><Badge className={badgeClass} variant={supplier.status === "active" ? "default" : "secondary"}>{supplier.status}</Badge><Badge variant="outline" className={badgeClass}>{supplier.currency}</Badge><Badge variant="outline" className={badgeClass}>{titleCase(supplier.supplierType || "vendor")}</Badge>{supplier.rating && supplier.rating !== "unrated" && <Badge className={badgeClass} variant={supplier.rating === "blocked" ? "destructive" : "secondary"}>{titleCase(supplier.rating)}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground">{[supplier.city, supplier.country].filter(Boolean).join(", ") || "No location set"}</p></div><div className="flex gap-1"><Button type="button" variant="ghost" size="sm" onClick={onEdit} className="h-9 w-9 rounded-none p-0"><Pencil className="h-4 w-4" /></Button>{supplier.status === "archived" ? <Button type="button" variant="ghost" size="sm" onClick={onReactivate} className="h-9 w-9 rounded-none p-0 text-muted-foreground hover:text-emerald-700"><RotateCcw className="h-4 w-4" /></Button> : <Button type="button" variant="ghost" size="sm" onClick={onArchive} className="h-9 w-9 rounded-none p-0 text-muted-foreground hover:text-destructive"><Archive className="h-4 w-4" /></Button>}</div></div><div className="grid divide-y text-sm text-muted-foreground sm:grid-cols-2 sm:divide-x sm:divide-y-0"><Info icon={Mail} value={supplier.email || "No email"} /><Info icon={Phone} value={supplier.phone || "No phone"} /><Info icon={Clock3} value={supplier.leadTimeDays == null ? "No lead time" : `${supplier.leadTimeDays} days lead time`} /><Info icon={Truck} value={`${supplier._count?.products ?? 0} product links`} /></div><div className="grid divide-y border-t text-sm text-muted-foreground sm:grid-cols-2 sm:divide-x sm:divide-y-0"><Fact label="Terms" value={supplier.paymentTerms || "Not set"} /><Fact label="Shipping" value={supplier.shippingTerms || "Not set"} /><Fact label="Tax" value={titleCase(supplier.taxStatus || "unknown")} /><Fact label="MOQ" value={supplier.minimumOrderQty == null ? "Not set" : String(supplier.minimumOrderQty)} /></div>{supplier.notes && <p className="line-clamp-2 border-t p-4 text-sm leading-6 text-muted-foreground">{supplier.notes}</p>}</article>;
+function SupplierRow({ supplier, selected, onToggleSelected, onEdit, onArchive, onReactivate }: { supplier: Supplier; selected: boolean; onToggleSelected: () => void; onEdit: () => void; onArchive: () => void; onReactivate: () => void }) {
+  return <TableRow className="transition hover:bg-muted/25"><TableCell className="pl-5"><input type="checkbox" checked={selected} onChange={onToggleSelected} aria-label={`Select ${supplier.name}`} className="h-4 w-4 border-muted-foreground" /></TableCell><TableCell><div className="font-semibold">{supplier.name}</div><div className="font-mono text-xs text-muted-foreground">{supplier.supplierCode}</div></TableCell><TableCell><Badge variant="outline" className="rounded-none">{titleCase(supplier.supplierType || "vendor")}</Badge></TableCell><TableCell><div className="max-w-[14rem] truncate text-sm">{supplier.email || supplier.phone || supplier.contactName || "No contact"}</div><div className="text-xs text-muted-foreground">{[supplier.city, supplier.country].filter(Boolean).join(", ") || "No location"}</div></TableCell><TableCell className="font-medium">{supplier.currency}</TableCell><TableCell>{supplier.paymentTerms || "Not set"}</TableCell><TableCell>{supplier._count?.products ?? 0}</TableCell><TableCell><Badge className="rounded-none" variant={supplier.status === "active" ? "default" : "secondary"}>{supplier.status}</Badge></TableCell><TableCell className="text-right"><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="icon" onClick={onEdit} className="rounded-none"><Pencil className="h-4 w-4" /></Button>{supplier.status === "archived" ? <Button type="button" variant="ghost" size="icon" onClick={onReactivate} className="rounded-none text-muted-foreground hover:text-emerald-700"><RotateCcw className="h-4 w-4" /></Button> : <Button type="button" variant="ghost" size="icon" onClick={onArchive} className="rounded-none text-muted-foreground hover:text-destructive"><Archive className="h-4 w-4" /></Button>}</div></TableCell></TableRow>;
 }
+
 function FormSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <section className="border bg-background/70"><div className="border-b p-4"><h3 className="font-semibold tracking-tight">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div><div className="p-4">{children}</div></section>; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="space-y-1.5"><Label className={labelClass}>{label}</Label>{children}</label>; }
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) { return <label className="space-y-1.5"><Label className={labelClass}>{label}</Label><select value={value} onChange={(event) => onChange(event.target.value)} className={selectClass}>{options.map((option) => <option key={option.value || option.label} value={option.value}>{option.label}</option>)}</select></label>; }
-function Metric({ icon: Icon, label, value }: { icon: any; label: string; value: number }) { return <div className="border bg-card/95 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-4 w-4 text-muted-foreground" /></div><p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p></div>; }
-function Info({ icon: Icon, value }: { icon: any; value: string }) { return <div className="flex min-w-0 items-center gap-2 p-3"><Icon className="h-4 w-4 shrink-0" /><span className="truncate">{value}</span></div>; }
-function Fact({ label, value }: { label: string; value: string }) { return <div className="p-3"><p className={labelClass}>{label}</p><p className="mt-1 text-sm font-medium text-foreground">{value}</p></div>; }
+function Metric({ icon: Icon, label, value }: { icon: any; label: string; value: number }) { return <div className="p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-4 w-4 text-muted-foreground" /></div><p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p></div>; }
 function clean(value: string) { const text = value.trim(); return text || null; }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()); }
 function objectToRows(value?: Record<string, unknown> | null): CustomFieldRow[] { if (!value || typeof value !== "object") return []; return Object.entries(value).map(([key, fieldValue]) => ({ key, value: fieldValue == null ? "" : String(fieldValue) })); }
