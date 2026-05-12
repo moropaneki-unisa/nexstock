@@ -3,6 +3,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.nexstock.co.za";
 let isRefreshing = false;
 let pendingRequests: Array<() => void> = [];
 
+const GET_CACHE_TTL_MS = 30_000;
+const getCache = new Map<string, { expiresAt: number; data: unknown }>();
+const pendingGetRequests = new Map<string, Promise<unknown>>();
+
 export function getApiUrl() {
   return API_URL;
 }
@@ -27,6 +31,59 @@ function resolvePending() {
   pendingRequests = [];
 }
 
+function getRequestMethod(options: RequestInit) {
+  return String(options.method || "GET").toUpperCase();
+}
+
+function shouldCacheGet(url: string, options: RequestInit) {
+  if (typeof window === "undefined") return false;
+  if (getRequestMethod(options) !== "GET") return false;
+  if (options.cache === "no-store") return false;
+  if (url.includes("/auth/refresh")) return false;
+  return true;
+}
+
+function getCacheKey(url: string, options: RequestInit) {
+  const token = getAccessToken() || "public";
+  const headers = JSON.stringify(options.headers || {});
+  return `${token}:${url}:${headers}`;
+}
+
+function clearApiCacheForMutation(url: string) {
+  const prefixes = [url];
+
+  if (url.startsWith("/api/products")) prefixes.push("/api/products", "/api/dashboard");
+  if (url.startsWith("/api/suppliers")) prefixes.push("/api/suppliers", "/api/products", "/api/dashboard");
+  if (url.startsWith("/api/purchase-orders")) prefixes.push("/api/purchase-orders", "/api/products", "/api/dashboard");
+  if (url.startsWith("/api/organization")) prefixes.push("/api/organization", "/api/users/me", "/api/dashboard");
+  if (url.startsWith("/api/product-fields")) prefixes.push("/api/product-fields", "/api/products");
+  if (url.startsWith("/api/billing")) prefixes.push("/api/billing", "/api/organization", "/api/users/me");
+
+  for (const key of Array.from(getCache.keys())) {
+    if (prefixes.some((prefix) => key.includes(prefix))) getCache.delete(key);
+  }
+
+  for (const key of Array.from(pendingGetRequests.keys())) {
+    if (prefixes.some((prefix) => key.includes(prefix))) pendingGetRequests.delete(key);
+  }
+}
+
+export function clearApiCache(prefix?: string) {
+  if (!prefix) {
+    getCache.clear();
+    pendingGetRequests.clear();
+    return;
+  }
+
+  for (const key of Array.from(getCache.keys())) {
+    if (key.includes(prefix)) getCache.delete(key);
+  }
+
+  for (const key of Array.from(pendingGetRequests.keys())) {
+    if (key.includes(prefix)) pendingGetRequests.delete(key);
+  }
+}
+
 export async function refreshAccessToken(): Promise<string | null> {
   if (isRefreshing) {
     await new Promise<void>((resolve) => pendingRequests.push(resolve));
@@ -46,6 +103,7 @@ export async function refreshAccessToken(): Promise<string | null> {
     const data = await response.json();
     if (data.accessToken) {
       setAccessToken(data.accessToken);
+      clearApiCache();
       return data.accessToken;
     }
 
@@ -74,7 +132,7 @@ async function parseResponse<T>(res: Response): Promise<T> {
   }
 }
 
-export async function apiFetch<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
+async function executeApiFetch<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
   const body = options.body as any;
 
@@ -98,6 +156,7 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
 
     if (!nextToken) {
       clearAccessToken();
+      clearApiCache();
       if (typeof window !== "undefined") window.location.href = "/login";
       throw new Error("Authentication required");
     }
@@ -133,6 +192,34 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
   return parseResponse<T>(response);
 }
 
+export async function apiFetch<T = unknown>(url: string, options: RequestInit = {}): Promise<T> {
+  const method = getRequestMethod(options);
+  const cacheable = shouldCacheGet(url, options);
+  const cacheKey = cacheable ? getCacheKey(url, options) : "";
+
+  if (cacheable) {
+    const cached = getCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data as T;
+
+    const pending = pendingGetRequests.get(cacheKey);
+    if (pending) return pending as Promise<T>;
+
+    const request = executeApiFetch<T>(url, options)
+      .then((data) => {
+        getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, data });
+        return data;
+      })
+      .finally(() => pendingGetRequests.delete(cacheKey));
+
+    pendingGetRequests.set(cacheKey, request as Promise<unknown>);
+    return request;
+  }
+
+  const result = await executeApiFetch<T>(url, options);
+  if (method !== "GET") clearApiCacheForMutation(url);
+  return result;
+}
+
 export async function login(email: string, password: string) {
   const response = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
@@ -147,7 +234,10 @@ export async function login(email: string, password: string) {
   }
 
   const data = await response.json();
-  if (data.accessToken) setAccessToken(data.accessToken);
+  if (data.accessToken) {
+    setAccessToken(data.accessToken);
+    clearApiCache();
+  }
   return data;
 }
 
@@ -165,7 +255,10 @@ export async function signup(payload: Record<string, unknown>) {
   }
 
   const data = await response.json();
-  if (data.accessToken) setAccessToken(data.accessToken);
+  if (data.accessToken) {
+    setAccessToken(data.accessToken);
+    clearApiCache();
+  }
   return data;
 }
 
@@ -183,7 +276,10 @@ export async function verifyEmail(payload: { email: string; otp: string }) {
   }
 
   const data = await response.json();
-  if (data.accessToken) setAccessToken(data.accessToken);
+  if (data.accessToken) {
+    setAccessToken(data.accessToken);
+    clearApiCache();
+  }
   return data;
 }
 
@@ -245,7 +341,7 @@ export async function initializeSubscriptionCheckout(plan: SubscriptionPlan) {
 }
 
 export async function verifySubscriptionPayment(reference: string) {
-  return apiFetch<{ success: boolean; plan?: string; status?: string }>(`/api/billing/lemon-squeezy/verify/${encodeURIComponent(reference)}`);
+  return apiFetch<{ success: boolean; plan?: string; status?: string }>(`/api/billing/lemon-squeezy/verify/${encodeURIComponent(reference)}`, { cache: "no-store" });
 }
 
 export async function logout() {
@@ -255,5 +351,6 @@ export async function logout() {
   }).catch(() => null);
 
   clearAccessToken();
+  clearApiCache();
   if (typeof window !== "undefined") window.location.href = "/login";
 }
