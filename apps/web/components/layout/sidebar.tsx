@@ -10,6 +10,7 @@ import {
   CheckSquare,
   ClipboardList,
   Code2,
+  CreditCard,
   DatabaseZap,
   Home,
   KeyRound,
@@ -72,6 +73,7 @@ const sections: NavSection[] = [
     label: "Account",
     items: [
       { href: "/profile", label: "My profile", description: "Edit profile and password", icon: UserRound },
+      { href: "/billing", label: "Billing", description: "Plan, upgrade, subscription", icon: CreditCard, adminOnly: true, activePrefixes: ["/billing", "/subscriptions"] },
       { href: "/organization", label: "Organization", description: "Users, roles, billing, security", icon: Building2, adminOnly: true },
       { href: "/settings", label: "Settings", description: "Workspace preferences", icon: Settings, adminOnly: true },
     ],
