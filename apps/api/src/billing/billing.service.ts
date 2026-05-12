@@ -13,19 +13,26 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 const BILLING_CURRENCY = 'USD';
-const PADDLE_TIMEOUT_MS = 10_000;
+const LEMON_API_BASE_URL = 'https://api.lemonsqueezy.com/v1';
+const LEMON_TIMEOUT_MS = 10_000;
 
 type PaidPlan = 'starter' | 'growth';
 
-type PaddleWebhookPayload = {
-  event_id?: string;
-  event_type?: string;
-  data?: any;
+type LemonWebhookPayload = {
+  meta?: {
+    event_name?: string;
+    custom_data?: Record<string, any>;
+  };
+  data?: {
+    id?: string;
+    type?: string;
+    attributes?: Record<string, any>;
+  };
 };
 
-const PLAN_CONFIG: Record<PaidPlan, { amount: number; envKey: string }> = {
-  starter: { amount: 19_00, envKey: 'PADDLE_STARTER_PRICE_ID' },
-  growth: { amount: 59_00, envKey: 'PADDLE_GROWTH_PRICE_ID' },
+const PLAN_CONFIG: Record<PaidPlan, { amount: number; variantEnvKey: string; name: string }> = {
+  starter: { amount: 19_00, variantEnvKey: 'LEMON_STARTER_VARIANT_ID', name: 'Starter' },
+  growth: { amount: 59_00, variantEnvKey: 'LEMON_GROWTH_VARIANT_ID', name: 'Growth' },
 };
 
 @Injectable()
@@ -34,29 +41,28 @@ export class BillingService {
 
   constructor(private readonly db: PrismaService) {}
 
-  private get apiBaseUrl() {
-    return process.env.PADDLE_ENVIRONMENT === 'sandbox'
-      ? 'https://sandbox-api.paddle.com'
-      : 'https://api.paddle.com';
-  }
-
-  private requirePaddleApiKey() {
-    const key = process.env.PADDLE_API_KEY;
+  private requireLemonApiKey() {
+    const key = process.env.LEMON_SQUEEZY_API_KEY;
     if (!key) {
-      throw new InternalServerErrorException('Billing is not configured. Add PADDLE_API_KEY to the API environment.');
+      throw new InternalServerErrorException('Billing is not configured. Add LEMON_SQUEEZY_API_KEY to the API environment.');
     }
     return key;
   }
 
-  private requirePaddlePriceId(plan: PaidPlan) {
-    const priceId = process.env[PLAN_CONFIG[plan].envKey];
-    if (!priceId) {
-      throw new InternalServerErrorException(`Billing is not configured. Add ${PLAN_CONFIG[plan].envKey} to the API environment.`);
+  private requireLemonStoreId() {
+    const storeId = process.env.LEMON_SQUEEZY_STORE_ID;
+    if (!storeId) {
+      throw new InternalServerErrorException('Billing is not configured. Add LEMON_SQUEEZY_STORE_ID to the API environment.');
     }
-    if (!priceId.startsWith('pri_')) {
-      throw new InternalServerErrorException(`${PLAN_CONFIG[plan].envKey} must be a Paddle price ID that starts with pri_.`);
+    return storeId;
+  }
+
+  private requireLemonVariantId(plan: PaidPlan) {
+    const variantId = process.env[PLAN_CONFIG[plan].variantEnvKey];
+    if (!variantId) {
+      throw new InternalServerErrorException(`Billing is not configured. Add ${PLAN_CONFIG[plan].variantEnvKey} to the API environment.`);
     }
-    return priceId;
+    return variantId;
   }
 
   private getPaidPlan(plan: string): PaidPlan {
@@ -67,28 +73,29 @@ export class BillingService {
     return normalizedPlan;
   }
 
-  private getPaddleErrorMessage(error: unknown) {
-    if (!axios.isAxiosError(error)) return (error as Error)?.message || 'Unknown Paddle error';
-    const status = error.response?.status;
-    const data: any = error.response?.data;
-    const responseMessage = data?.error?.detail || data?.error?.message || data?.message || data?.error || error.message;
-    return status ? `Paddle ${status}: ${responseMessage}` : responseMessage;
-  }
-
-  private throwPaddleCheckoutError(error: unknown): never {
-    const message = this.getPaddleErrorMessage(error);
-    this.logger.error('Paddle transaction create failed', message);
-
-    if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
-      throw new ServiceUnavailableException(`Paddle rejected checkout. Check PADDLE_API_KEY and Paddle environment. ${message}`);
-    }
-
-    throw new InternalServerErrorException(`Could not start Paddle checkout. ${message}`);
-  }
-
   private frontendUrl(path = '') {
     const base = process.env.FRONTEND_URL || 'https://nexstock.co.za';
     return `${base.replace(/\/$/, '')}${path}`;
+  }
+
+  private getLemonErrorMessage(error: unknown) {
+    if (!axios.isAxiosError(error)) return (error as Error)?.message || 'Unknown Lemon Squeezy error';
+    const status = error.response?.status;
+    const data: any = error.response?.data;
+    const firstError = Array.isArray(data?.errors) ? data.errors[0] : undefined;
+    const responseMessage = firstError?.detail || firstError?.title || data?.message || data?.error || error.message;
+    return status ? `Lemon Squeezy ${status}: ${responseMessage}` : responseMessage;
+  }
+
+  private throwLemonCheckoutError(error: unknown): never {
+    const message = this.getLemonErrorMessage(error);
+    this.logger.error('Lemon Squeezy checkout create failed', message);
+
+    if (axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)) {
+      throw new ServiceUnavailableException(`Lemon Squeezy rejected checkout. Check LEMON_SQUEEZY_API_KEY and store/variant IDs. ${message}`);
+    }
+
+    throw new InternalServerErrorException(`Could not start Lemon Squeezy checkout. ${message}`);
   }
 
   async initialize(user: CurrentUserPayload, planValue: string) {
@@ -96,204 +103,175 @@ export class BillingService {
     const org = await this.db.organization.findUnique({ where: { id: user.organizationId } });
     if (!org) throw new BadRequestException('Organization not found');
 
-    const priceId = this.requirePaddlePriceId(plan);
-    const apiKey = this.requirePaddleApiKey();
+    const apiKey = this.requireLemonApiKey();
+    const storeId = this.requireLemonStoreId();
+    const variantId = this.requireLemonVariantId(plan);
     const amount = PLAN_CONFIG[plan].amount;
 
     try {
       const response = await axios.post(
-        `${this.apiBaseUrl}/transactions`,
+        `${LEMON_API_BASE_URL}/checkouts`,
         {
-          items: [{ price_id: priceId, quantity: 1 }],
-          collection_mode: 'automatic',
-          custom_data: {
-            organizationId: org.id,
-            userId: user.id,
-            plan,
-            billingCurrency: BILLING_CURRENCY,
-          },
-          checkout: {
-            url: this.frontendUrl('/billing/checkout'),
+          data: {
+            type: 'checkouts',
+            attributes: {
+              checkout_options: {
+                embed: false,
+                media: false,
+                logo: true,
+              },
+              checkout_data: {
+                email: user.email,
+                name: user.name,
+                custom: {
+                  organizationId: org.id,
+                  userId: user.id,
+                  plan,
+                  billingCurrency: BILLING_CURRENCY,
+                },
+              },
+              product_options: {
+                name: `NexStock ${PLAN_CONFIG[plan].name}`,
+                description: `${PLAN_CONFIG[plan].name} subscription for NexStock`,
+                redirect_url: this.frontendUrl('/billing/success'),
+                receipt_button_text: 'Return to NexStock',
+                receipt_link_url: this.frontendUrl('/organization'),
+              },
+              expires_at: null,
+              preview: false,
+            },
+            relationships: {
+              store: { data: { type: 'stores', id: String(storeId) } },
+              variant: { data: { type: 'variants', id: String(variantId) } },
+            },
           },
         },
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
+            Accept: 'application/vnd.api+json',
+            'Content-Type': 'application/vnd.api+json',
           },
-          timeout: PADDLE_TIMEOUT_MS,
+          timeout: LEMON_TIMEOUT_MS,
         },
       );
 
-      const transaction = response.data?.data;
-      const transactionId = transaction?.id;
-      const checkoutUrl = transaction?.checkout?.url;
-
-      if (!transactionId || !checkoutUrl) {
-        throw new InternalServerErrorException('Paddle did not return a checkout URL. Confirm default payment link/domain approval in Paddle.');
+      const checkout = response.data?.data;
+      const checkoutId = checkout?.id;
+      const checkoutUrl = checkout?.attributes?.url;
+      if (!checkoutId || !checkoutUrl) {
+        throw new InternalServerErrorException('Lemon Squeezy did not return a checkout URL. Confirm store and variant IDs.');
       }
 
       await this.db.payment.upsert({
-        where: { reference: transactionId },
+        where: { reference: checkoutId },
         create: {
           organizationId: org.id,
-          provider: PaymentProvider.paddle,
+          provider: PaymentProvider.lemon_squeezy,
           status: PaymentStatus.pending,
           plan: plan as Plan,
           amount,
           currency: BILLING_CURRENCY,
-          reference: transactionId,
+          reference: checkoutId,
           authorizationUrl: checkoutUrl,
-          payload: transaction,
+          payload: checkout,
         },
         update: {
-          provider: PaymentProvider.paddle,
+          provider: PaymentProvider.lemon_squeezy,
           status: PaymentStatus.pending,
           amount,
           currency: BILLING_CURRENCY,
           authorizationUrl: checkoutUrl,
-          payload: transaction,
+          payload: checkout,
         },
       });
 
       return {
         authorization_url: checkoutUrl,
         checkout_url: checkoutUrl,
-        reference: transactionId,
-        provider: 'paddle',
+        reference: checkoutId,
+        provider: 'lemon_squeezy',
       };
     } catch (error) {
-      this.throwPaddleCheckoutError(error);
+      this.throwLemonCheckoutError(error);
     }
   }
 
   async verify(user: CurrentUserPayload, reference: string) {
-    const apiKey = this.requirePaddleApiKey();
+    const payment = await this.db.payment.findFirst({ where: { reference, organizationId: user.organizationId } });
+    if (!payment) throw new ForbiddenException('Reference does not belong to this organization');
 
-    let transaction: any;
-    try {
-      const response = await axios.get(`${this.apiBaseUrl}/transactions/${encodeURIComponent(reference)}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        timeout: PADDLE_TIMEOUT_MS,
-      });
-      transaction = response.data?.data;
-    } catch (error) {
-      const message = this.getPaddleErrorMessage(error);
-      this.logger.error('Paddle transaction verify failed', message);
-      throw new InternalServerErrorException(`Could not verify payment. ${message}`);
+    if (payment.status === PaymentStatus.success) {
+      return { success: true, plan: payment.plan };
     }
 
-    const customData = transaction?.custom_data ?? {};
-    const organizationId: string | undefined = customData.organizationId;
-    const planValue: string | undefined = customData.plan;
-
-    if (!organizationId || organizationId !== user.organizationId) {
-      throw new ForbiddenException('Reference does not belong to this organization');
-    }
-
-    const plan = this.getPaidPlan(planValue ?? '');
-    const amount = PLAN_CONFIG[plan].amount;
-    const isPaid = transaction?.status === 'completed' || transaction?.payments?.some((payment: any) => payment.status === 'captured');
-
-    if (!isPaid) {
-      await this.db.payment.updateMany({
-        where: { reference, organizationId: user.organizationId },
-        data: { status: PaymentStatus.pending, payload: transaction ?? {} },
-      });
-      return { success: false, status: transaction?.status ?? 'pending' };
-    }
-
-    await this.markPaymentSuccess({ organizationId, reference, plan, amount, payload: transaction });
-    return { success: true, plan };
+    return { success: false, status: payment.status };
   }
 
-  verifyPaddleSignature(rawBody: Buffer | string | undefined, signatureHeader?: string) {
-    const secret = process.env.PADDLE_WEBHOOK_SECRET;
-    if (!secret) throw new InternalServerErrorException('PADDLE_WEBHOOK_SECRET is not configured.');
-    if (!rawBody || !signatureHeader) throw new BadRequestException('Missing Paddle webhook signature.');
+  verifyLemonSignature(rawBody: Buffer | string | undefined, signatureHeader?: string) {
+    const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
+    if (!secret) throw new InternalServerErrorException('LEMON_SQUEEZY_WEBHOOK_SECRET is not configured.');
+    if (!rawBody || !signatureHeader) throw new BadRequestException('Missing Lemon Squeezy webhook signature.');
 
-    const raw = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody;
-    const parts = Object.fromEntries(signatureHeader.split(';').map((part) => {
-      const [key, ...value] = part.split('=');
-      return [key, value.join('=')];
-    }));
-
-    const timestamp = parts.ts;
-    const signature = parts.h1;
-    if (!timestamp || !signature) throw new BadRequestException('Invalid Paddle webhook signature header.');
-
-    const signedPayload = `${timestamp}:${raw}`;
-    const expected = createHmac('sha256', secret).update(signedPayload).digest('hex');
+    const raw = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody, 'utf8');
+    const expected = createHmac('sha256', secret).update(raw).digest('hex');
     const expectedBuffer = Buffer.from(expected, 'hex');
-    const signatureBuffer = Buffer.from(signature, 'hex');
+    const signatureBuffer = Buffer.from(signatureHeader, 'hex');
 
     if (expectedBuffer.length !== signatureBuffer.length || !timingSafeEqual(expectedBuffer, signatureBuffer)) {
-      throw new ForbiddenException('Invalid Paddle webhook signature.');
+      throw new ForbiddenException('Invalid Lemon Squeezy webhook signature.');
     }
   }
 
-  async handleWebhook(payload: PaddleWebhookPayload) {
-    const eventType = payload.event_type;
-    const data = payload.data ?? {};
+  async handleWebhook(payload: LemonWebhookPayload) {
+    const eventName = payload.meta?.event_name;
+    if (!eventName) return { ok: true, ignored: true };
 
-    if (!eventType) return { ok: true, ignored: true };
-
-    if (eventType === 'transaction.completed' || eventType === 'transaction.paid') {
-      await this.handlePaidTransaction(data);
+    if (eventName === 'subscription_created' || eventName === 'subscription_updated' || eventName === 'order_created') {
+      await this.handleLemonPaidEvent(payload);
       return { ok: true };
     }
 
-    if (eventType === 'subscription.created' || eventType === 'subscription.updated') {
-      await this.handleSubscriptionChange(data);
-      return { ok: true };
-    }
-
-    if (eventType === 'subscription.canceled' || eventType === 'subscription.paused') {
-      await this.handleSubscriptionInactive(data);
+    if (eventName === 'subscription_cancelled' || eventName === 'subscription_expired' || eventName === 'subscription_paused') {
+      await this.handleLemonInactiveEvent(payload);
       return { ok: true };
     }
 
     return { ok: true, ignored: true };
   }
 
-  private async handlePaidTransaction(transaction: any) {
-    const customData = transaction?.custom_data ?? {};
+  private getCustomData(payload: LemonWebhookPayload) {
+    const metaCustom = payload.meta?.custom_data ?? {};
+    const attributesCustom = payload.data?.attributes?.custom_data ?? payload.data?.attributes?.custom ?? {};
+    return { ...attributesCustom, ...metaCustom };
+  }
+
+  private async handleLemonPaidEvent(payload: LemonWebhookPayload) {
+    const customData = this.getCustomData(payload);
     const organizationId = customData.organizationId;
     const planValue = customData.plan;
     if (!organizationId || !planValue) return;
 
     const plan = this.getPaidPlan(planValue);
+    const dataId = payload.data?.id;
+    const attributes = payload.data?.attributes ?? {};
+    const reference = String(attributes.checkout_id || attributes.order_id || attributes.subscription_id || dataId || `${organizationId}-${plan}`);
+
     await this.markPaymentSuccess({
       organizationId,
-      reference: transaction.id,
+      reference,
       plan,
       amount: PLAN_CONFIG[plan].amount,
-      payload: transaction,
+      payload,
     });
   }
 
-  private async handleSubscriptionChange(subscription: any) {
-    const customData = subscription?.custom_data ?? {};
-    const organizationId = customData.organizationId;
-    const planValue = customData.plan;
-    if (!organizationId || !planValue) return;
-
-    const plan = this.getPaidPlan(planValue);
-    await this.db.organization.update({
-      where: { id: organizationId },
-      data: { plan: plan as Plan },
-    });
-  }
-
-  private async handleSubscriptionInactive(subscription: any) {
-    const customData = subscription?.custom_data ?? {};
+  private async handleLemonInactiveEvent(payload: LemonWebhookPayload) {
+    const customData = this.getCustomData(payload);
     const organizationId = customData.organizationId;
     if (!organizationId) return;
 
-    await this.db.organization.update({
-      where: { id: organizationId },
-      data: { plan: Plan.free },
-    });
+    await this.db.organization.update({ where: { id: organizationId }, data: { plan: Plan.free } });
   }
 
   private async markPaymentSuccess({ organizationId, reference, plan, amount, payload }: { organizationId: string; reference: string; plan: PaidPlan; amount: number; payload: any }) {
@@ -303,7 +281,7 @@ export class BillingService {
         where: { reference },
         create: {
           organizationId,
-          provider: PaymentProvider.paddle,
+          provider: PaymentProvider.lemon_squeezy,
           status: PaymentStatus.success,
           plan: plan as Plan,
           amount,
@@ -313,7 +291,7 @@ export class BillingService {
           payload,
         },
         update: {
-          provider: PaymentProvider.paddle,
+          provider: PaymentProvider.lemon_squeezy,
           status: PaymentStatus.success,
           plan: plan as Plan,
           amount,
