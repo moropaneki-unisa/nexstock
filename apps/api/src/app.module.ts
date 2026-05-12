@@ -14,6 +14,7 @@ import { ApiKeyPlanLimitMiddleware } from './plan-limits/api-key-plan-limit.midd
 import { PlanLimitsModule } from './plan-limits/plan-limits.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductsModule } from './products/products.module';
+import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -33,6 +34,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     ProductsModule,
     InventoryModule,
     SuppliersModule,
+    PurchaseOrdersModule,
     ApiKeysModule,
     PublicApiModule,
     WebhooksModule,
