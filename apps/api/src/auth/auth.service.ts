@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -47,6 +47,8 @@ function normalizeEmail(value: unknown) {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -80,6 +82,16 @@ export class AuthService {
     });
 
     await this.email.sendOtpEmail(email, otp, OTP_EXPIRY_MINUTES);
+
+    this.email.sendNewSignupNotificationEmail({
+      name,
+      email,
+      organizationName: orgName,
+      signupAt: new Date(),
+    }).catch((error) => {
+      this.logger.error(`New signup notification failed for ${email}`);
+      this.logger.error(error instanceof Error ? error.message : String(error));
+    });
 
     return { requiresVerification: true, orgName };
   }
