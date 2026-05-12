@@ -63,6 +63,20 @@ function checkoutSettings() {
   };
 }
 
+function waitForPaddleFrameTarget(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let attempts = 0;
+    const findTarget = () => {
+      attempts += 1;
+      const target = document.getElementsByClassName(PADDLE_FRAME_TARGET)[0];
+      if (target) return resolve();
+      if (attempts > 30) return reject(new Error("Paddle checkout container was not rendered. Refresh and try again."));
+      window.requestAnimationFrame(findTarget);
+    };
+    findTarget();
+  });
+}
+
 export function PaddleInlineCheckout() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<PaidPlan>("starter");
@@ -92,7 +106,7 @@ export function PaddleInlineCheckout() {
   useEffect(() => {
     if (!paddleReady || !paymentLinkTransaction || autoOpenedRef.current) return;
     autoOpenedRef.current = true;
-    openExistingTransaction(paymentLinkTransaction);
+    void openExistingTransaction(paymentLinkTransaction);
   }, [paddleReady, paymentLinkTransaction]);
 
   function initializePaddle() {
@@ -170,13 +184,14 @@ export function PaddleInlineCheckout() {
     window.history.replaceState(null, "", url.toString());
   }
 
-  function openExistingTransaction(transactionId: string) {
+  async function openExistingTransaction(transactionId: string) {
     setStatus("starting");
     setError(null);
     setCheckoutVisible(true);
     activeTransactionRef.current = transactionId;
     try {
       if (!window.Paddle) throw new Error("Paddle script has not loaded yet. Refresh and try again.");
+      await waitForPaddleFrameTarget();
       window.Paddle.Checkout.open({ transactionId, settings: checkoutSettings() });
       setStatus("checkout");
     } catch (err) {
@@ -196,6 +211,7 @@ export function PaddleInlineCheckout() {
       const transactionId = checkout.reference;
       if (!transactionId) throw new Error("Paddle transaction reference was not returned.");
       activeTransactionRef.current = transactionId;
+      await waitForPaddleFrameTarget();
       window.Paddle.Checkout.open({ transactionId, settings: checkoutSettings() });
       setStatus("checkout");
     } catch (err) {
@@ -215,7 +231,7 @@ export function PaddleInlineCheckout() {
           {checkoutVisible && <div className="border-t bg-muted/15 p-5"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-semibold">Secure checkout</p><p className="text-xs text-muted-foreground">Complete checkout below.</p></div><Button type="button" variant="ghost" size="sm" onClick={() => closeCheckout()} className="rounded-none">Cancel</Button></div>{status === "starting" && <div className="mb-3 border bg-background px-4 py-3 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Preparing secure checkout...</div>}<div className={`${PADDLE_FRAME_TARGET} min-h-[560px] overflow-hidden border bg-background`} /></div>}
           {status === "success" && <div className="border-t border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-800">Payment verified. Redirecting...</div>}
           {error && <div className="border-t border-destructive/30 bg-destructive/10 px-5 py-4 text-sm text-destructive"><AlertCircle className="mr-2 inline h-4 w-4" />{error}</div>}
-          <div className="border-t p-5">{!checkoutVisible && status !== "verifying" && status !== "success" ? <div className="space-y-3"><Button onClick={paymentLinkTransaction ? () => openExistingTransaction(paymentLinkTransaction) : startCheckout} className="w-full rounded-none py-6 font-semibold" disabled={status === "starting" || !paddleReady}>{status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting...</> : status === "failed" ? <><RefreshCcw className="h-4 w-4" /> Try again</> : <>Continue to secure checkout <ArrowRight className="h-4 w-4" /></>}</Button>{(status === "failed" || error) && activeTransactionRef.current && <Button type="button" variant="outline" onClick={() => verifyTransaction(activeTransactionRef.current)} className="w-full rounded-none py-6 font-semibold"><RefreshCcw className="h-4 w-4" />Verify payment</Button>}</div> : <Button className="w-full rounded-none py-6 font-semibold" disabled>{status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</> : status === "success" ? "Verified" : "Checkout is open above"}</Button>}{!paddleReady && status === "idle" && <p className="mt-3 text-center text-xs text-muted-foreground">Loading secure checkout tools...</p>}</div>
+          <div className="border-t p-5">{!checkoutVisible && status !== "verifying" && status !== "success" ? <div className="space-y-3"><Button onClick={paymentLinkTransaction ? () => void openExistingTransaction(paymentLinkTransaction) : startCheckout} className="w-full rounded-none py-6 font-semibold" disabled={status === "starting" || !paddleReady}>{status === "starting" ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting...</> : status === "failed" ? <><RefreshCcw className="h-4 w-4" /> Try again</> : <>Continue to secure checkout <ArrowRight className="h-4 w-4" /></>}</Button>{(status === "failed" || error) && activeTransactionRef.current && <Button type="button" variant="outline" onClick={() => verifyTransaction(activeTransactionRef.current)} className="w-full rounded-none py-6 font-semibold"><RefreshCcw className="h-4 w-4" />Verify payment</Button>}</div> : <Button className="w-full rounded-none py-6 font-semibold" disabled>{status === "verifying" ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</> : status === "success" ? "Verified" : "Checkout is open above"}</Button>}{!paddleReady && status === "idle" && <p className="mt-3 text-center text-xs text-muted-foreground">Loading secure checkout tools...</p>}</div>
         </AuthCard>
       </AuthShell>
     </>
