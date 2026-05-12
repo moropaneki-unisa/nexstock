@@ -1,5 +1,5 @@
-import { PaddleInlineCheckout } from "@/components/billing/paddle-inline-checkout";
+import { SubscriptionCheckoutReview } from "@/components/billing/subscription-checkout-review";
 
 export default function BillingCheckoutPage() {
-  return <PaddleInlineCheckout />;
+  return <SubscriptionCheckoutReview />;
 }
