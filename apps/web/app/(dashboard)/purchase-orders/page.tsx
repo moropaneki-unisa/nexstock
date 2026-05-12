@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { DEFAULT_CURRENCY, formatMoney, normalizeCurrencyCode } from "@/lib/currencies";
@@ -81,9 +82,8 @@ export default function PurchaseOrdersPage() {
   const stats = useMemo(() => {
     const open = orders.filter((order) => ["draft", "ordered", "partially_received"].includes(order.status)).length;
     const ordered = orders.filter((order) => order.status === "ordered").length;
-    const received = orders.filter((order) => order.status === "received").length;
     const supplierCount = new Set(orders.map((order) => order.supplier?.id).filter(Boolean)).size;
-    return { total: orders.length, open, ordered, received, supplierCount };
+    return { total: orders.length, open, ordered, supplierCount };
   }, [orders]);
 
   return (
@@ -92,38 +92,39 @@ export default function PurchaseOrdersPage() {
         eyebrow="Purchasing"
         title="Purchase orders"
         description="Foundation for buying from suppliers. Draft orders now; receiving stock will come next."
-        actions={
-          <Button asChild className="rounded-xl shadow-sm">
-            <Link href="/purchase-orders/new"><Plus className="h-4 w-4" />New purchase order</Link>
-          </Button>
-        }
+        actions={<Button asChild className="rounded-none shadow-none"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />New purchase order</Link></Button>}
       />
 
       {error && <div className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric icon={ClipboardList} label="Total POs" value={stats.total} />
-        <Metric icon={CalendarClock} label="Open" value={stats.open} />
-        <Metric icon={Truck} label="Ordered" value={stats.ordered} />
-        <Metric icon={Warehouse} label="Suppliers" value={stats.supplierCount} />
+      <section className="border bg-card/95">
+        <div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+          <Metric icon={ClipboardList} label="Total POs" value={stats.total} />
+          <Metric icon={CalendarClock} label="Open" value={stats.open} />
+          <Metric icon={Truck} label="Ordered" value={stats.ordered} />
+          <Metric icon={Warehouse} label="Suppliers" value={stats.supplierCount} />
+        </div>
       </section>
 
-      <Card className="border bg-card/95 shadow-sm">
+      <Card className="border bg-card/95 shadow-none">
         <CardHeader className="border-b">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle>Purchase order workspace</CardTitle>
               <CardDescription>Track supplier orders before we add receiving and stock-in automation.</CardDescription>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <label className="relative min-w-[16rem]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(16rem,1fr)_13rem]">
+              <label className="relative min-w-0">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search POs..." className="pl-9" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search POs..." className="h-10 rounded-none pl-9" />
               </label>
-              <select value={status} onChange={(event) => setStatus(event.target.value as PurchaseOrderStatus | "all")} className="h-10 rounded-md border bg-background px-3 text-sm">
-                <option value="all">All statuses</option>
-                {Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </select>
+              <Select value={status} onValueChange={(value) => setStatus(value as PurchaseOrderStatus | "all")}>
+                <SelectTrigger className="h-10 rounded-none"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
@@ -134,7 +135,7 @@ export default function PurchaseOrdersPage() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/25 hover:bg-muted/25">
                     <TableHead>PO</TableHead>
                     <TableHead>Supplier</TableHead>
                     <TableHead>Status</TableHead>
@@ -144,9 +145,7 @@ export default function PurchaseOrdersPage() {
                     <TableHead>Created</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {filtered.map((order) => <PurchaseOrderRow key={order.id} order={order} baseCurrency={baseCurrency} />)}
-                </TableBody>
+                <TableBody>{filtered.map((order) => <PurchaseOrderRow key={order.id} order={order} baseCurrency={baseCurrency} />)}</TableBody>
               </Table>
             </div>
           ) : (
@@ -154,7 +153,7 @@ export default function PurchaseOrdersPage() {
               <ReceiptText className="mx-auto h-8 w-8 text-muted-foreground" />
               <p className="mt-3 font-medium">No purchase orders found</p>
               <p className="mt-1 text-sm text-muted-foreground">Create a purchase order once you are ready to buy stock from a supplier.</p>
-              <Button asChild className="mt-5 rounded-xl"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />Create purchase order</Link></Button>
+              <Button asChild className="mt-5 rounded-none"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />Create purchase order</Link></Button>
             </div>
           )}
         </CardContent>
@@ -165,29 +164,13 @@ export default function PurchaseOrdersPage() {
 
 function PurchaseOrderRow({ order, baseCurrency }: { order: PurchaseOrder; baseCurrency: string }) {
   const total = Number(order.subtotal ?? 0);
-  return (
-    <TableRow>
-      <TableCell>
-        <div className="font-semibold">{order.poNumber}</div>
-        <div className="text-xs text-muted-foreground">{order.currency || baseCurrency}</div>
-      </TableCell>
-      <TableCell>
-        <div className="font-medium">{order.supplier?.name ?? "Unknown supplier"}</div>
-        <div className="font-mono text-xs text-muted-foreground">{order.supplier?.supplierCode ?? "-"}</div>
-      </TableCell>
-      <TableCell><StatusBadge status={order.status} /></TableCell>
-      <TableCell>{order.lines?.length ?? 0}</TableCell>
-      <TableCell className="font-medium">{formatMoney(total, order.currency || baseCurrency)}</TableCell>
-      <TableCell>{order.expectedAt ? new Date(order.expectedAt).toLocaleDateString() : "Not set"}</TableCell>
-      <TableCell className="text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-    </TableRow>
-  );
+  return <TableRow className="transition hover:bg-muted/25"><TableCell><div className="font-semibold">{order.poNumber}</div><div className="text-xs text-muted-foreground">{order.currency || baseCurrency}</div></TableCell><TableCell><div className="max-w-[18rem] truncate font-medium">{order.supplier?.name ?? "Unknown supplier"}</div><div className="font-mono text-xs text-muted-foreground">{order.supplier?.supplierCode ?? "-"}</div></TableCell><TableCell><StatusBadge status={order.status} /></TableCell><TableCell>{order.lines?.length ?? 0}</TableCell><TableCell className="font-medium">{formatMoney(total, order.currency || baseCurrency)}</TableCell><TableCell>{order.expectedAt ? new Date(order.expectedAt).toLocaleDateString() : "Not set"}</TableCell><TableCell className="text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</TableCell></TableRow>;
 }
 
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) {
-  return <Badge className={cn(status === "cancelled" && "bg-destructive hover:bg-destructive", status === "received" && "bg-emerald-600 hover:bg-emerald-600")} variant={status === "draft" ? "secondary" : "default"}>{statusLabels[status] ?? status}</Badge>;
+  return <Badge className={cn("rounded-none", status === "cancelled" && "bg-destructive hover:bg-destructive", status === "received" && "bg-emerald-600 hover:bg-emerald-600")} variant={status === "draft" ? "secondary" : "default"}>{statusLabels[status] ?? status}</Badge>;
 }
 
 function Metric({ icon: Icon, label, value }: { icon: any; label: string; value: number }) {
-  return <Card className="border bg-card/95 shadow-sm"><CardContent className="p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-4 w-4 text-muted-foreground" /></div><p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p></CardContent></Card>;
+  return <div className="p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-4 w-4 text-muted-foreground" /></div><p className="mt-2 text-3xl font-black tracking-[-0.05em]">{value}</p></div>;
 }
