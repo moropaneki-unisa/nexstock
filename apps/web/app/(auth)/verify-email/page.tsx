@@ -62,14 +62,8 @@ export default function VerifyEmailPage() {
       saveSelectedPlan(selectedPlan);
       await verifyEmail({ email: values.email.trim(), otp: values.otp.trim() });
       setVerified(true);
-      if (selectedPlan !== "free") {
-        setNotice("Email verified. Redirecting to subscription checkout...");
-        window.setTimeout(() => router.push(`/billing/checkout?plan=${selectedPlan}`), 600);
-        return;
-      }
-      window.localStorage.removeItem(PLAN_STORAGE_KEY);
-      setNotice("Email verified. Redirecting to your dashboard...");
-      window.setTimeout(() => router.push("/dashboard"), 900);
+      setNotice("Email verified. Choose your subscription to continue...");
+      window.setTimeout(() => router.push(`/subscriptions?plan=${selectedPlan}`), 700);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
     }
@@ -94,9 +88,9 @@ export default function VerifyEmailPage() {
     <AuthShell
       eyebrow="Email verification"
       title="Secure your product workspace before launch."
-      description="Verify your email address to activate your NexStock workspace, create your organization, and access product operations."
+      description="Verify your email address to activate your NexStock workspace, create your organization, and choose how you want to start."
       icon={ShieldCheck}
-      highlights={["Confirm account ownership", `${planLabels[selectedPlan]} plan preserved`, selectedPlan === "free" ? "Unlock dashboard access" : "Continue to subscription checkout"]}
+      highlights={["Confirm account ownership", `${planLabels[selectedPlan]} plan preserved`, "Choose Free, Starter, or Growth next"]}
       actionHref="/login"
       actionLabel="Sign in"
     >
