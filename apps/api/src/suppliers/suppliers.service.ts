@@ -68,6 +68,11 @@ export class SuppliersService {
     return this.db.supplier.update({ where: { id }, data: { status: SupplierStatus.archived } });
   }
 
+  async reactivate(user: CurrentUserPayload, id: string) {
+    await this.ensureSupplier(user, id);
+    return this.db.supplier.update({ where: { id }, data: { status: SupplierStatus.active } });
+  }
+
   async listProductSuppliers(user: CurrentUserPayload, productId: string) {
     await this.ensureProduct(user, productId);
     return this.db.productSupplier.findMany({ where: { organizationId: user.organizationId, productId }, include: { supplier: true }, orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }] });
