@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Loader2, PackagePlus, Plus, Trash2, Truck } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, ChevronsUpDown, Loader2, PackagePlus, Plus, Trash2, Truck } from "lucide-react";
 
 import { PageHeader, PageShell } from "@/components/system/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -143,7 +143,48 @@ export default function NewPurchaseOrderPage() {
 function PurchaseOrderLineCard({ line, products, currency, onProductChange, onUpdate, onRemove, canRemove }: { line: LineForm; products: Product[]; currency: string; onProductChange: (productId: string) => void; onUpdate: (patch: Partial<LineForm>) => void; onRemove: () => void; canRemove: boolean }) {
   const lineTotal = Number(line.quantityOrdered || 0) * Number(line.unitCost || 0);
   const selectedProduct = products.find((product) => product.id === line.productId);
-  return <div className="grid min-w-0 gap-3 p-4 lg:grid-cols-[minmax(0,2fr)_minmax(8rem,0.8fr)_6rem_8rem_7rem_3rem] lg:items-start lg:gap-4"><label className="min-w-0 space-y-1.5"><Label className={labelClass}>Product</Label><Select value={line.productId || "none"} onValueChange={(value) => onProductChange(value === "none" ? "" : value)}><SelectTrigger className="w-full min-w-0 rounded-none"><SelectValue placeholder="Choose product" /></SelectTrigger><SelectContent className="max-w-[min(42rem,calc(100vw-2rem))]"><SelectItem value="none">Choose product</SelectItem>{products.map((product) => <SelectItem key={product.id} value={product.id}><span className="block max-w-[34rem] truncate">{product.sku} · {product.name}</span></SelectItem>)}</SelectContent></Select>{selectedProduct ? <p className="truncate font-mono text-[0.7rem] text-muted-foreground">{selectedProduct.sku}</p> : products.length === 0 ? <p className="text-xs text-muted-foreground">No products found yet.</p> : null}</label><label className="min-w-0 space-y-1.5"><Label className={labelClass}>Supplier SKU</Label><Input className={controlClass} value={line.supplierSku} onChange={(event) => onUpdate({ supplierSku: event.target.value })} /></label><label className="space-y-1.5"><Label className={labelClass}>Qty</Label><Input className={controlClass} type="number" min="1" value={line.quantityOrdered} onChange={(event) => onUpdate({ quantityOrdered: event.target.value })} /></label><label className="space-y-1.5"><Label className={labelClass}>Unit cost</Label><Input className={controlClass} type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => onUpdate({ unitCost: event.target.value })} /></label><div className="space-y-1.5"><p className={labelClass}>Total</p><div className="flex h-10 items-center border bg-muted/15 px-3 text-sm font-medium">{formatMoney(Number.isFinite(lineTotal) ? lineTotal : 0, currency)}</div></div><div className="flex items-end pt-5 lg:pt-6"><Button type="button" variant="ghost" size="sm" onClick={onRemove} disabled={!canRemove} className="h-10 w-10 rounded-none p-0 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></div></div>;
+  return <div className="grid min-w-0 gap-3 p-4 lg:grid-cols-[minmax(0,2fr)_minmax(8rem,0.8fr)_6rem_8rem_7rem_3rem] lg:items-start lg:gap-4"><label className="min-w-0 space-y-1.5"><Label className={labelClass}>Product</Label><ProductPicker products={products} value={line.productId} onChange={onProductChange} />{selectedProduct ? <p className="truncate font-mono text-[0.7rem] text-muted-foreground">{selectedProduct.sku}</p> : products.length === 0 ? <p className="text-xs text-muted-foreground">No products found yet.</p> : null}</label><label className="min-w-0 space-y-1.5"><Label className={labelClass}>Supplier SKU</Label><Input className={controlClass} value={line.supplierSku} onChange={(event) => onUpdate({ supplierSku: event.target.value })} /></label><label className="space-y-1.5"><Label className={labelClass}>Qty</Label><Input className={controlClass} type="number" min="1" value={line.quantityOrdered} onChange={(event) => onUpdate({ quantityOrdered: event.target.value })} /></label><label className="space-y-1.5"><Label className={labelClass}>Unit cost</Label><Input className={controlClass} type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => onUpdate({ unitCost: event.target.value })} /></label><div className="space-y-1.5"><p className={labelClass}>Total</p><div className="flex h-10 items-center border bg-muted/15 px-3 text-sm font-medium">{formatMoney(Number.isFinite(lineTotal) ? lineTotal : 0, currency)}</div></div><div className="flex items-end pt-5 lg:pt-6"><Button type="button" variant="ghost" size="sm" onClick={onRemove} disabled={!canRemove} className="h-10 w-10 rounded-none p-0 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></div></div>;
+}
+
+function ProductPicker({ products, value, onChange }: { products: Product[]; value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = products.find((product) => product.id === value);
+
+  return (
+    <div className="relative min-w-0" onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
+      <Button type="button" variant="outline" role="combobox" aria-expanded={open} onClick={() => setOpen((current) => !current)} className="h-10 w-full justify-between rounded-none bg-background px-3 font-normal shadow-none">
+        <span className={cn("min-w-0 flex-1 truncate text-left", !selected && "text-muted-foreground")}>{selected ? `${selected.sku} · ${selected.name}` : "Search or choose product"}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      {open && (
+        <div className="absolute left-0 right-0 top-11 z-50 border bg-background shadow-lg">
+          <Command className="rounded-none">
+            <CommandInput placeholder="Search SKU or product name..." className="rounded-none" />
+            <CommandList className="max-h-72 overflow-y-auto">
+              <CommandEmpty>No product found.</CommandEmpty>
+              <CommandGroup heading="Products">
+                {products.map((product) => (
+                  <CommandItem
+                    key={product.id}
+                    value={`${product.sku} ${product.name}`}
+                    onSelect={() => {
+                      onChange(product.id);
+                      setOpen(false);
+                    }}
+                    className="rounded-none"
+                  >
+                    <Check className={cn("h-4 w-4 shrink-0", value === product.id ? "opacity-100" : "opacity-0")} />
+                    <span className="min-w-0 flex-1 truncate">{product.sku} · {product.name}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{product.quantity} in stock</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Side({ label, value }: { label: string; value: string }) {
