@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, CheckCircle2, ChevronsUpDown, Loader2, PackagePlus, Plus, Trash2, Truck } from "lucide-react";
 
@@ -35,6 +36,7 @@ function normalizeProducts(result: ProductListResponse): Product[] {
 }
 
 export default function NewPurchaseOrderPage() {
+  const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [organization, setOrganization] = useState<OrganizationSummary | null>(null);
@@ -106,7 +108,7 @@ export default function NewPurchaseOrderPage() {
 
     setSaving(true);
     try {
-      await apiFetch<{ id: string }>("/api/purchase-orders", {
+      const created = await apiFetch<{ id: string }>("/api/purchase-orders", {
         method: "POST",
         body: JSON.stringify({
           supplierId,
@@ -123,7 +125,7 @@ export default function NewPurchaseOrderPage() {
           })),
         }),
       });
-      window.location.href = "/purchase-orders";
+      router.push(created?.id ? `/purchase-orders/${created.id}` : "/purchase-orders");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create purchase order");
     } finally {
