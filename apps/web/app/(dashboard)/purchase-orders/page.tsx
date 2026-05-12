@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, ClipboardList, Loader2, Plus, ReceiptText, Search, Truck, Warehouse } from "lucide-react";
+import { ArrowRight, CalendarClock, ClipboardList, Loader2, Plus, ReceiptText, Search, Truck, Warehouse } from "lucide-react";
 
 import { PageHeader, PageShell } from "@/components/system/page-shell";
 import { Badge } from "@/components/ui/badge";
@@ -91,8 +91,8 @@ export default function PurchaseOrdersPage() {
       <PageHeader
         eyebrow="Purchasing"
         title="Purchase orders"
-        description="Foundation for buying from suppliers. Draft orders now; receiving stock will come next."
-        actions={<Button asChild className="rounded-none shadow-none"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />New purchase order</Link></Button>}
+        description="Create supplier purchase orders, track order status, and prepare the receiving workflow for stock updates."
+        actions={<Button asChild className="rounded-xl shadow-sm"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />New purchase order</Link></Button>}
       />
 
       {error && <div className="border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
@@ -111,15 +111,15 @@ export default function PurchaseOrdersPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle>Purchase order workspace</CardTitle>
-              <CardDescription>Track supplier orders before we add receiving and stock-in automation.</CardDescription>
+              <CardDescription>Search orders, review supplier totals, and open each PO for receiving/detail workflows.</CardDescription>
             </div>
             <div className="grid gap-2 sm:grid-cols-[minmax(16rem,1fr)_13rem]">
               <label className="relative min-w-0">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search POs..." className="h-10 rounded-none pl-9" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search PO number, supplier..." className="h-10 rounded-xl pl-9" />
               </label>
               <Select value={status} onValueChange={(value) => setStatus(value as PurchaseOrderStatus | "all")}>
-                <SelectTrigger className="h-10 rounded-none"><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
                   {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
@@ -143,6 +143,7 @@ export default function PurchaseOrdersPage() {
                     <TableHead>Total</TableHead>
                     <TableHead>Expected</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>{filtered.map((order) => <PurchaseOrderRow key={order.id} order={order} baseCurrency={baseCurrency} />)}</TableBody>
@@ -150,10 +151,13 @@ export default function PurchaseOrdersPage() {
             </div>
           ) : (
             <div className="p-10 text-center">
-              <ReceiptText className="mx-auto h-8 w-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">No purchase orders found</p>
-              <p className="mt-1 text-sm text-muted-foreground">Create a purchase order once you are ready to buy stock from a supplier.</p>
-              <Button asChild className="mt-5 rounded-none"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />Create purchase order</Link></Button>
+              <ReceiptText className="mx-auto h-10 w-10 text-muted-foreground" />
+              <p className="mt-4 text-lg font-semibold">No purchase orders yet</p>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">Create your first supplier order when you are ready to buy stock. Later this area will connect receiving directly to stock movements.</p>
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                <Button asChild className="rounded-xl"><Link href="/purchase-orders/new"><Plus className="h-4 w-4" />Create purchase order</Link></Button>
+                <Button asChild variant="outline" className="rounded-xl bg-background/70"><Link href="/suppliers">Review suppliers<ArrowRight className="h-4 w-4" /></Link></Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -164,11 +168,11 @@ export default function PurchaseOrdersPage() {
 
 function PurchaseOrderRow({ order, baseCurrency }: { order: PurchaseOrder; baseCurrency: string }) {
   const total = Number(order.subtotal ?? 0);
-  return <TableRow className="transition hover:bg-muted/25"><TableCell><div className="font-semibold">{order.poNumber}</div><div className="text-xs text-muted-foreground">{order.currency || baseCurrency}</div></TableCell><TableCell><div className="max-w-[18rem] truncate font-medium">{order.supplier?.name ?? "Unknown supplier"}</div><div className="font-mono text-xs text-muted-foreground">{order.supplier?.supplierCode ?? "-"}</div></TableCell><TableCell><StatusBadge status={order.status} /></TableCell><TableCell>{order.lines?.length ?? 0}</TableCell><TableCell className="font-medium">{formatMoney(total, order.currency || baseCurrency)}</TableCell><TableCell>{order.expectedAt ? new Date(order.expectedAt).toLocaleDateString() : "Not set"}</TableCell><TableCell className="text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</TableCell></TableRow>;
+  return <TableRow className="transition hover:bg-muted/25"><TableCell><div className="font-semibold">{order.poNumber}</div><div className="text-xs text-muted-foreground">{order.currency || baseCurrency}</div></TableCell><TableCell><div className="max-w-[18rem] truncate font-medium">{order.supplier?.name ?? "Unknown supplier"}</div><div className="font-mono text-xs text-muted-foreground">{order.supplier?.supplierCode ?? "-"}</div></TableCell><TableCell><StatusBadge status={order.status} /></TableCell><TableCell>{order.lines?.length ?? 0}</TableCell><TableCell className="font-medium">{formatMoney(total, order.currency || baseCurrency)}</TableCell><TableCell>{order.expectedAt ? new Date(order.expectedAt).toLocaleDateString() : "Not set"}</TableCell><TableCell className="text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</TableCell><TableCell className="text-right"><Button asChild size="sm" variant="outline" className="rounded-xl bg-background/70"><Link href={`/purchase-orders/${order.id}`}>Open<ArrowRight className="h-4 w-4" /></Link></Button></TableCell></TableRow>;
 }
 
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) {
-  return <Badge className={cn("rounded-none", status === "cancelled" && "bg-destructive hover:bg-destructive", status === "received" && "bg-emerald-600 hover:bg-emerald-600")} variant={status === "draft" ? "secondary" : "default"}>{statusLabels[status] ?? status}</Badge>;
+  return <Badge className={cn("rounded-full", status === "cancelled" && "bg-destructive hover:bg-destructive", status === "received" && "bg-emerald-600 hover:bg-emerald-600")} variant={status === "draft" ? "secondary" : "default"}>{statusLabels[status] ?? status}</Badge>;
 }
 
 function Metric({ icon: Icon, label, value }: { icon: any; label: string; value: number }) {
