@@ -29,6 +29,11 @@ export class SuppliersController {
     return this.suppliers.update(user, id, dto);
   }
 
+  @Patch('suppliers/:id/reactivate')
+  reactivate(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.suppliers.reactivate(user, id);
+  }
+
   @Delete('suppliers/:id')
   archive(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.suppliers.archive(user, id);
