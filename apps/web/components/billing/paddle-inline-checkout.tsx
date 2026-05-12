@@ -156,7 +156,7 @@ export function PaddleInlineCheckout() {
 
   return (
     <>
-      <Script src="https://assets.lemonsqueezy.com/lemon.js" strategy="afterInteractive" onLoad={initializeLemon} onError={() => { setStatus("failed"); setError("Could not load Lemon Squeezy checkout script."); }} />
+      <Script src="https://app.lemonsqueezy.com/js/lemon.js" strategy="afterInteractive" onLoad={initializeLemon} onError={() => { setStatus("failed"); setError("Could not load Lemon Squeezy checkout script."); }} />
       {lastCheckoutUrl && <a ref={lemonLinkRef} href={lastCheckoutUrl} className="lemonsqueezy-button hidden" aria-hidden="true">Open checkout</a>}
       <AuthShell eyebrow="Secure subscription" title="Checkout powered by Lemon Squeezy." description="Review your subscription, switch plans if needed, then complete payment securely without leaving NexStock." icon={ShieldCheck} highlights={["In-app Lemon Squeezy overlay", "USD subscription pricing", "Organization setup after payment"]} actionHref="/#pricing" actionLabel="Change plan">
         <AuthCard icon={CreditCard} eyebrow="Subscription checkout" title="Review your plan" description="Choose the subscription that fits your product operations, then complete payment in the secure Lemon Squeezy overlay." footer={<Link href="/#pricing" className="font-medium text-foreground hover:underline">Compare all plans</Link>}>
