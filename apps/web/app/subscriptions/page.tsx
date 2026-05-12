@@ -45,6 +45,12 @@ const plans = [
   },
 ];
 
+const notes = [
+  "Selected plan only appears in checkout",
+  "Use test cards while NexStock is in implementation",
+  "Contact admin@nexstock.co.za before adding real launch data",
+];
+
 export default function SubscriptionsPage() {
   return (
     <main className="min-h-screen bg-[#f7f8fb] text-foreground">
@@ -64,39 +70,35 @@ export default function SubscriptionsPage() {
           </Link>
         </header>
 
-        <div className="grid flex-1 gap-8 py-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:py-12">
-          <section className="rounded-[2rem] bg-[#0b1220] p-6 text-white shadow-xl shadow-slate-200 sm:p-8 lg:min-h-[640px]">
-            <div className="flex h-full flex-col justify-between gap-10">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white/70">
-                  <CreditCard className="h-3.5 w-3.5" /> Subscription setup
-                </div>
-                <h1 className="mt-8 max-w-xl text-4xl font-black tracking-[-0.055em] sm:text-5xl lg:text-6xl">
-                  Choose the plan that fits your inventory workflow.
-                </h1>
-                <p className="mt-5 max-w-lg text-base leading-7 text-white/68">
-                  Start free, or test a paid subscription safely. Paid checkouts show test-card details before opening Lemon Squeezy.
-                </p>
-              </div>
-
-              <div className="grid gap-3 rounded-3xl border border-white/10 bg-white/[0.06] p-4">
-                {["Selected plan only appears in checkout", "Use test cards while NexStock is in implementation", "Contact admin@nexstock.co.za before adding real launch data"].map((item) => (
-                  <div key={item} className="flex items-start gap-3 text-sm text-white/78">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
+        <div className="flex flex-1 flex-col py-8 lg:py-12">
+          <section className="mx-auto max-w-4xl text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground shadow-sm">
+              <CreditCard className="h-3.5 w-3.5 text-primary" /> Subscription setup
             </div>
+            <h1 className="mt-6 text-4xl font-black tracking-[-0.055em] text-slate-950 sm:text-5xl lg:text-6xl">
+              Choose the plan that fits your inventory workflow.
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+              Start free, or test a paid subscription safely. Paid checkouts show test-card details before opening Lemon Squeezy.
+            </p>
           </section>
 
-          <section className="grid gap-4 lg:grid-cols-3">
+          <section className="mx-auto mt-8 grid w-full max-w-5xl gap-3 rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3">
+            {notes.map((item) => (
+              <div key={item} className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-muted-foreground">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                <span>{item}</span>
+              </div>
+            ))}
+          </section>
+
+          <section className="mt-10 grid gap-5 lg:grid-cols-3">
             {plans.map((plan) => {
               const Icon = plan.icon;
               return (
                 <article
                   key={plan.name}
-                  className={`relative flex min-h-[520px] flex-col rounded-[1.75rem] border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/80 ${
+                  className={`relative flex min-h-[500px] flex-col rounded-[1.75rem] border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/80 ${
                     plan.highlighted ? "border-primary ring-4 ring-primary/10" : "border-slate-200"
                   }`}
                 >
