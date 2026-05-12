@@ -116,9 +116,12 @@ export class BillingService {
             type: 'checkouts',
             attributes: {
               checkout_options: {
-                embed: false,
+                embed: true,
                 media: false,
                 logo: true,
+                desc: false,
+                discount: false,
+                subscription_preview: false,
               },
               checkout_data: {
                 email: user.email,
@@ -133,6 +136,7 @@ export class BillingService {
               product_options: {
                 name: `NexStock ${PLAN_CONFIG[plan].name}`,
                 description: `${PLAN_CONFIG[plan].name} subscription for NexStock`,
+                enabled_variants: [Number(variantId)],
                 redirect_url: this.frontendUrl('/billing/success'),
                 receipt_button_text: 'Return to NexStock',
                 receipt_link_url: this.frontendUrl('/organization'),
