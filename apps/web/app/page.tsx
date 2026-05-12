@@ -67,7 +67,7 @@ const pricingPlans = [
     cadence: "per month",
     description: "For small teams starting product imports, stock visibility, and cleaner operating workflows. Starter is the first paid plan for businesses that need to move beyond manual product entry and start importing catalog data more consistently.",
     cta: "Choose Starter",
-    href: "/signup?plan=starter",
+    href: "/billing/checkout?plan=starter",
     highlighted: true,
     features: ["CSV and XLSX product imports", "Reusable product-field mapping", "Inventory movement history", "API keys for connected tools"],
   },
@@ -77,7 +77,7 @@ const pricingPlans = [
     cadence: "per month",
     description: "For growing teams that need APIs, webhooks, integrations, and stronger product operations. Growth is intended for businesses that are connecting NexStock to other systems and need more automation around product and inventory updates.",
     cta: "Choose Growth",
-    href: "/signup?plan=growth",
+    href: "/billing/checkout?plan=growth",
     features: ["Advanced imports and integration-ready workflows", "Webhooks for product and inventory events", "Team workspace and admin controls", "Priority setup support"],
   },
   {
@@ -86,7 +86,7 @@ const pricingPlans = [
     cadence: "per month later",
     description: "A future plan for purchase orders, vendor operations, multi-location stock, audit logs, and advanced automation. Business is shown now to communicate the product direction, but checkout is not enabled for this plan yet.",
     cta: "Coming later",
-    href: "/signup?plan=growth",
+    href: "/billing/checkout?plan=growth",
     disabled: true,
     features: ["Vendor and purchase workflows", "Multi-location inventory", "Advanced audit logs", "Automation and priority onboarding"],
   },
@@ -168,7 +168,7 @@ export default function LandingPage() {
 
       <section id="platform" className="px-4 py-24 sm:px-6 lg:px-10"><LandingContainer className="grid gap-10 lg:grid-cols-2 lg:items-center"><div className="flex min-h-[320px] flex-col justify-center"><SectionIntro eyebrow="Platform" title="Everything needed to launch a product operations SaaS." description="The platform covers core product records, import workflows, integration configuration, API access, webhook delivery, and the operational history teams need when data changes." /></div><section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm"><SectionHeader icon={DatabaseZap} title="What NexStock includes" description="Core SaaS capabilities for connected product operations." /><div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">{platformItems.map((item) => <ListItem key={item} label={item} />)}</div></section></LandingContainer></section>
 
-      <section id="pricing" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10"><LandingContainer><SectionIntro eyebrow="Subscriptions" title="Choose the workspace plan that matches your product operations." description="Start free, then upgrade when imports, API access, webhooks, and connected workflows become part of your day-to-day operations." /><PricingSection plans={pricingPlans} /><p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Paystack. Prices are shown in USD. Business is planned for a later release.</p></LandingContainer></section>
+      <section id="pricing" className="border-y bg-card/40 px-4 py-24 sm:px-6 lg:px-10"><LandingContainer><SectionIntro eyebrow="Subscriptions" title="Choose the workspace plan that matches your product operations." description="Start free, then upgrade when imports, API access, webhooks, and connected workflows become part of your day-to-day operations." /><PricingSection plans={pricingPlans} /><p className="mt-5 text-sm text-muted-foreground">Paid checkout is processed through Lemon Squeezy. Prices are shown in USD. Business is planned for a later release.</p></LandingContainer></section>
 
       <section id="security" className="px-4 py-24 sm:px-6 lg:px-10"><LandingContainer className="grid gap-10 lg:grid-cols-2 lg:items-center"><div className="flex min-h-[320px] flex-col justify-center"><SectionIntro eyebrow="Security" title="Designed for real teams, not just single-user spreadsheets." description="NexStock separates users by organization, protects sensitive integration details, restricts administrative areas, and gives teams safer ways to connect external systems." icon={LockKeyhole} /></div><section className="overflow-hidden rounded-2xl border bg-card/95 shadow-sm"><SectionHeader icon={ShieldCheck} title="Workspace controls" description="Security and account controls built into the SaaS experience." /><div className="grid divide-y border-t sm:grid-cols-2 sm:divide-x sm:divide-y-0">{securityItems.map((item) => <ListItem key={item} label={item} icon={ShieldCheck} />)}</div></section></LandingContainer></section>
 
