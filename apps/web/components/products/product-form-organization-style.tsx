@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
 import { DEFAULT_CURRENCY, formatMoney, normalizeCurrencyCode } from "@/lib/currencies";
+import { cn } from "@/lib/utils";
 import type { Product, ProductField } from "@/lib/types";
 
 type Props = { product?: Product; mode?: "create" | "edit" };
@@ -20,6 +21,9 @@ type ProductSupplierLink = { id: string; supplierId: string; supplierSku?: strin
 type CurrencyState = { baseCurrency: string; exchangeRates: Array<{ code: string; rateToBase: number }> };
 type SupplierRow = { rowId: string; linkId?: string; supplierId: string; supplierSku: string; cost: string; currency: string; minimumOrderQty: string; leadTimeDays: string; isPreferred: boolean; notes: string };
 
+const controlClass = "h-10 w-full rounded-none border-border bg-background text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring";
+const selectClass = "h-10 w-full rounded-none border border-border bg-background px-3 text-sm shadow-none outline-none focus:ring-1 focus:ring-ring";
+const labelClass = "text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground";
 const rowId = () => typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `row-${Date.now()}-${Math.random()}`;
 const emptySupplier = (currency: string): SupplierRow => ({ rowId: rowId(), supplierId: "", supplierSku: "", cost: "", currency, minimumOrderQty: "", leadTimeDays: "", isPreferred: false, notes: "" });
 
@@ -94,13 +98,7 @@ export function ProductForm({ product, mode = "create" }: Props) {
   function makePreferred(rowId: string) { setSupplierRows((current) => current.map((row) => ({ ...row, isPreferred: row.rowId === rowId }))); }
   function selectSupplier(rowId: string, supplierId: string) {
     const supplier = suppliers.find((item) => item.id === supplierId);
-    setSupplierRows((current) => current.map((row) => row.rowId === rowId ? {
-      ...row,
-      supplierId,
-      currency: normalizeCurrencyCode(supplier?.currency || currency.baseCurrency),
-      minimumOrderQty: row.minimumOrderQty || (supplier?.minimumOrderQty == null ? "" : String(supplier.minimumOrderQty)),
-      leadTimeDays: row.leadTimeDays || (supplier?.leadTimeDays == null ? "" : String(supplier.leadTimeDays)),
-    } : row));
+    setSupplierRows((current) => current.map((row) => row.rowId === rowId ? { ...row, supplierId, currency: normalizeCurrencyCode(supplier?.currency || currency.baseCurrency), minimumOrderQty: row.minimumOrderQty || (supplier?.minimumOrderQty == null ? "" : String(supplier.minimumOrderQty)), leadTimeDays: row.leadTimeDays || (supplier?.leadTimeDays == null ? "" : String(supplier.leadTimeDays)) } : row));
   }
   function removeSupplierRow(rowId: string) {
     setSupplierRows((current) => {
@@ -152,21 +150,7 @@ export function ProductForm({ product, mode = "create" }: Props) {
       return value === undefined ? null : { fieldId: field.id, value };
     }).filter(Boolean);
 
-    const payload = {
-      name: form.name.trim(),
-      category: form.category.trim() || undefined,
-      description: form.description.trim() || undefined,
-      price,
-      priceCurrency: currency.baseCurrency,
-      cost: preferredCost,
-      costCurrency,
-      exchangeRateToBase: rate,
-      convertedCost,
-      lowStockLevel: Number(form.lowStockLevel || 0),
-      images,
-      customFieldValues,
-      ...(isEdit ? {} : { quantity: Number(form.quantity || 0) }),
-    };
+    const payload = { name: form.name.trim(), category: form.category.trim() || undefined, description: form.description.trim() || undefined, price, priceCurrency: currency.baseCurrency, cost: preferredCost, costCurrency, exchangeRateToBase: rate, convertedCost, lowStockLevel: Number(form.lowStockLevel || 0), images, customFieldValues, ...(isEdit ? {} : { quantity: Number(form.quantity || 0) }) };
 
     setSaving(true);
     try {
@@ -184,16 +168,7 @@ export function ProductForm({ product, mode = "create" }: Props) {
     const validRows = supplierRows.filter((row) => row.supplierId);
     const preferredId = validRows.find((row) => row.isPreferred)?.rowId ?? validRows[0]?.rowId;
     for (const row of validRows) {
-      const payload = {
-        supplierId: row.supplierId,
-        supplierSku: row.supplierSku.trim() || undefined,
-        cost: row.cost === "" ? undefined : Number(row.cost),
-        currency: row.currency,
-        minimumOrderQty: row.minimumOrderQty === "" ? undefined : Number(row.minimumOrderQty),
-        leadTimeDays: row.leadTimeDays === "" ? undefined : Number(row.leadTimeDays),
-        isPreferred: row.rowId === preferredId,
-        notes: row.notes.trim() || undefined,
-      };
+      const payload = { supplierId: row.supplierId, supplierSku: row.supplierSku.trim() || undefined, cost: row.cost === "" ? undefined : Number(row.cost), currency: row.currency, minimumOrderQty: row.minimumOrderQty === "" ? undefined : Number(row.minimumOrderQty), leadTimeDays: row.leadTimeDays === "" ? undefined : Number(row.leadTimeDays), isPreferred: row.rowId === preferredId, notes: row.notes.trim() || undefined };
       if (row.linkId) await apiFetch(`/api/products/${productId}/suppliers/${row.linkId}`, { method: "PATCH", body: JSON.stringify(payload) });
       else await apiFetch(`/api/products/${productId}/suppliers`, { method: "POST", body: JSON.stringify(payload) });
     }
@@ -209,24 +184,22 @@ export function ProductForm({ product, mode = "create" }: Props) {
           <div className="grid divide-y border-t lg:grid-cols-[0.95fr_1.05fr] lg:divide-x lg:divide-y-0">
             <div className="space-y-4 p-5">
               {isEdit && product?.sku && <ReadOnly label="Generated SKU" value={product.sku} />}
-              <Field label="Product name" required><Input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} placeholder="Example: Office chair" /></Field>
-              <Field label="Category"><Input value={form.category} onChange={(e) => setForm((c) => ({ ...c, category: e.target.value }))} placeholder="Furniture, Parts, Raw materials..." /></Field>
+              <Field label="Product name" required><Input className={controlClass} value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} placeholder="Example: Office chair" /></Field>
+              <Field label="Category"><Input className={controlClass} value={form.category} onChange={(e) => setForm((c) => ({ ...c, category: e.target.value }))} placeholder="Furniture, Parts, Raw materials..." /></Field>
             </div>
-            <div className="p-5"><Field label="Description"><Textarea value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} className="min-h-40 resize-none" placeholder="Short useful description for team members, imports, and integrations." /></Field></div>
+            <div className="p-5"><Field label="Description"><Textarea value={form.description} onChange={(e) => setForm((c) => ({ ...c, description: e.target.value }))} className="min-h-40 resize-none rounded-none border-border bg-background text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring" placeholder="Short useful description for team members, imports, and integrations." /></Field></div>
           </div>
         </section>
 
         <section className="border bg-card/95">
-          <SectionHeader icon={Truck} title="Supplier cost source" description="Capture supplier cost before selling price. One preferred supplier becomes the official product cost source." action={<Button type="button" variant="outline" size="sm" onClick={addSupplierRow}><Plus className="h-4 w-4" />Add supplier</Button>} />
+          <SectionHeader icon={Truck} title="Supplier cost source" description="Capture supplier cost before selling price. One preferred supplier becomes the official product cost source." action={<Button type="button" variant="outline" size="sm" className="rounded-none" onClick={addSupplierRow}><Plus className="h-4 w-4" />Add supplier</Button>} />
           <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
             <Metric label="Preferred supplier" value={preferredSupplier?.supplierCode ?? "Not set"} />
             <Metric label="Supplier cost" value={preferredCost === undefined ? "Not set" : formatMoney(preferredCost, costCurrency ?? currency.baseCurrency)} />
             <Metric label="Converted cost" value={convertedCost === undefined ? "Not set" : formatMoney(convertedCost, currency.baseCurrency)} />
             <Metric label="Margin preview" value={margin} />
           </div>
-          <div className="border-t">
-            {supplierRows.length === 0 ? <EmptyState title="No suppliers linked" description="Add a supplier to capture cost price before setting the selling price." /> : <SupplierRows rows={supplierRows} suppliers={suppliers} currency={currency} price={price} onSelectSupplier={selectSupplier} onUpdate={updateSupplierRow} onPreferred={makePreferred} onRemove={removeSupplierRow} />}
-          </div>
+          <div className="border-t">{supplierRows.length === 0 ? <EmptyState title="No suppliers linked" description="Add a supplier to capture cost price before setting the selling price." /> : <SupplierRows rows={supplierRows} suppliers={suppliers} currency={currency} price={price} onSelectSupplier={selectSupplier} onUpdate={updateSupplierRow} onPreferred={makePreferred} onRemove={removeSupplierRow} />}</div>
         </section>
 
         <section className="border bg-card/95">
@@ -234,12 +207,12 @@ export function ProductForm({ product, mode = "create" }: Props) {
           <div className="grid divide-y border-t md:grid-cols-2 md:divide-x md:divide-y-0">
             <div className="space-y-4 p-5">
               <ReadOnly label="Preferred converted cost" value={convertedCost === undefined ? "Set supplier cost first" : formatMoney(convertedCost, currency.baseCurrency)} />
-              <Field label="Selling price" required><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((c) => ({ ...c, price: e.target.value }))} /></Field>
+              <Field label="Selling price" required><Input className={controlClass} type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((c) => ({ ...c, price: e.target.value }))} /></Field>
               <ReadOnly label="Selling currency" value={`${currency.baseCurrency} (base currency)`} />
             </div>
             <div className="space-y-4 p-5">
-              {isEdit ? <ReadOnly label="Current stock" value={`${product?.quantity ?? 0} units`} /> : <Field label="Initial quantity" required><Input type="number" min="0" value={form.quantity} onChange={(e) => setForm((c) => ({ ...c, quantity: e.target.value }))} /></Field>}
-              <Field label="Low-stock alert" required><Input type="number" min="0" value={form.lowStockLevel} onChange={(e) => setForm((c) => ({ ...c, lowStockLevel: e.target.value }))} /></Field>
+              {isEdit ? <ReadOnly label="Current stock" value={`${product?.quantity ?? 0} units`} /> : <Field label="Initial quantity" required><Input className={controlClass} type="number" min="0" value={form.quantity} onChange={(e) => setForm((c) => ({ ...c, quantity: e.target.value }))} /></Field>}
+              <Field label="Low-stock alert" required><Input className={controlClass} type="number" min="0" value={form.lowStockLevel} onChange={(e) => setForm((c) => ({ ...c, lowStockLevel: e.target.value }))} /></Field>
               <ReadOnly label="Margin" value={margin} />
             </div>
           </div>
@@ -254,8 +227,8 @@ export function ProductForm({ product, mode = "create" }: Props) {
               <span className="mt-1 text-xs text-muted-foreground">Use clear square images when possible.</span>
               <Input type="file" accept="image/*" multiple className="hidden" disabled={uploading} onChange={(event) => uploadImage(event.target.files)} />
             </label>
-            <div className="grid gap-2 md:grid-cols-[1fr_auto]"><Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/product.jpg" /><Button type="button" variant="outline" onClick={addImageUrl}>Add image URL</Button></div>
-            {images.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{images.map((image, index) => <div key={`${image}-${index}`} className="group relative overflow-hidden border bg-background"><img src={image} alt={`Product image ${index + 1}`} className="h-44 w-full object-cover" /><Badge className="absolute left-2 top-2 bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge><button type="button" onClick={() => setImages((current) => current.filter((_, i) => i !== index))} className="absolute right-2 top-2 border bg-background/90 p-1.5"><Trash2 className="h-4 w-4" /></button></div>)}</div> : <EmptyState title="No images added" description="Upload files or paste an image URL." />}
+            <div className="grid gap-2 md:grid-cols-[1fr_auto]"><Input className={controlClass} value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://example.com/product.jpg" /><Button type="button" variant="outline" className="rounded-none" onClick={addImageUrl}>Add image URL</Button></div>
+            {images.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{images.map((image, index) => <div key={`${image}-${index}`} className="group relative overflow-hidden border bg-background"><img src={image} alt={`Product image ${index + 1}`} className="h-44 w-full object-cover" /><Badge className="absolute left-2 top-2 rounded-none bg-background/90 text-foreground hover:bg-background/90">{index === 0 ? "Primary" : `Image ${index + 1}`}</Badge><button type="button" onClick={() => setImages((current) => current.filter((_, i) => i !== index))} className="absolute right-2 top-2 border bg-background/90 p-1.5"><Trash2 className="h-4 w-4" /></button></div>)}</div> : <EmptyState title="No images added" description="Upload files or paste an image URL." />}
           </div>
         </section>
 
@@ -272,7 +245,7 @@ export function ProductForm({ product, mode = "create" }: Props) {
           </div>
         </section>
 
-        <section className="border bg-card/95"><div className="flex flex-col-reverse gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><Button type="button" variant="outline" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={saving}>Cancel</Button><Button type="button" onClick={saveProduct} disabled={saving || uploading}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? <Save className="h-4 w-4" /> : <PackagePlus className="h-4 w-4" />}{saving ? "Saving..." : isEdit ? "Update product" : "Create product"}</Button></div></section>
+        <section className="border bg-card/95"><div className="flex flex-col-reverse gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"><Button type="button" variant="outline" className="rounded-none" onClick={() => router.push(isEdit && product ? `/products/${product.id}` : "/products")} disabled={saving}>Cancel</Button><Button type="button" className="rounded-none" onClick={saveProduct} disabled={saving || uploading}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : isEdit ? <Save className="h-4 w-4" /> : <PackagePlus className="h-4 w-4" />}{saving ? "Saving..." : isEdit ? "Update product" : "Create product"}</Button></div></section>
       </main>
 
       <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
@@ -284,28 +257,28 @@ export function ProductForm({ product, mode = "create" }: Props) {
 }
 
 function SectionHeader({ icon: Icon, title, description, action }: { icon: any; title: string; description?: string; action?: React.ReactNode }) { return <div className="flex flex-row items-start justify-between gap-4 p-5"><div><h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Icon className="h-5 w-5" />{title}</h2>{description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}</div>{action}</div>; }
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) { return <label className="space-y-2"><Label className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}{required && <span className="ml-1 text-destructive">*</span>}</Label>{children}</label>; }
-function ReadOnly({ label, value }: { label: string; value: string }) { return <div className="border bg-muted/15 p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 text-sm font-medium text-foreground">{value}</p></div>; }
-function Metric({ label, value }: { label: string; value: string }) { return <div className="p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p><p className="mt-2 truncate text-sm font-semibold text-foreground">{value}</p></div>; }
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) { return <label className="space-y-1.5"><Label className={labelClass}>{label}{required && <span className="ml-1 text-destructive">*</span>}</Label>{children}</label>; }
+function ReadOnly({ label, value }: { label: string; value: string }) { return <div className="border bg-muted/15 p-4"><p className={labelClass}>{label}</p><p className="mt-1.5 text-sm font-medium text-foreground">{value}</p></div>; }
+function Metric({ label, value }: { label: string; value: string }) { return <div className="p-4"><p className={labelClass}>{label}</p><p className="mt-1.5 truncate text-sm font-semibold text-foreground">{value}</p></div>; }
 function Review({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-4 p-4 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
 function Side({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="text-muted-foreground">{label}</span><span className="text-right font-medium">{value}</span></div>; }
-function Ready({ label, ready }: { label: string; ready: boolean }) { return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}{label}</span><Badge variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Needed"}</Badge></div>; }
+function Ready({ label, ready }: { label: string; ready: boolean }) { return <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><span className="flex items-center gap-2">{ready ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-amber-600" />}{label}</span><Badge className="rounded-none" variant={ready ? "default" : "secondary"}>{ready ? "Ready" : "Needed"}</Badge></div>; }
 function EmptyState({ title, description }: { title: string; description: string }) { return <div className="border-dashed bg-muted/10 p-8 text-center"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>; }
 
 function SupplierRows({ rows, suppliers, currency, price, onSelectSupplier, onUpdate, onPreferred, onRemove }: { rows: SupplierRow[]; suppliers: Supplier[]; currency: CurrencyState; price: number; onSelectSupplier: (rowId: string, supplierId: string) => void; onUpdate: (rowId: string, patch: Partial<SupplierRow>) => void; onPreferred: (rowId: string) => void; onRemove: (rowId: string) => void }) {
-  return <div className="divide-y">{rows.map((row) => <SupplierRowEditor key={row.rowId} row={row} suppliers={suppliers} currency={currency} price={price} onSelectSupplier={onSelectSupplier} onUpdate={onUpdate} onPreferred={onPreferred} onRemove={onRemove} />)}</div>;
+  return <div className="divide-y"><div className="hidden border-b bg-muted/15 px-4 py-3 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground lg:grid lg:grid-cols-[1.15fr_0.8fr_0.65fr_0.55fr_0.5fr_0.85fr_5.5rem] lg:gap-4"><span>Supplier</span><span>Supplier SKU</span><span>Cost</span><span>Currency</span><span>MOQ</span><span>Converted</span><span>Actions</span></div>{rows.map((row) => <SupplierRowEditor key={row.rowId} row={row} suppliers={suppliers} currency={currency} price={price} onSelectSupplier={onSelectSupplier} onUpdate={onUpdate} onPreferred={onPreferred} onRemove={onRemove} />)}</div>;
 }
 function SupplierRowEditor({ row, suppliers, currency, price, onSelectSupplier, onUpdate, onPreferred, onRemove }: { row: SupplierRow; suppliers: Supplier[]; currency: CurrencyState; price: number; onSelectSupplier: (rowId: string, supplierId: string) => void; onUpdate: (rowId: string, patch: Partial<SupplierRow>) => void; onPreferred: (rowId: string) => void; onRemove: (rowId: string) => void }) {
   const selected = suppliers.find((supplier) => supplier.id === row.supplierId);
   const converted = convertedSupplierCost(row, currency);
-  return <div className="grid gap-4 p-4 lg:grid-cols-[1.1fr_0.8fr_0.7fr_0.6fr_0.6fr_0.9fr_auto] lg:items-end"><Field label="Supplier"><select value={row.supplierId || ""} onChange={(event) => onSelectSupplier(row.rowId, event.target.value)} className="h-10 w-full border bg-background px-3 text-sm"><option value="">Choose supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</option>)}</select>{selected && <p className="mt-1 font-mono text-xs text-muted-foreground">{selected.supplierCode}</p>}</Field><Field label="Supplier SKU"><Input value={row.supplierSku} onChange={(event) => onUpdate(row.rowId, { supplierSku: event.target.value })} /></Field><Field label="Cost"><Input type="number" min="0" step="0.01" value={row.cost} onChange={(event) => onUpdate(row.rowId, { cost: event.target.value })} /></Field><Field label="Currency"><div className="flex h-10 items-center border bg-muted/15 px-3 text-sm font-medium">{row.supplierId ? row.currency : "-"}</div></Field><Field label="MOQ"><Input type="number" min="0" value={row.minimumOrderQty} onChange={(event) => onUpdate(row.rowId, { minimumOrderQty: event.target.value })} /></Field><div className="space-y-1"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Converted</p><p className="text-sm font-medium">{converted === undefined ? "-" : formatMoney(converted, currency.baseCurrency)}</p><p className="text-xs text-muted-foreground">Margin {converted === undefined ? "-" : calculateMargin(price, converted)}</p></div><div className="flex gap-1"><Button type="button" size="sm" variant={row.isPreferred ? "default" : "outline"} onClick={() => onPreferred(row.rowId)}><Star className="h-4 w-4" /></Button><Button type="button" size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => onRemove(row.rowId)}><Trash2 className="h-4 w-4" /></Button></div></div>;
+  return <div className="grid gap-3 p-4 lg:grid-cols-[1.15fr_0.8fr_0.65fr_0.55fr_0.5fr_0.85fr_5.5rem] lg:items-start lg:gap-4"><Field label="Supplier"><select value={row.supplierId || ""} onChange={(event) => onSelectSupplier(row.rowId, event.target.value)} className={selectClass}><option value="">Choose supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</option>)}</select>{selected && <p className="mt-1 font-mono text-[0.7rem] text-muted-foreground">{selected.supplierCode}</p>}</Field><Field label="Supplier SKU"><Input className={controlClass} value={row.supplierSku} onChange={(event) => onUpdate(row.rowId, { supplierSku: event.target.value })} /></Field><Field label="Cost"><Input className={controlClass} type="number" min="0" step="0.01" value={row.cost} onChange={(event) => onUpdate(row.rowId, { cost: event.target.value })} /></Field><Field label="Currency"><div className="flex h-10 items-center border bg-muted/15 px-3 text-sm font-medium">{row.supplierId ? row.currency : "-"}</div></Field><Field label="MOQ"><Input className={controlClass} type="number" min="0" value={row.minimumOrderQty} onChange={(event) => onUpdate(row.rowId, { minimumOrderQty: event.target.value })} /></Field><div className="space-y-1.5"><p className={labelClass}>Converted</p><p className="text-sm font-medium">{converted === undefined ? "-" : formatMoney(converted, currency.baseCurrency)}</p><p className="text-xs text-muted-foreground">Margin {converted === undefined ? "-" : calculateMargin(price, converted)}</p></div><div className="flex gap-1 pt-5 lg:pt-6"><Button type="button" size="sm" className="h-10 w-10 rounded-none p-0" variant={row.isPreferred ? "default" : "outline"} onClick={() => onPreferred(row.rowId)} title="Mark preferred"><Star className="h-4 w-4" /></Button><Button type="button" size="sm" variant="ghost" className="h-10 w-10 rounded-none p-0 text-muted-foreground hover:text-destructive" onClick={() => onRemove(row.rowId)} title="Remove supplier"><Trash2 className="h-4 w-4" /></Button></div></div>;
 }
 
 function AttributeInput({ field, value, onChange }: { field: ProductField; value: string; onChange: (value: string) => void }) {
-  if (field.type === "select") return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full border bg-background px-3 text-sm"><option value="">Select {field.label.toLowerCase()}</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select>;
-  if (field.type === "boolean") return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 w-full border bg-background px-3 text-sm"><option value="">Select true or false</option><option value="true">True</option><option value="false">False</option></select>;
-  if (field.type === "json") return <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 font-mono text-sm" />;
-  return <Input type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={value} onChange={(event) => onChange(event.target.value)} />;
+  if (field.type === "select") return <select value={value} onChange={(event) => onChange(event.target.value)} className={selectClass}><option value="">Select {field.label.toLowerCase()}</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select>;
+  if (field.type === "boolean") return <select value={value} onChange={(event) => onChange(event.target.value)} className={selectClass}><option value="">Select true or false</option><option value="true">True</option><option value="false">False</option></select>;
+  if (field.type === "json") return <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-24 rounded-none border-border bg-background font-mono text-sm shadow-none focus-visible:ring-1 focus-visible:ring-ring" />;
+  return <Input className={controlClass} type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={value} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function convertedSupplierCost(row: SupplierRow, currency: CurrencyState) { const cost = row.cost === "" ? undefined : Number(row.cost); if (cost === undefined || Number.isNaN(cost)) return undefined; return Number((cost * rateFor(row.currency, currency)).toFixed(2)); }
