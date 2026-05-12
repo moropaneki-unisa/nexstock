@@ -1,8 +1,25 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import {
+  BoxesIcon,
+  Building2Icon,
+  ChartNoAxesCombinedIcon,
+  ClipboardListIcon,
+  CreditCardIcon,
+  DatabaseZapIcon,
+  FileSpreadsheetIcon,
+  KeyRoundIcon,
+  LayoutDashboardIcon,
+  PackageIcon,
+  Settings2Icon,
+  SparklesIcon,
+  TruckIcon,
+  UserRoundIcon,
+  WebhookIcon,
+} from "lucide-react"
 
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
@@ -15,164 +32,34 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, ListIcon, ChartBarIcon, FolderIcon, UsersIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, DatabaseIcon, FileChartColumnIcon, FileIcon, CommandIcon } from "lucide-react"
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: "NexStock Admin",
+    email: "admin@nexstock.co.za",
+    avatar: "",
   },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "#",
-      icon: (
-        <LayoutDashboardIcon
-        />
-      ),
-    },
-    {
-      title: "Lifecycle",
-      url: "#",
-      icon: (
-        <ListIcon
-        />
-      ),
-    },
-    {
-      title: "Analytics",
-      url: "#",
-      icon: (
-        <ChartBarIcon
-        />
-      ),
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: (
-        <FolderIcon
-        />
-      ),
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: (
-        <UsersIcon
-        />
-      ),
-    },
+  workspace: [
+    { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
+    { title: "Products", url: "/products", icon: <BoxesIcon /> },
+    { title: "Suppliers", url: "/suppliers", icon: <TruckIcon /> },
+    { title: "Purchase Orders", url: "/purchase-orders", icon: <ClipboardListIcon /> },
   ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: (
-        <CameraIcon
-        />
-      ),
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: (
-        <FileTextIcon
-        />
-      ),
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
+  dataTools: [
+    { title: "Imports", url: "/imports", icon: <FileSpreadsheetIcon /> },
+    { title: "Data Tools", url: "/data-tools", icon: <DatabaseZapIcon /> },
+    { title: "Product Fields", url: "/products/fields", icon: <PackageIcon /> },
   ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: (
-        <Settings2Icon
-        />
-      ),
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: (
-        <CircleHelpIcon
-        />
-      ),
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: (
-        <SearchIcon
-        />
-      ),
-    },
+  connect: [
+    { title: "Integrations", url: "/integrations", icon: <SparklesIcon /> },
+    { title: "API Keys", url: "/api-keys", icon: <KeyRoundIcon /> },
+    { title: "Webhooks", url: "/webhooks", icon: <WebhookIcon /> },
   ],
-  documents: [
-    {
-      name: "Data Library",
-      url: "#",
-      icon: (
-        <DatabaseIcon
-        />
-      ),
-    },
-    {
-      name: "Reports",
-      url: "#",
-      icon: (
-        <FileChartColumnIcon
-        />
-      ),
-    },
-    {
-      name: "Word Assistant",
-      url: "#",
-      icon: (
-        <FileIcon
-        />
-      ),
-    },
+  account: [
+    { title: "Billing", url: "/billing", icon: <CreditCardIcon /> },
+    { title: "Organization", url: "/organization", icon: <Building2Icon /> },
+    { title: "Profile", url: "/profile", icon: <UserRoundIcon /> },
+    { title: "Settings", url: "/settings", icon: <Settings2Icon /> },
   ],
 }
 
@@ -182,22 +69,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-            >
-              <a href="#">
-                <CommandIcon className="size-5!" />
-                <span className="text-base font-semibold">Acme Inc.</span>
-              </a>
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:p-1.5!">
+              <Link href="/dashboard">
+                <ChartNoAxesCombinedIcon className="size-5! text-primary" />
+                <span className="text-base font-semibold">NexStock</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavMain label="Workspace" items={data.workspace} />
+        <NavMain label="Data" items={data.dataTools} />
+        <NavMain label="Connect" items={data.connect} />
+        <NavSecondary items={data.account} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
