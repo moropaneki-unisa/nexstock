@@ -52,7 +52,7 @@ export class PurchaseOrdersService {
     const currency = this.enabledCurrency(supplier.currency, organization);
     const poNumber = await this.generatePurchaseOrderNumber(user.organizationId, organization.nextPurchaseOrderNumber);
     const lines = await this.buildLines(user.organizationId, dto.supplierId, currency, dto.lines);
-    const subtotal = lines.reduce((sum, line) => sum.plus(new Prisma.Decimal(line.lineTotal)), new Prisma.Decimal(0));
+    const subtotal = lines.reduce((sum, line) => sum.plus(new Prisma.Decimal(String(line.lineTotal))), new Prisma.Decimal(0));
 
     return this.db.purchaseOrder.create({
       data: {
