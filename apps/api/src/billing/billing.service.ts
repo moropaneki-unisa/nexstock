@@ -122,7 +122,7 @@ export class BillingService {
               },
               checkout_data: {
                 email: user.email,
-                name: user.name,
+                name: user.email,
                 custom: {
                   organizationId: org.id,
                   userId: user.id,
