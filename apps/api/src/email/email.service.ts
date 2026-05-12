@@ -62,6 +62,24 @@ export class EmailService {
     });
   }
 
+  async sendNewSignupNotificationEmail(params: {
+    name: string;
+    email: string;
+    organizationName: string;
+    signupAt?: Date;
+  }) {
+    const to = process.env.NEW_SIGNUP_NOTIFICATION_EMAIL || 'Moropaneki@gmail.com';
+    const signupAt = params.signupAt || new Date();
+    const dashboardUrl = this.appUrl('/login');
+
+    return this.sendEmail({
+      to,
+      subject: `New NexStock signup: ${params.organizationName}`,
+      text: `A new user registered for NexStock. Name: ${params.name}. Email: ${params.email}. Organization: ${params.organizationName}. Signup time: ${signupAt.toISOString()}. Open NexStock: ${dashboardUrl}`,
+      html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;"><h1>New NexStock signup</h1><p>A new user registered for NexStock.</p><table style="border-collapse: collapse; width: 100%; max-width: 620px;"><tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Name</td><td style="border: 1px solid #ddd; padding: 8px;">${params.name}</td></tr><tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Email</td><td style="border: 1px solid #ddd; padding: 8px;">${params.email}</td></tr><tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Organization</td><td style="border: 1px solid #ddd; padding: 8px;">${params.organizationName}</td></tr><tr><td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">Signup time</td><td style="border: 1px solid #ddd; padding: 8px;">${signupAt.toISOString()}</td></tr></table><p><a href="${dashboardUrl}">Open NexStock</a></p></div>`,
+    });
+  }
+
   async sendPasswordResetEmail(params: { email: string; resetUrl: string; expiresInMinutes: number }) {
     const resetUrl = params.resetUrl || this.appUrl('/forgot-password');
     return this.sendEmail({
