@@ -89,21 +89,23 @@ export default function PurchaseOrderDetailPage() {
         eyebrow="Purchasing"
         title={order ? order.poNumber : "Purchase order"}
         description="Review supplier order lines, totals, dates, and receiving readiness."
-        actions={<Button asChild variant="outline" className="rounded-xl bg-background/70"><Link href="/purchase-orders"><ArrowLeft className="h-4 w-4" />Back to purchase orders</Link></Button>}
+        actions={<Button asChild variant="outline" className="rounded-none bg-background/70"><Link href="/purchase-orders"><ArrowLeft className="h-4 w-4" />Back to purchase orders</Link></Button>}
       />
 
-      {loading ? <Card className="border bg-card/95 shadow-none"><CardContent className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading purchase order...</CardContent></Card> : error ? <div className="border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">{error}</div> : order ? (
+      {loading ? <Card className="rounded-none border bg-card/95 shadow-none"><CardContent className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading purchase order...</CardContent></Card> : error ? <div className="border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">{error}</div> : order ? (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Metric icon={ClipboardList} label="Status" value={statusLabels[order.status] ?? order.status} />
-            <Metric icon={Truck} label="Supplier" value={order.supplier?.supplierCode ?? "-"} />
-            <Metric icon={Warehouse} label="Lines" value={`${totalLines}`} />
-            <Metric icon={PackageCheck} label="Received" value={`${receivedLines}/${totalLines}`} />
+          <section className="border bg-card/95">
+            <div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+              <Metric icon={ClipboardList} label="Status" value={statusLabels[order.status] ?? order.status} />
+              <Metric icon={Truck} label="Supplier" value={order.supplier?.supplierCode ?? "-"} />
+              <Metric icon={Warehouse} label="Lines" value={`${totalLines}`} />
+              <Metric icon={PackageCheck} label="Received" value={`${receivedLines}/${totalLines}`} />
+            </div>
           </section>
 
           <section className="grid gap-6 xl:grid-cols-[1fr_22rem]">
             <main className="space-y-6">
-              <Card className="border bg-card/95 shadow-none">
+              <Card className="rounded-none border bg-card/95 shadow-none">
                 <CardHeader className="border-b">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -125,7 +127,7 @@ export default function PurchaseOrderDetailPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border bg-card/95 shadow-none">
+              <Card className="rounded-none border bg-card/95 shadow-none">
                 <CardHeader className="border-b">
                   <CardTitle>Order lines</CardTitle>
                   <CardDescription>Products ordered from this supplier.</CardDescription>
@@ -163,18 +165,18 @@ export default function PurchaseOrderDetailPage() {
                 </CardContent>
               </Card>
 
-              {order.notes && <Card className="border bg-card/95 shadow-none"><CardHeader><CardTitle>Notes</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{order.notes}</p></CardContent></Card>}
+              {order.notes && <Card className="rounded-none border bg-card/95 shadow-none"><CardHeader><CardTitle>Notes</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{order.notes}</p></CardContent></Card>}
             </main>
 
             <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
-              <Card className="border bg-card/95 shadow-none">
+              <Card className="rounded-none border bg-card/95 shadow-none">
                 <CardHeader><CardTitle className="flex items-center gap-2"><CalendarClock className="h-5 w-5" />Summary</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <Side label="Subtotal" value={formatMoney(subtotal, currency)} />
                   <Side label="Currency" value={currency} />
                   <Side label="Status" value={statusLabels[order.status] ?? order.status} />
                   <Side label="Lines" value={`${totalLines}`} />
-                  <div className="rounded-xl border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">Receiving stock from purchase orders is the next workflow to connect. This page is ready for that action when the API endpoint is added.</div>
+                  <div className="border bg-muted/20 p-3 text-xs leading-5 text-muted-foreground">Receiving stock from purchase orders is the next workflow to connect. This page is ready for that action when the API endpoint is added.</div>
                 </CardContent>
               </Card>
             </aside>
@@ -186,11 +188,11 @@ export default function PurchaseOrderDetailPage() {
 }
 
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) {
-  return <Badge className={cn("rounded-full", status === "cancelled" && "bg-destructive hover:bg-destructive", status === "received" && "bg-emerald-600 hover:bg-emerald-600")} variant={status === "draft" ? "secondary" : "default"}>{statusLabels[status] ?? status}</Badge>;
+  return <Badge className={cn("rounded-none", status === "cancelled" && "bg-destructive hover:bg-destructive", status === "received" && "bg-emerald-600 hover:bg-emerald-600")} variant={status === "draft" ? "secondary" : "default"}>{statusLabels[status] ?? status}</Badge>;
 }
 
 function Metric({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
-  return <div className="border bg-card/95 p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-4 w-4 text-muted-foreground" /></div><p className="mt-2 truncate text-2xl font-black tracking-[-0.05em]">{value}</p></div>;
+  return <div className="p-4"><div className="flex items-center justify-between gap-3"><p className="text-sm text-muted-foreground">{label}</p><Icon className="h-4 w-4 text-muted-foreground" /></div><p className="mt-2 truncate text-2xl font-black tracking-[-0.05em]">{value}</p></div>;
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
