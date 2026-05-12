@@ -22,6 +22,7 @@ enum Plan {
 enum PaymentProvider {
   paystack
   paddle
+  lemon_squeezy
 }
 
 enum PaymentStatus {
