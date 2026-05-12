@@ -11,6 +11,34 @@ type RawBodyRequest = Request & { rawBody?: Buffer };
 export class BillingController {
   constructor(private readonly service: BillingService) {}
 
+  @Post('lemon-squeezy/initialize')
+  @UseGuards(JwtAuthGuard)
+  initializeLemonSqueezy(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { plan: string },
+  ) {
+    return this.service.initialize(user, body.plan);
+  }
+
+  @Get('lemon-squeezy/verify/:reference')
+  @UseGuards(JwtAuthGuard)
+  verifyLemonSqueezy(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('reference') reference: string,
+  ) {
+    return this.service.verify(user, reference);
+  }
+
+  @Post('lemon-squeezy/webhook')
+  handleLemonSqueezyWebhook(
+    @Req() request: RawBodyRequest,
+    @Body() body: unknown,
+    @Headers('x-signature') signature: string | undefined,
+  ) {
+    this.service.verifyLemonSignature(request.rawBody, signature);
+    return this.service.handleWebhook(body as any);
+  }
+
   @Post('paddle/initialize')
   @UseGuards(JwtAuthGuard)
   initializePaddle(
@@ -27,16 +55,6 @@ export class BillingController {
     @Param('reference') reference: string,
   ) {
     return this.service.verify(user, reference);
-  }
-
-  @Post('paddle/webhook')
-  handlePaddleWebhook(
-    @Req() request: RawBodyRequest,
-    @Body() body: unknown,
-    @Headers('paddle-signature') signature: string | undefined,
-  ) {
-    this.service.verifyPaddleSignature(request.rawBody, signature);
-    return this.service.handleWebhook(body as any);
   }
 
   @Post('paystack/initialize')
