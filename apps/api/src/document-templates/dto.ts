@@ -14,6 +14,10 @@ export class CreateDocumentTemplateDto {
 
   @IsOptional()
   @IsString()
+  recipientEmailTemplate?: string;
+
+  @IsOptional()
+  @IsString()
   subjectTemplate?: string;
 
   @IsString()
@@ -47,6 +51,10 @@ export class UpdateDocumentTemplateDto {
 
   @IsOptional()
   @IsString()
+  recipientEmailTemplate?: string;
+
+  @IsOptional()
+  @IsString()
   subjectTemplate?: string;
 
   @IsOptional()
@@ -69,6 +77,10 @@ export class UpdateDocumentTemplateDto {
 export class PreviewDocumentTemplateDto {
   @IsString()
   htmlTemplate!: string;
+
+  @IsOptional()
+  @IsString()
+  recipientEmailTemplate?: string;
 
   @IsOptional()
   @IsString()
