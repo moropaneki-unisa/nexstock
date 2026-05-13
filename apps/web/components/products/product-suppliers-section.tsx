@@ -5,7 +5,7 @@ import { Calculator, CheckCircle2, ChevronDown, Loader2, Pencil, Plus, Star, Tra
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -318,7 +318,7 @@ function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: 
             <TableHead className="pl-4">Supplier</TableHead>
             <TableHead>Supplier SKU</TableHead>
             <TableHead>Cost</TableHead>
-            <TableHead>MOQ</TableHead>
+            <TableHead className="text-center">MOQ</TableHead>
             <TableHead>Lead time</TableHead>
             <TableHead>Last purchase</TableHead>
             <TableHead className="pr-4 text-right">Actions</TableHead>
@@ -329,23 +329,23 @@ function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: 
             const currency = normalizeCurrencyCode(link.currency || link.supplier.currency || baseCurrency);
             const costNumber = link.cost == null ? null : Number(link.cost);
             return (
-              <TableRow key={link.id} className={cn(link.isPreferred && "bg-primary/5 hover:bg-primary/10")}>
-                <TableCell className="min-w-56 pl-4">
+              <TableRow key={link.id} className={cn("h-16", link.isPreferred && "bg-primary/5 hover:bg-primary/10")}>
+                <TableCell className="min-w-56 pl-4 align-middle">
                   <div className="flex flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{link.supplier.name}</span>
+                      <span className="font-medium leading-none">{link.supplier.name}</span>
                       <Badge variant="outline" className="font-mono">{link.supplier.supplierCode}</Badge>
                       {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : null}
                     </div>
-                    <span className="text-xs text-muted-foreground">{[link.supplier.city, link.supplier.country].filter(Boolean).join(", ") || titleCase(link.supplier.supplierType || "vendor")}</span>
+                    <span className="text-xs leading-none text-muted-foreground">{[link.supplier.city, link.supplier.country].filter(Boolean).join(", ") || titleCase(link.supplier.supplierType || "vendor")}</span>
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs">{link.supplierSku || "-"}</TableCell>
-                <TableCell><div className="grid gap-0.5"><span className="font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</span><span className="text-xs text-muted-foreground">{currency}</span></div></TableCell>
-                <TableCell>{link.minimumOrderQty == null ? "-" : link.minimumOrderQty}</TableCell>
-                <TableCell>{link.leadTimeDays == null ? "-" : `${link.leadTimeDays} days`}</TableCell>
-                <TableCell>{link.lastPurchaseAt ? new Date(link.lastPurchaseAt).toLocaleDateString() : "-"}</TableCell>
-                <TableCell className="pr-4 text-right">
+                <TableCell className="align-middle font-mono text-xs">{link.supplierSku || "-"}</TableCell>
+                <TableCell className="align-middle font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</TableCell>
+                <TableCell className="text-center align-middle">{link.minimumOrderQty == null ? "-" : link.minimumOrderQty}</TableCell>
+                <TableCell className="align-middle">{link.leadTimeDays == null ? "-" : `${link.leadTimeDays} days`}</TableCell>
+                <TableCell className="align-middle">{link.lastPurchaseAt ? new Date(link.lastPurchaseAt).toLocaleDateString() : "-"}</TableCell>
+                <TableCell className="pr-4 text-right align-middle">
                   <div className="flex justify-end gap-1">
                     <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(link)} className="size-8"><Pencil className="size-4" /></Button>
                     <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(link)} className="size-8 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></Button>
