@@ -13,7 +13,6 @@ import {
   HistoryIcon,
   ImageIcon,
   Loader2Icon,
-  PackageIcon,
   RefreshCwIcon,
   TruckIcon,
   TriangleAlertIcon,
@@ -21,29 +20,12 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { ProductSuppliersSection } from "@/components/products/product-suppliers-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -396,10 +378,10 @@ export function ProductDetailContent({ productId }: { productId: string }) {
 
       <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
         <div className="grid gap-4 self-start">
-          <Card>
+          <Card className="overflow-hidden">
             <div className="relative aspect-square overflow-hidden bg-muted">
               {primaryImage ? (
-                <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" />
+                <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="block h-full w-full object-cover" />
               ) : (
                 <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                   <ImageIcon className="size-10" />
@@ -436,7 +418,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
                         aria-label={`View product image ${index + 1}`}
                         aria-pressed={active}
                       >
-                        <img src={image} alt={`Product image ${index + 1}`} className="h-full w-full object-cover transition group-hover:scale-105" />
+                        <img src={image} alt={`Product image ${index + 1}`} className="block h-full w-full object-cover transition group-hover:scale-105" />
                       </button>
                     )
                   })}
@@ -507,20 +489,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
             </Card>
           </Collapsible>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TruckIcon className="size-4" />
-                Supplier links
-              </CardTitle>
-              <CardDescription>Supplier SKU, supplier currency, and supplier cost controls will appear here as supplier logic is migrated.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
-                Supplier linking is preserved as a required product section. Next migration will connect the supplier records table here.
-              </div>
-            </CardContent>
-          </Card>
+          <ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} />
 
           <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
             <Card>
