@@ -3,7 +3,18 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, EyeIcon, Loader2Icon, SaveIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  BoldIcon,
+  CodeIcon,
+  EyeIcon,
+  ItalicIcon,
+  Loader2Icon,
+  SaveIcon,
+  TypeIcon,
+  UnderlineIcon,
+  TriangleAlertIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -13,7 +24,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
 
 type DocumentTemplate = {
@@ -42,6 +55,15 @@ type FormState = {
 }
 
 const placeholderHelp = "Use placeholders like {{purchaseOrder.poNumber}}, {{supplier.name}}, and {{#lines}}...{{/lines}}."
+const placeholderTokens = [
+  "{{organization.name}}",
+  "{{supplier.name}}",
+  "{{supplier.supplierCode}}",
+  "{{purchaseOrder.poNumber}}",
+  "{{purchaseOrder.expectedAt}}",
+  "{{purchaseOrder.currency}}",
+  "{{purchaseOrder.subtotal}}",
+]
 
 const defaultHtml = `<div style="font-family: Arial, sans-serif; color: #111; padding: 32px;">
   <h1>Purchase Order {{purchaseOrder.poNumber}}</h1>
@@ -146,7 +168,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
 
   async function saveTemplate() {
     if (!form.name.trim()) return toast.error("Template name is required")
-    if (!form.htmlTemplate.trim()) return toast.error("HTML template is required")
+    if (!form.htmlTemplate.trim()) return toast.error("Template document is required")
     setSaving(true)
     setError(null)
     try {
@@ -172,7 +194,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/settings/templates"><ArrowLeftIcon className="size-4" />Templates</Link></Button>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">{templateId ? "Edit template" : "New template"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Create mail-merge HTML/PDF and Resend email templates.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Create document-style PDF templates and Resend email templates.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <EyeIcon className="size-4" />}Preview</Button><Button size="sm" onClick={saveTemplate} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{templateId ? "Save changes" : "Create template"}</Button></div>
       </div>
@@ -182,7 +204,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
       <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
         <div className="grid gap-4">
           <Card><CardHeader><CardTitle>Template settings</CardTitle><CardDescription>Name, type, subject, and default behavior.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><label className="grid gap-2"><Label>Name</Label><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Default purchase order" /></label><label className="grid gap-2"><Label>Type</Label><Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{["purchase_order", "supplier_invoice", "email"].map((value) => <SelectItem key={value} value={value}>{titleCase(value)}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-2 md:col-span-2"><Label>Description</Label><Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Used when sending purchase orders to suppliers" /></label><label className="grid gap-2 md:col-span-2"><Label>Email subject template</Label><Input value={form.subjectTemplate} onChange={(event) => setForm((current) => ({ ...current, subjectTemplate: event.target.value }))} /></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isDefault} onCheckedChange={(checked) => setForm((current) => ({ ...current, isDefault: Boolean(checked) }))} /><span><span className="font-semibold">Default template</span><span className="block text-muted-foreground">Use this as the default for this document type.</span></span></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: Boolean(checked) }))} /><span><span className="font-semibold">Active</span><span className="block text-muted-foreground">Inactive templates are hidden from future sending flows.</span></span></label></CardContent></Card>
-          <Card><CardHeader><CardTitle>PDF HTML template</CardTitle><CardDescription>{placeholderHelp}</CardDescription></CardHeader><CardContent><Textarea value={form.htmlTemplate} onChange={(event) => setForm((current) => ({ ...current, htmlTemplate: event.target.value }))} className="min-h-[420px] font-mono text-xs" /></CardContent></Card>
+          <DocumentHtmlEditor value={form.htmlTemplate} onChange={(htmlTemplate) => setForm((current) => ({ ...current, htmlTemplate }))} />
           <Card><CardHeader><CardTitle>Email body template</CardTitle><CardDescription>This will be rendered before sending through Resend.</CardDescription></CardHeader><CardContent><Textarea value={form.emailTemplate} onChange={(event) => setForm((current) => ({ ...current, emailTemplate: event.target.value }))} className="min-h-40 font-mono text-xs" /></CardContent></Card>
         </div>
 
@@ -191,10 +213,91 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
           <CardContent className="grid gap-4 text-sm">
             <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Subject</p><p className="mt-1 font-medium">{preview?.subject || form.subjectTemplate || "Not rendered"}</p></div>
             {preview?.email ? <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</p><pre className="mt-2 whitespace-pre-wrap rounded-lg border bg-muted/20 p-3 text-xs">{preview.email}</pre></div> : null}
-            <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">PDF HTML</p><div className="mt-2 max-h-[520px] overflow-auto rounded-lg border bg-background p-3" dangerouslySetInnerHTML={{ __html: preview?.html || "<p>Click Preview to render the template.</p>" }} /></div>
+            <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">PDF document</p><div className="mt-2 max-h-[520px] overflow-auto rounded-lg border bg-background p-3" dangerouslySetInnerHTML={{ __html: preview?.html || "<p>Click Preview to render the template.</p>" }} /></div>
           </CardContent>
         </Card>
       </div>
     </div>
+  )
+}
+
+function DocumentHtmlEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editorRef = React.useRef<HTMLDivElement>(null)
+  const [mode, setMode] = React.useState("document")
+
+  React.useEffect(() => {
+    if (mode !== "document") return
+    if (!editorRef.current) return
+    if (editorRef.current.innerHTML !== value) editorRef.current.innerHTML = value
+  }, [mode, value])
+
+  function syncFromDocument() {
+    if (!editorRef.current) return
+    onChange(editorRef.current.innerHTML)
+  }
+
+  function command(name: string, commandValue?: string) {
+    editorRef.current?.focus()
+    document.execCommand(name, false, commandValue)
+    syncFromDocument()
+  }
+
+  function insertPlaceholder(token: string) {
+    if (mode === "html") {
+      onChange(`${value}${token}`)
+      return
+    }
+    editorRef.current?.focus()
+    document.execCommand("insertText", false, token)
+    syncFromDocument()
+  }
+
+  return (
+    <Card>
+      <CardHeader className="gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>PDF document template</CardTitle>
+            <CardDescription>{placeholderHelp}</CardDescription>
+          </div>
+          <Tabs value={mode} onValueChange={setMode} className="w-fit">
+            <TabsList>
+              <TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger>
+              <TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>Paragraph</Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {placeholderTokens.map((token) => (
+            <Button key={token} type="button" variant="secondary" size="sm" className="font-mono text-xs" onClick={() => insertPlaceholder(token)}>{token}</Button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {mode === "document" ? (
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            onInput={syncFromDocument}
+            onBlur={syncFromDocument}
+            className={cn(
+              "min-h-[520px] overflow-auto rounded-xl border bg-background p-8 text-sm leading-6 shadow-inner outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              "[&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:p-2 [&_th]:border-b [&_th]:p-2"
+            )}
+          />
+        ) : (
+          <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[520px] font-mono text-xs" />
+        )}
+      </CardContent>
+    </Card>
   )
 }
