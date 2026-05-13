@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -26,8 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
 
 type DocumentTemplate = {
   id: string
@@ -43,6 +44,7 @@ type DocumentTemplate = {
 }
 
 type PreviewResult = { to?: string | null; subject: string; html: string; email?: string | null }
+type ApiAlert = { variant: "default" | "destructive"; title: string; description: string } | null
 
 type FormState = {
   name: string
@@ -72,28 +74,10 @@ const defaultHtml = `<div style="font-family: Arial, sans-serif; color: #111; pa
   <h1>Purchase Order {{purchaseOrder.poNumber}}</h1>
   <p><strong>Supplier:</strong> {{supplier.name}} ({{supplier.supplierCode}})</p>
   <p><strong>Expected:</strong> {{purchaseOrder.expectedAt}}</p>
-
   <table style="width:100%; border-collapse: collapse; margin-top: 24px;">
-    <thead>
-      <tr>
-        <th style="border-bottom:1px solid #ddd; text-align:left; padding:8px;">Product</th>
-        <th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Qty</th>
-        <th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Unit cost</th>
-        <th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#lines}}
-      <tr>
-        <td style="border-bottom:1px solid #eee; padding:8px;">{{product.name}}<br><small>{{product.sku}}</small></td>
-        <td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{quantityOrdered}}</td>
-        <td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{unitCost}}</td>
-        <td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{lineTotal}}</td>
-      </tr>
-      {{/lines}}
-    </tbody>
+    <thead><tr><th style="border-bottom:1px solid #ddd; text-align:left; padding:8px;">Product</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Qty</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Unit cost</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Total</th></tr></thead>
+    <tbody>{{#lines}}<tr><td style="border-bottom:1px solid #eee; padding:8px;">{{product.name}}<br><small>{{product.sku}}</small></td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{quantityOrdered}}</td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{unitCost}}</td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{lineTotal}}</td></tr>{{/lines}}</tbody>
   </table>
-
   <h2 style="text-align:right; margin-top:24px;">{{purchaseOrder.currency}} {{purchaseOrder.subtotal}}</h2>
 </div>`
 
@@ -122,6 +106,10 @@ function titleCase(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function messageFromError(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
+
 export function TemplateFormContent({ templateId }: { templateId?: string }) {
   const router = useRouter()
   const editorRef = React.useRef<{ getHtml: () => string }>(null)
@@ -130,7 +118,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
   const [saving, setSaving] = React.useState(false)
   const [previewing, setPreviewing] = React.useState(false)
   const [preview, setPreview] = React.useState<PreviewResult | null>(null)
-  const [error, setError] = React.useState<string | null>(null)
+  const [apiAlert, setApiAlert] = React.useState<ApiAlert>(null)
 
   React.useEffect(() => {
     async function load() {
@@ -150,7 +138,9 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
           isActive: template.isActive,
         })
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Template could not load")
+        const message = messageFromError(err, "Template could not load")
+        setApiAlert({ variant: "destructive", title: "Template could not load", description: message })
+        toast.error("Template could not load", { description: message })
       } finally {
         setLoading(false)
       }
@@ -162,15 +152,25 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
     const latestHtml = editorRef.current?.getHtml() || form.htmlTemplate
     setForm((current) => ({ ...current, htmlTemplate: latestHtml }))
     setPreviewing(true)
+    setApiAlert(null)
     try {
-      const result = await apiFetch<PreviewResult>("/api/document-templates/preview", {
+      const payload = {
+        htmlTemplate: latestHtml,
+        recipientEmailTemplate: form.recipientEmailTemplate,
+        subjectTemplate: form.subjectTemplate,
+        emailTemplate: form.emailTemplate,
+      }
+      const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", {
         method: "POST",
-        body: JSON.stringify({ htmlTemplate: latestHtml, recipientEmailTemplate: form.recipientEmailTemplate, subjectTemplate: form.subjectTemplate, emailTemplate: form.emailTemplate }),
+        body: JSON.stringify(payload),
       })
       setPreview(result)
-      toast.success("Preview updated")
+      setApiAlert({ variant: "default", title: "Preview rendered", description: `Rendered to ${result.to || "the selected recipient"}.` })
+      toast.success("Preview rendered", { description: result.to || result.subject })
     } catch (err) {
-      toast.error("Could not render preview", { description: err instanceof Error ? err.message : "Preview failed" })
+      const message = messageFromError(err, "Preview failed")
+      setApiAlert({ variant: "destructive", title: "Preview failed", description: message })
+      toast.error("Preview failed", { description: message })
     } finally {
       setPreviewing(false)
     }
@@ -181,7 +181,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
     if (!form.name.trim()) return toast.error("Template name is required")
     if (!latestHtml.trim()) return toast.error("Template document is required")
     setSaving(true)
-    setError(null)
+    setApiAlert(null)
     try {
       const payload = { ...form, htmlTemplate: latestHtml }
       const result = templateId
@@ -190,9 +190,9 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
       toast.success(templateId ? "Template updated" : "Template created", { description: result.name })
       router.push("/settings/templates")
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Template could not be saved"
-      setError(message)
-      toast.error("Could not save template", { description: message })
+      const message = messageFromError(err, "Template could not be saved")
+      setApiAlert({ variant: "destructive", title: "Template could not be saved", description: message })
+      toast.error("Template could not be saved", { description: message })
     } finally {
       setSaving(false)
     }
@@ -211,7 +211,13 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
         <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <EyeIcon className="size-4" />}Preview</Button><Button size="sm" onClick={saveTemplate} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{templateId ? "Save changes" : "Create template"}</Button></div>
       </div>
 
-      {error ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><TriangleAlertIcon className="size-4" />Template error</CardTitle><CardDescription>{error}</CardDescription></CardHeader></Card> : null}
+      {apiAlert ? (
+        <Alert variant={apiAlert.variant}>
+          <TriangleAlertIcon className="size-4" />
+          <AlertTitle>{apiAlert.title}</AlertTitle>
+          <AlertDescription>{apiAlert.description}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
         <div className="grid gap-4">
