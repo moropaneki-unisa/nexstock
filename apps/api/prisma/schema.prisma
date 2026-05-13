@@ -428,20 +428,21 @@ model PurchaseOrderLine {
 }
 
 model DocumentTemplate {
-  id                 String              @id @default(uuid())
-  organizationId     String
-  name               String
-  type               String              @default("purchase_order")
-  description        String?
-  subjectTemplate    String?
-  htmlTemplate       String
-  emailTemplate      String?
-  isDefault          Boolean             @default(false)
-  isActive           Boolean             @default(true)
-  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  generatedDocuments GeneratedDocument[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                     String              @id @default(uuid())
+  organizationId         String
+  name                   String
+  type                   String              @default("purchase_order")
+  description            String?
+  recipientEmailTemplate String?
+  subjectTemplate        String?
+  htmlTemplate           String
+  emailTemplate          String?
+  isDefault              Boolean             @default(false)
+  isActive               Boolean             @default(true)
+  organization           Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedDocuments     GeneratedDocument[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   @@unique([organizationId, name])
   @@index([organizationId, type])
