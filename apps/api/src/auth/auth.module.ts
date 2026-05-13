@@ -4,8 +4,8 @@ import { AccountRecoveryController } from './account-recovery.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { ThrottleGuard } from './throttle.guard';
 import { EmailModule } from '../email/email.module';
-import { ThrottleGuard } from '../common/guards/throttle.guard';
 
 @Global()
 @Module({
