@@ -1,17 +1,19 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArchiveIcon,
+  ArrowRightIcon,
   Building2Icon,
   EditIcon,
+  EllipsisVerticalIcon,
   Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
   RotateCcwIcon,
   TruckIcon,
-  UsersIcon,
   WalletCardsIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -31,31 +33,13 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 
 type SupplierStatus = "active" | "archived"
@@ -70,25 +54,12 @@ type Supplier = {
   contactName?: string | null
   email?: string | null
   phone?: string | null
-  website?: string | null
-  addressLine1?: string | null
-  addressLine2?: string | null
   country?: string | null
-  province?: string | null
   city?: string | null
-  postalCode?: string | null
   currency?: string | null
   paymentTerms?: string | null
-  paymentMethod?: string | null
-  taxStatus?: string | null
-  taxNumber?: string | null
-  shippingTerms?: string | null
-  incoterm?: string | null
-  accountNumber?: string | null
   leadTimeDays?: number | null
   minimumOrderQty?: number | null
-  lastOrderAt?: string | null
-  notes?: string | null
   status: SupplierStatus
   _count?: { products?: number | null } | null
 }
@@ -98,86 +69,17 @@ type OrganizationSummary = {
   enabledCurrencies?: string[] | null
 }
 
-type SupplierForm = {
-  name: string
-  supplierType: string
-  category: string
-  rating: string
-  contactName: string
-  email: string
-  phone: string
-  website: string
-  country: string
-  province: string
-  city: string
-  currency: string
-  paymentTerms: string
-  paymentMethod: string
-  shippingTerms: string
-  leadTimeDays: string
-  minimumOrderQty: string
-  notes: string
-}
-
 const DEFAULT_CURRENCY = "USD"
-
-const supplierTypes = [
-  { value: "vendor", label: "Vendor" },
-  { value: "manufacturer", label: "Manufacturer" },
-  { value: "wholesaler", label: "Wholesaler" },
-  { value: "distributor", label: "Distributor" },
-  { value: "raw_material", label: "Raw material" },
-  { value: "service_provider", label: "Service provider" },
-]
-
-const categories = ["General", "Equipment", "Raw materials", "Packaging", "Parts", "Electronics", "Logistics", "Services"]
-const ratings = ["unrated", "preferred", "approved", "backup", "probation", "blocked"]
-const paymentTerms = ["COD", "Prepaid", "Net 7", "Net 15", "Net 30", "Net 60", "Deposit + balance"]
-const paymentMethods = ["Bank transfer", "Card", "Cash", "EFT", "PayPal", "Wise", "Other"]
-const shippingTerms = ["Pickup", "Supplier delivery", "Courier", "Freight", "Dropship", "Customer collection"]
-
-const emptyForm: SupplierForm = {
-  name: "",
-  supplierType: "vendor",
-  category: "General",
-  rating: "unrated",
-  contactName: "",
-  email: "",
-  phone: "",
-  website: "",
-  country: "",
-  province: "",
-  city: "",
-  currency: DEFAULT_CURRENCY,
-  paymentTerms: "Net 30",
-  paymentMethod: "Bank transfer",
-  shippingTerms: "Supplier delivery",
-  leadTimeDays: "",
-  minimumOrderQty: "",
-  notes: "",
-}
 
 function normalizeCurrency(value?: string | null, fallback = DEFAULT_CURRENCY) {
   const next = String(value || fallback).trim().toUpperCase()
   return /^[A-Z]{3}$/.test(next) ? next : fallback
 }
 
-function clean(value: string) {
-  const next = value.trim()
-  return next || null
-}
-
 function titleCase(value?: string | null) {
   return String(value || "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "Not set"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "Not set"
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
 function SuppliersLoading() {
@@ -212,12 +114,10 @@ function SupplierStatusBadge({ supplier }: { supplier: Supplier }) {
 
 function SupplierActions({
   supplier,
-  onEdit,
   onArchive,
   onReactivate,
 }: {
   supplier: Supplier
-  onEdit: (supplier: Supplier) => void
   onArchive: (supplier: Supplier) => void
   onReactivate: (supplier: Supplier) => void
 }) {
@@ -225,14 +125,22 @@ function SupplierActions({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted">
-          <EditIcon className="size-4" />
+          <EllipsisVerticalIcon className="size-4" />
           <span className="sr-only">Open supplier menu</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onClick={() => onEdit(supplier)}>
-          <EditIcon className="size-4" />
-          Edit supplier
+        <DropdownMenuItem asChild>
+          <Link href={`/suppliers/${supplier.id}`}>
+            <ArrowRightIcon className="size-4" />
+            View
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/suppliers/${supplier.id}/edit`}>
+            <EditIcon className="size-4" />
+            Edit
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {supplier.status === "archived" ? (
@@ -256,9 +164,6 @@ export function SuppliersContent() {
   const [organization, setOrganization] = React.useState<OrganizationSummary | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
-  const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<Supplier | null>(null)
-  const [form, setForm] = React.useState<SupplierForm>(emptyForm)
 
   const enabledCurrencies = React.useMemo(() => {
     const base = normalizeCurrency(organization?.baseCurrency || DEFAULT_CURRENCY)
@@ -286,84 +191,6 @@ export function SuppliersContent() {
   React.useEffect(() => {
     void loadSuppliers()
   }, [])
-
-  function openCreate() {
-    setEditing(null)
-    setForm({ ...emptyForm, currency: enabledCurrencies[0] || DEFAULT_CURRENCY })
-    setOpen(true)
-  }
-
-  function openEdit(supplier: Supplier) {
-    setEditing(supplier)
-    setForm({
-      name: supplier.name || "",
-      supplierType: supplier.supplierType || "vendor",
-      category: supplier.category || "General",
-      rating: supplier.rating || "unrated",
-      contactName: supplier.contactName || "",
-      email: supplier.email || "",
-      phone: supplier.phone || "",
-      website: supplier.website || "",
-      country: supplier.country || "",
-      province: supplier.province || "",
-      city: supplier.city || "",
-      currency: normalizeCurrency(supplier.currency, enabledCurrencies[0] || DEFAULT_CURRENCY),
-      paymentTerms: supplier.paymentTerms || "Net 30",
-      paymentMethod: supplier.paymentMethod || "Bank transfer",
-      shippingTerms: supplier.shippingTerms || "Supplier delivery",
-      leadTimeDays: supplier.leadTimeDays == null ? "" : String(supplier.leadTimeDays),
-      minimumOrderQty: supplier.minimumOrderQty == null ? "" : String(supplier.minimumOrderQty),
-      notes: supplier.notes || "",
-    })
-    setOpen(true)
-  }
-
-  async function saveSupplier() {
-    if (!form.name.trim()) {
-      toast.error("Supplier name is required")
-      return
-    }
-
-    const payload = {
-      name: form.name.trim(),
-      supplierType: clean(form.supplierType),
-      category: clean(form.category),
-      rating: clean(form.rating),
-      contactName: clean(form.contactName),
-      email: clean(form.email),
-      phone: clean(form.phone),
-      website: clean(form.website),
-      country: clean(form.country),
-      province: clean(form.province),
-      city: clean(form.city),
-      currency: normalizeCurrency(form.currency, enabledCurrencies[0] || DEFAULT_CURRENCY),
-      paymentTerms: clean(form.paymentTerms),
-      paymentMethod: clean(form.paymentMethod),
-      shippingTerms: clean(form.shippingTerms),
-      leadTimeDays: form.leadTimeDays === "" ? undefined : Number(form.leadTimeDays),
-      minimumOrderQty: form.minimumOrderQty === "" ? undefined : Number(form.minimumOrderQty),
-      notes: clean(form.notes),
-    }
-
-    setRunning(true)
-    try {
-      if (editing) {
-        await apiFetch(`/api/suppliers/${editing.id}`, { method: "PATCH", body: JSON.stringify(payload) })
-        toast.success("Supplier updated", { description: form.name })
-      } else {
-        await apiFetch("/api/suppliers", { method: "POST", body: JSON.stringify(payload) })
-        toast.success("Supplier created", { description: form.name })
-      }
-      setOpen(false)
-      await loadSuppliers()
-    } catch (err) {
-      toast.error("Could not save supplier", {
-        description: err instanceof Error ? err.message : "Save failed",
-      })
-    } finally {
-      setRunning(false)
-    }
-  }
 
   async function archiveSupplier(supplier: Supplier) {
     setRunning(true)
@@ -422,7 +249,9 @@ export function SuppliersContent() {
       header: "Supplier",
       cell: ({ row }) => (
         <div className="grid gap-1">
-          <span className="font-medium">{row.original.name}</span>
+          <Link href={`/suppliers/${row.original.id}`} className="font-medium hover:underline">
+            {row.original.name}
+          </Link>
           <span className="font-mono text-xs text-muted-foreground">{row.original.supplierCode}</span>
         </div>
       ),
@@ -469,14 +298,13 @@ export function SuppliersContent() {
       cell: ({ row }) => (
         <SupplierActions
           supplier={row.original}
-          onEdit={openEdit}
           onArchive={archiveSupplier}
           onReactivate={reactivateSupplier}
         />
       ),
       enableHiding: false,
     },
-  ], [enabledCurrencies])
+  ], [])
 
   const bulkActions = React.useMemo<RecordsTableBulkAction<Supplier>[]>(() => [
     {
@@ -504,9 +332,11 @@ export function SuppliersContent() {
               {running ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
               Refresh
             </Button>
-            <Button size="sm" onClick={openCreate}>
-              <PlusIcon className="size-4" />
-              New supplier
+            <Button asChild size="sm">
+              <Link href="/suppliers/new">
+                <PlusIcon className="size-4" />
+                New supplier
+              </Link>
             </Button>
           </div>
         </div>
@@ -528,65 +358,6 @@ export function SuppliersContent() {
           bulkActions={bulkActions}
         />
       </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Update supplier" : "Create supplier"}</DialogTitle>
-            <DialogDescription>
-              {editing ? `Supplier code ${editing.supplierCode} is locked.` : "Supplier code is generated automatically when you save."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-5 py-2">
-            <FormSection title="Classification" description="Keep reporting clean with controlled supplier categories.">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Field label="Supplier name">
-                  <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="ABC Equipment Supplies" />
-                </Field>
-                <SelectField label="Supplier type" value={form.supplierType} onChange={(value) => setForm((current) => ({ ...current, supplierType: value }))} options={supplierTypes} />
-                <SelectField label="Category" value={form.category} onChange={(value) => setForm((current) => ({ ...current, category: value }))} options={categories.map((value) => ({ value, label: value }))} />
-                <SelectField label="Rating" value={form.rating} onChange={(value) => setForm((current) => ({ ...current, rating: value }))} options={ratings.map((value) => ({ value, label: titleCase(value) }))} />
-              </div>
-            </FormSection>
-
-            <FormSection title="Contact and location" description="Supplier contact and location information.">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Field label="Contact person"><Input value={form.contactName} onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))} /></Field>
-                <Field label="Email"><Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></Field>
-                <Field label="Phone"><Input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field>
-                <Field label="Website"><Input value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} /></Field>
-                <Field label="Country"><Input value={form.country} onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))} /></Field>
-                <Field label="Province"><Input value={form.province} onChange={(event) => setForm((current) => ({ ...current, province: event.target.value }))} /></Field>
-                <Field label="City"><Input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} /></Field>
-              </div>
-            </FormSection>
-
-            <FormSection title="Purchasing" description="Currency, payment, logistics, and order constraints.">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <SelectField label="Currency" value={form.currency} onChange={(value) => setForm((current) => ({ ...current, currency: value }))} options={enabledCurrencies.map((value) => ({ value, label: value }))} />
-                <SelectField label="Payment terms" value={form.paymentTerms} onChange={(value) => setForm((current) => ({ ...current, paymentTerms: value }))} options={paymentTerms.map((value) => ({ value, label: value }))} />
-                <SelectField label="Payment method" value={form.paymentMethod} onChange={(value) => setForm((current) => ({ ...current, paymentMethod: value }))} options={paymentMethods.map((value) => ({ value, label: value }))} />
-                <SelectField label="Shipping terms" value={form.shippingTerms} onChange={(value) => setForm((current) => ({ ...current, shippingTerms: value }))} options={shippingTerms.map((value) => ({ value, label: value }))} />
-                <Field label="Lead time days"><Input type="number" min="0" value={form.leadTimeDays} onChange={(event) => setForm((current) => ({ ...current, leadTimeDays: event.target.value }))} /></Field>
-                <Field label="Minimum order qty"><Input type="number" min="0" value={form.minimumOrderQty} onChange={(event) => setForm((current) => ({ ...current, minimumOrderQty: event.target.value }))} /></Field>
-              </div>
-            </FormSection>
-
-            <FormSection title="Notes" description="Contract rules, delivery instructions, or supplier risks.">
-              <Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-24" />
-            </FormSection>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={running}>Cancel</Button>
-            <Button type="button" onClick={saveSupplier} disabled={running}>
-              {running ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-              {editing ? "Save changes" : "Create supplier"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -615,55 +386,5 @@ function SupplierMetricCard({
         <Icon className="size-4 text-muted-foreground" />
       </CardFooter>
     </Card>
-  )
-}
-
-function FormSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border bg-muted/10 p-4">
-      <div className="mb-4">
-        <h3 className="font-medium tracking-tight">{title}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </div>
-      {children}
-    </section>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="grid gap-2">
-      <Label>{label}</Label>
-      {children}
-    </label>
-  )
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  options: Array<{ value: string; label: string }>
-}) {
-  return (
-    <Field label={label}>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value || option.label} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Field>
   )
 }
