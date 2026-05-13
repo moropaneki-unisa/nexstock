@@ -151,11 +151,11 @@ model RefreshToken {
 }
 
 model Organization {
-  id                      String          @id @default(uuid())
+  id                      String              @id @default(uuid())
   name                    String
-  slug                    String          @unique
-  plan                    Plan            @default(free)
-  stripeCustomerId        String?         @unique
+  slug                    String              @unique
+  plan                    Plan                @default(free)
+  stripeCustomerId        String?             @unique
   legalName               String?
   tradingName             String?
   registrationNo          String?
@@ -172,18 +172,21 @@ model Organization {
   postalCode              String?
   country                 String?
   skuPrefix               String?
-  supplierPrefix          String?         @default("SUP")
-  baseCurrency            String          @default("ZAR")
-  enabledCurrencies       String[]        @default(["ZAR"])
+  supplierPrefix          String?             @default("SUP")
+  baseCurrency            String              @default("ZAR")
+  enabledCurrencies       String[]            @default(["ZAR"])
   exchangeRates           Json?
-  onboardingComplete      Boolean         @default(false)
-  nextSkuNumber           Int             @default(1)
-  nextSupplierNumber      Int             @default(1)
-  nextPurchaseOrderNumber Int             @default(1)
+  onboardingComplete      Boolean             @default(false)
+  nextSkuNumber           Int                 @default(1)
+  nextSupplierNumber      Int                 @default(1)
+  nextPurchaseOrderNumber Int                 @default(1)
   memberships             Membership[]
   products                Product[]
   suppliers               Supplier[]
   purchaseOrders          PurchaseOrder[]
+  documentTemplates       DocumentTemplate[]
+  generatedDocuments      GeneratedDocument[]
+  emailLogs               EmailLog[]
   customFields            CustomField[]
   apiKeys                 ApiKey[]
   webhooks                Webhook[]
@@ -192,8 +195,8 @@ model Organization {
   syncLogs                SyncLog[]
   payments                Payment[]
   tasks                   Task[]
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
 
   @@index([slug])
   @@index([skuPrefix])
@@ -373,23 +376,25 @@ model Product {
 }
 
 model PurchaseOrder {
-  id             String              @id @default(uuid())
-  organizationId String
-  supplierId     String
-  poNumber       String
-  status         PurchaseOrderStatus @default(draft)
-  currency       String
-  expectedAt     DateTime?
-  orderedAt      DateTime?
-  receivedAt     DateTime?
-  subtotal       Decimal             @default(0) @db.Decimal(12, 2)
-  notes          String?
-  metadata       Json?
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  supplier       Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  lines          PurchaseOrderLine[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id                 String              @id @default(uuid())
+  organizationId     String
+  supplierId         String
+  poNumber           String
+  status             PurchaseOrderStatus @default(draft)
+  currency           String
+  expectedAt         DateTime?
+  orderedAt          DateTime?
+  receivedAt         DateTime?
+  subtotal           Decimal             @default(0) @db.Decimal(12, 2)
+  notes              String?
+  metadata           Json?
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier           Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  lines              PurchaseOrderLine[]
+  generatedDocuments GeneratedDocument[]
+  emailLogs          EmailLog[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@unique([organizationId, poNumber])
   @@index([organizationId, status])
@@ -420,6 +425,68 @@ model PurchaseOrderLine {
   @@index([organizationId, purchaseOrderId])
   @@index([organizationId, productId])
   @@index([productSupplierId])
+}
+
+model DocumentTemplate {
+  id                 String              @id @default(uuid())
+  organizationId     String
+  name               String
+  type               String              @default("purchase_order")
+  description        String?
+  subjectTemplate    String?
+  htmlTemplate       String
+  emailTemplate      String?
+  isDefault          Boolean             @default(false)
+  isActive           Boolean             @default(true)
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  generatedDocuments GeneratedDocument[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([organizationId, name])
+  @@index([organizationId, type])
+}
+
+model GeneratedDocument {
+  id              String            @id @default(uuid())
+  organizationId  String
+  templateId      String?
+  purchaseOrderId String?
+  documentType    String
+  title           String
+  htmlSnapshot    String
+  pdfUrl          String?
+  metadata        Json?
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template        DocumentTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  emailLogs       EmailLog[]
+  createdAt       DateTime          @default(now())
+
+  @@index([organizationId, documentType])
+  @@index([purchaseOrderId])
+}
+
+model EmailLog {
+  id                  String             @id @default(uuid())
+  organizationId      String
+  purchaseOrderId     String?
+  generatedDocumentId String?
+  to                  String
+  subject             String
+  provider            String             @default("resend")
+  providerMessageId   String?
+  status              String             @default("pending")
+  error               String?
+  sentAt              DateTime?
+  metadata            Json?
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchaseOrder       PurchaseOrder?      @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  generatedDocument   GeneratedDocument?  @relation(fields: [generatedDocumentId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now())
+
+  @@index([organizationId, status])
+  @@index([purchaseOrderId])
 }
 
 model CustomField {
@@ -584,7 +651,7 @@ model SyncLog {
   startedAt      DateTime            @default(now())
   finishedAt     DateTime?
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  integration    Integration         @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  integration    Integration        @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
