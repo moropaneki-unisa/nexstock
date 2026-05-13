@@ -10,6 +10,7 @@ import {
   EyeIcon,
   ItalicIcon,
   Loader2Icon,
+  Maximize2Icon,
   SaveIcon,
   SearchIcon,
   TypeIcon,
@@ -71,78 +72,11 @@ const modules = [
   { value: "customers", label: "Customers", description: "Customer documents and emails" },
 ]
 
-const commonFields: FieldToken[] = [
+const fallbackFields: FieldToken[] = [
   { group: "Organization", label: "Organization name", path: "organization.name" },
   { group: "Organization", label: "Organization email", path: "organization.email" },
   { group: "Organization", label: "Organization phone", path: "organization.phone" },
 ]
-
-const moduleFields: Record<string, FieldToken[]> = {
-  purchase_orders: [
-    { group: "Supplier", label: "Supplier name", path: "supplier.name" },
-    { group: "Supplier", label: "Supplier email", path: "supplier.email" },
-    { group: "Supplier", label: "Supplier code", path: "supplier.supplierCode" },
-    { group: "Purchase order", label: "PO number", path: "purchaseOrder.poNumber" },
-    { group: "Purchase order", label: "Currency", path: "purchaseOrder.currency" },
-    { group: "Purchase order", label: "Subtotal", path: "purchaseOrder.subtotal" },
-    { group: "Purchase order", label: "Expected date", path: "purchaseOrder.expectedAt" },
-    { group: "Purchase order", label: "Notes", path: "purchaseOrder.notes" },
-    { group: "Line item", label: "Line product name", path: "product.name", description: "Use inside a lines block" },
-    { group: "Line item", label: "Line product SKU", path: "product.sku", description: "Use inside a lines block" },
-    { group: "Line item", label: "Quantity ordered", path: "quantityOrdered", description: "Use inside a lines block" },
-    { group: "Line item", label: "Unit cost", path: "unitCost", description: "Use inside a lines block" },
-    { group: "Line item", label: "Line total", path: "lineTotal", description: "Use inside a lines block" },
-  ],
-  quotes: [
-    { group: "Customer", label: "Customer name", path: "customer.name" },
-    { group: "Customer", label: "Customer email", path: "customer.email" },
-    { group: "Quote", label: "Quote number", path: "quote.quoteNumber" },
-    { group: "Quote", label: "Currency", path: "quote.currency" },
-    { group: "Quote", label: "Total", path: "quote.total" },
-    { group: "Quote", label: "Valid until", path: "quote.validUntil" },
-    { group: "Line item", label: "Product name", path: "product.name", description: "Use inside a lines block" },
-    { group: "Line item", label: "Quantity", path: "quantity", description: "Use inside a lines block" },
-    { group: "Line item", label: "Unit price", path: "unitPrice", description: "Use inside a lines block" },
-    { group: "Line item", label: "Line total", path: "lineTotal", description: "Use inside a lines block" },
-  ],
-  invoices: [
-    { group: "Customer", label: "Customer name", path: "customer.name" },
-    { group: "Customer", label: "Customer email", path: "customer.email" },
-    { group: "Invoice", label: "Invoice number", path: "invoice.invoiceNumber" },
-    { group: "Invoice", label: "Currency", path: "invoice.currency" },
-    { group: "Invoice", label: "Total", path: "invoice.total" },
-    { group: "Invoice", label: "Due date", path: "invoice.dueDate" },
-    { group: "Line item", label: "Product name", path: "product.name", description: "Use inside a lines block" },
-    { group: "Line item", label: "Quantity", path: "quantity", description: "Use inside a lines block" },
-    { group: "Line item", label: "Unit price", path: "unitPrice", description: "Use inside a lines block" },
-    { group: "Line item", label: "Line total", path: "lineTotal", description: "Use inside a lines block" },
-  ],
-  statements: [
-    { group: "Customer", label: "Customer name", path: "customer.name" },
-    { group: "Customer", label: "Customer email", path: "customer.email" },
-    { group: "Statement", label: "Statement number", path: "statement.statementNumber" },
-    { group: "Statement", label: "Period", path: "statement.period" },
-    { group: "Statement", label: "Currency", path: "statement.currency" },
-    { group: "Statement", label: "Balance", path: "statement.balance" },
-  ],
-  products: [
-    { group: "Product", label: "Product name", path: "product.name" },
-    { group: "Product", label: "SKU", path: "product.sku" },
-    { group: "Product", label: "Price", path: "product.price" },
-    { group: "Product", label: "Quantity", path: "product.quantity" },
-  ],
-  suppliers: [
-    { group: "Supplier", label: "Supplier name", path: "supplier.name" },
-    { group: "Supplier", label: "Supplier code", path: "supplier.supplierCode" },
-    { group: "Supplier", label: "Supplier email", path: "supplier.email" },
-    { group: "Supplier", label: "Supplier phone", path: "supplier.phone" },
-  ],
-  customers: [
-    { group: "Customer", label: "Customer name", path: "customer.name" },
-    { group: "Customer", label: "Customer email", path: "customer.email" },
-    { group: "Customer", label: "Customer phone", path: "customer.phone" },
-  ],
-}
 
 const defaultHtml = `<div style="font-family: Arial, sans-serif; color: #111; padding: 32px;">
   <h1>{{purchaseOrder.poNumber}}</h1>
@@ -182,14 +116,11 @@ function messageFromError(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback
 }
 
-function fieldsForModule(module: string) {
-  return [...commonFields, ...(moduleFields[module] || [])]
-}
-
 export function TemplateFormContent({ templateId }: { templateId?: string }) {
   const router = useRouter()
   const editorRef = React.useRef<{ getHtml: () => string }>(null)
   const [form, setForm] = React.useState<FormState>(emptyForm)
+  const [fields, setFields] = React.useState<FieldToken[]>(fallbackFields)
   const [loading, setLoading] = React.useState(Boolean(templateId))
   const [saving, setSaving] = React.useState(false)
   const [previewing, setPreviewing] = React.useState(false)
@@ -223,6 +154,20 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
     }
     void load()
   }, [templateId])
+
+  React.useEffect(() => {
+    async function loadFields() {
+      try {
+        const result = await apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(form.type)}`)
+        setFields(result.length ? result : fallbackFields)
+      } catch (err) {
+        const message = messageFromError(err, "Could not load template fields")
+        setFields(fallbackFields)
+        toast.error("Could not load template fields", { description: message })
+      }
+    }
+    void loadFields()
+  }, [form.type])
 
   async function renderPreview() {
     const latestHtml = editorRef.current?.getHtml() || form.htmlTemplate
@@ -275,7 +220,6 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
   }
 
   const selectedModule = modules.find((module) => module.value === form.type)
-  const fields = fieldsForModule(form.type)
 
   if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[720px] rounded-xl" /></div>
 
@@ -301,7 +245,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
       <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
         <div className="grid gap-4">
           <Card>
-            <CardHeader><CardTitle>Template settings</CardTitle><CardDescription>Select the module first. The editor field picker will use fields from that module.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Template settings</CardTitle><CardDescription>Select the module first. The editor field picker includes standard fields and custom fields for your workspace.</CardDescription></CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2"><Label>Name</Label><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Default quote" /></label>
               <label className="grid gap-2"><Label>Module</Label><Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{modules.map((module) => <SelectItem key={module.value} value={module.value}>{module.label}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">{selectedModule?.description}</p></label>
@@ -333,19 +277,22 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
 
 const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: string; onChange: (value: string) => void; fields: FieldToken[]; moduleLabel: string }>(function DocumentHtmlEditor({ value, onChange, fields, moduleLabel }, ref) {
   const editorRef = React.useRef<HTMLDivElement>(null)
+  const fullEditorRef = React.useRef<HTMLDivElement>(null)
   const [mode, setMode] = React.useState("document")
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [fieldSearch, setFieldSearch] = React.useState("")
+  const [maximized, setMaximized] = React.useState(false)
 
   React.useImperativeHandle(ref, () => ({
-    getHtml: () => mode === "document" ? editorRef.current?.innerHTML || value : value,
+    getHtml: () => mode === "document" ? editorRef.current?.innerHTML || fullEditorRef.current?.innerHTML || value : value,
   }), [mode, value])
 
   React.useEffect(() => {
     if (mode !== "document") return
-    if (!editorRef.current) return
-    if (editorRef.current.innerHTML !== value) editorRef.current.innerHTML = value
-  }, [mode, value])
+    const target = maximized ? fullEditorRef.current : editorRef.current
+    if (!target) return
+    if (target.innerHTML !== value) target.innerHTML = value
+  }, [mode, value, maximized])
 
   const filteredFields = React.useMemo(() => {
     const query = fieldSearch.trim().toLowerCase()
@@ -353,15 +300,17 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
     return fields.filter((field) => [field.label, field.path, field.group, field.description].filter(Boolean).join(" ").toLowerCase().includes(query))
   }, [fieldSearch, fields])
 
-  function syncFromDocument() {
-    if (!editorRef.current) return
-    onChange(editorRef.current.innerHTML)
+  function syncFromDocument(source?: HTMLDivElement | null) {
+    const target = source || (maximized ? fullEditorRef.current : editorRef.current)
+    if (!target) return
+    onChange(target.innerHTML)
   }
 
   function command(name: string, commandValue?: string) {
-    editorRef.current?.focus()
+    const target = maximized ? fullEditorRef.current : editorRef.current
+    target?.focus()
     document.execCommand(name, false, commandValue)
-    syncFromDocument()
+    syncFromDocument(target)
   }
 
   function openFieldPicker() {
@@ -374,9 +323,10 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
     if (mode === "html") {
       onChange(`${value}${token}`)
     } else {
-      editorRef.current?.focus()
+      const target = maximized ? fullEditorRef.current : editorRef.current
+      target?.focus()
       document.execCommand("insertText", false, token)
-      syncFromDocument()
+      syncFromDocument(target)
     }
     setPickerOpen(false)
   }
@@ -388,13 +338,31 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
     }
   }
 
+  const toolbar = (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="outline" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button>
+      <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>Paragraph</Button>
+      <Button type="button" variant="secondary" size="sm" onClick={openFieldPicker}><SearchIcon className="size-4" />Insert field</Button>
+      <Button type="button" variant="secondary" size="sm" onClick={() => setMaximized(true)}><Maximize2Icon className="size-4" />Maximize</Button>
+    </div>
+  )
+
+  const editorClassName = cn(
+    "overflow-auto rounded-xl border bg-white p-8 text-sm leading-6 text-slate-950 shadow-inner outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-white dark:text-slate-950",
+    "[&_*]:text-inherit [&_a]:text-blue-700 [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_small]:text-slate-600 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2"
+  )
+
   return (
     <Card>
       <CardHeader className="gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle>PDF document template</CardTitle>
-            <CardDescription>{`Type # in the document to open searchable ${moduleLabel} fields. Use {{#lines}}...{{/lines}} for repeated line items.`}</CardDescription>
+            <CardDescription>{`Type # in the document to open searchable ${moduleLabel} fields, including custom fields. Use {{#lines}}...{{/lines}} for repeated line items.`}</CardDescription>
           </div>
           <Tabs value={mode} onValueChange={setMode} className="w-fit">
             <TabsList>
@@ -403,15 +371,7 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
             </TabsList>
           </Tabs>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>Paragraph</Button>
-          <Button type="button" variant="secondary" size="sm" onClick={openFieldPicker}><SearchIcon className="size-4" />Insert field</Button>
-        </div>
+        {toolbar}
       </CardHeader>
       <CardContent>
         {mode === "document" ? (
@@ -419,18 +379,40 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            onInput={syncFromDocument}
-            onBlur={syncFromDocument}
+            onInput={() => syncFromDocument(editorRef.current)}
+            onBlur={() => syncFromDocument(editorRef.current)}
             onKeyDown={onEditorKeyDown}
-            className={cn(
-              "min-h-[520px] overflow-auto rounded-xl border bg-white p-8 text-sm leading-6 text-slate-950 shadow-inner outline-none transition focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-white dark:text-slate-950",
-              "[&_*]:text-inherit [&_a]:text-blue-700 [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_small]:text-slate-600 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2"
-            )}
+            className={cn(editorClassName, "min-h-[520px]")}
           />
         ) : (
           <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-[520px] font-mono text-xs" onKeyDown={(event) => { if (event.key === "#") { event.preventDefault(); openFieldPicker() } }} />
         )}
       </CardContent>
+
+      <Dialog open={maximized} onOpenChange={(open) => { if (!open) syncFromDocument(fullEditorRef.current); setMaximized(open) }}>
+        <DialogContent className="h-[94vh] max-w-[96vw] overflow-hidden p-0">
+          <DialogHeader className="border-b px-6 py-4">
+            <DialogTitle>Maximized template editor</DialogTitle>
+            <DialogDescription>{`Editing ${moduleLabel}. Type # to insert standard or custom fields.`}</DialogDescription>
+          </DialogHeader>
+          <div className="flex h-full min-h-0 flex-col gap-3 p-4">
+            {toolbar}
+            {mode === "document" ? (
+              <div
+                ref={fullEditorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={() => syncFromDocument(fullEditorRef.current)}
+                onBlur={() => syncFromDocument(fullEditorRef.current)}
+                onKeyDown={onEditorKeyDown}
+                className={cn(editorClassName, "min-h-0 flex-1")}
+              />
+            ) : (
+              <Textarea value={value} onChange={(event) => onChange(event.target.value)} className="min-h-0 flex-1 font-mono text-xs" onKeyDown={(event) => { if (event.key === "#") { event.preventDefault(); openFieldPicker() } }} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent className="sm:max-w-2xl">
