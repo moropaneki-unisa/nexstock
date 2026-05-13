@@ -54,19 +54,19 @@ const fallbackUser = {
 const data = {
   workspace: [
     { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
-    { title: "Products", url: "/products", icon: <BoxesIcon /> },
-    { title: "Suppliers", url: "/suppliers", icon: <TruckIcon /> },
-    { title: "Purchase Orders", url: "/purchase-orders", icon: <ClipboardListIcon /> },
+    { title: "Products", url: "/products", icon: <BoxesIcon />, createUrl: "/products/new" },
+    { title: "Suppliers", url: "/suppliers", icon: <TruckIcon />, createUrl: "/suppliers/new" },
+    { title: "Purchase Orders", url: "/purchase-orders", icon: <ClipboardListIcon />, createUrl: "/purchase-orders/new" },
   ],
   dataTools: [
-    { title: "Imports", url: "/imports", icon: <FileSpreadsheetIcon /> },
+    { title: "Imports", url: "/imports", icon: <FileSpreadsheetIcon />, createUrl: "/imports/new" },
     { title: "Data Tools", url: "/data-tools", icon: <DatabaseZapIcon /> },
-    { title: "Product Fields", url: "/products/fields", icon: <PackageIcon /> },
+    { title: "Product Fields", url: "/products/fields", icon: <PackageIcon />, createUrl: "/products/fields/new" },
   ],
   connect: [
-    { title: "Integrations", url: "/integrations", icon: <SparklesIcon /> },
-    { title: "API Keys", url: "/api-keys", icon: <KeyRoundIcon /> },
-    { title: "Webhooks", url: "/webhooks", icon: <WebhookIcon /> },
+    { title: "Integrations", url: "/integrations", icon: <SparklesIcon />, createUrl: "/integrations/new" },
+    { title: "API Keys", url: "/api-keys", icon: <KeyRoundIcon />, createUrl: "/api-keys/new" },
+    { title: "Webhooks", url: "/webhooks", icon: <WebhookIcon />, createUrl: "/webhooks/new" },
   ],
   account: [
     { title: "Billing", url: "/billing", icon: <CreditCardIcon /> },
