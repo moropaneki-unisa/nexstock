@@ -3,11 +3,23 @@ import { CurrentUserPayload } from '../common/decorators/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTemplateDto } from './dto';
 
-type TemplateField = {
-  group: string;
-  label: string;
-  path: string;
-  description?: string;
+type TemplateField = { group: string; label: string; path: string; description?: string };
+
+type DocumentTemplateRow = {
+  id: string;
+  organizationId: string;
+  name: string;
+  type: string;
+  kind: string;
+  description: string | null;
+  recipientEmailTemplate: string | null;
+  subjectTemplate: string | null;
+  htmlTemplate: string;
+  emailTemplate: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 const commonFields: TemplateField[] = [
@@ -87,11 +99,12 @@ const moduleFields: Record<string, TemplateField[]> = {
 export class DocumentTemplatesService {
   constructor(private readonly db: PrismaService) {}
 
-  list(user: CurrentUserPayload) {
-    return this.db.documentTemplate.findMany({
-      where: { organizationId: user.organizationId },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-    });
+  async list(user: CurrentUserPayload) {
+    return this.db.$queryRaw<DocumentTemplateRow[]>`
+      SELECT * FROM "DocumentTemplate"
+      WHERE "organizationId" = ${user.organizationId}
+      ORDER BY "isDefault" DESC, "createdAt" DESC
+    `;
   }
 
   async fields(user: CurrentUserPayload, module = 'purchase_orders') {
@@ -111,17 +124,23 @@ export class DocumentTemplatesService {
   }
 
   async get(user: CurrentUserPayload, id: string) {
-    const template = await this.db.documentTemplate.findFirst({ where: { id, organizationId: user.organizationId } });
+    const rows = await this.db.$queryRaw<DocumentTemplateRow[]>`
+      SELECT * FROM "DocumentTemplate"
+      WHERE id = ${id} AND "organizationId" = ${user.organizationId}
+      LIMIT 1
+    `;
+    const template = rows[0];
     if (!template) throw new NotFoundException('Document template not found');
     return template;
   }
 
   async create(user: CurrentUserPayload, dto: CreateDocumentTemplateDto) {
     const type = this.templateType(dto.type);
-    if (dto.isDefault) await this.clearDefault(user.organizationId, type);
+    const kind = this.templateKind(dto.kind);
+    if (dto.isDefault) await this.clearDefault(user.organizationId, type, kind);
 
     try {
-      return await this.db.documentTemplate.create({
+      const created = await this.db.documentTemplate.create({
         data: {
           organizationId: user.organizationId,
           name: dto.name.trim(),
@@ -135,6 +154,8 @@ export class DocumentTemplatesService {
           isActive: dto.isActive ?? true,
         },
       });
+      await this.db.$executeRaw`UPDATE "DocumentTemplate" SET kind = ${kind} WHERE id = ${created.id}`;
+      return this.get(user, created.id);
     } catch (error) {
       throw new BadRequestException('A template with this name already exists');
     }
@@ -143,10 +164,11 @@ export class DocumentTemplatesService {
   async update(user: CurrentUserPayload, id: string, dto: UpdateDocumentTemplateDto) {
     const existing = await this.get(user, id);
     const type = this.templateType(dto.type ?? existing.type);
-    if (dto.isDefault) await this.clearDefault(user.organizationId, type, id);
+    const kind = this.templateKind(dto.kind ?? existing.kind);
+    if (dto.isDefault) await this.clearDefault(user.organizationId, type, kind, id);
 
     try {
-      return await this.db.documentTemplate.update({
+      await this.db.documentTemplate.update({
         where: { id },
         data: {
           name: dto.name === undefined ? undefined : dto.name.trim(),
@@ -160,6 +182,8 @@ export class DocumentTemplatesService {
           isActive: dto.isActive,
         },
       });
+      await this.db.$executeRaw`UPDATE "DocumentTemplate" SET kind = ${kind} WHERE id = ${id}`;
+      return this.get(user, id);
     } catch (error) {
       throw new BadRequestException('Template could not be updated');
     }
@@ -167,7 +191,8 @@ export class DocumentTemplatesService {
 
   async delete(user: CurrentUserPayload, id: string) {
     await this.get(user, id);
-    return this.db.documentTemplate.update({ where: { id }, data: { isActive: false, isDefault: false } });
+    await this.db.documentTemplate.update({ where: { id }, data: { isActive: false, isDefault: false } });
+    return this.get(user, id);
   }
 
   async preview(user: CurrentUserPayload, dto: PreviewDocumentTemplateDto) {
@@ -196,17 +221,33 @@ export class DocumentTemplatesService {
     });
   }
 
-  private async clearDefault(organizationId: string, type: string, exceptId?: string) {
-    await this.db.documentTemplate.updateMany({
-      where: { organizationId, type, id: exceptId ? { not: exceptId } : undefined },
-      data: { isDefault: false },
-    });
+  private async clearDefault(organizationId: string, type: string, kind: string, exceptId?: string) {
+    if (exceptId) {
+      await this.db.$executeRaw`
+        UPDATE "DocumentTemplate"
+        SET "isDefault" = false
+        WHERE "organizationId" = ${organizationId} AND type = ${type} AND kind = ${kind} AND id <> ${exceptId}
+      `;
+      return;
+    }
+
+    await this.db.$executeRaw`
+      UPDATE "DocumentTemplate"
+      SET "isDefault" = false
+      WHERE "organizationId" = ${organizationId} AND type = ${type} AND kind = ${kind}
+    `;
   }
 
   private templateType(value?: string) {
     const type = (value || 'purchase_orders').trim();
     if (!type) throw new BadRequestException('Template module is required');
     return type;
+  }
+
+  private templateKind(value?: string) {
+    const kind = (value || 'pdf').trim().toLowerCase();
+    if (!['pdf', 'email'].includes(kind)) throw new BadRequestException('Template kind must be pdf or email');
+    return kind;
   }
 
   private optionalText(value?: string | null) {
