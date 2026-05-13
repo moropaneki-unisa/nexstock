@@ -101,38 +101,48 @@ export class PurchaseOrdersService {
   }
 
   async receive(user: CurrentUserPayload, id: string, dto: ReceivePurchaseOrderDto) {
-    const existing = await this.db.purchaseOrder.findFirst({
-      where: { id, organizationId: user.organizationId },
-      include: { lines: { include: { product: true } } },
-    });
-    if (!existing) throw new NotFoundException('Purchase order not found');
-    if (existing.status === PurchaseOrderStatus.cancelled) throw new BadRequestException('Cancelled purchase orders cannot be received');
-
     const incoming = new Map(dto.lines.map((line) => [line.lineId, line.quantityReceived]));
     if (incoming.size !== dto.lines.length) throw new BadRequestException('Duplicate received lines are not allowed');
 
-    return this.db.$transaction(async (tx) => {
+    const updated = await this.db.$transaction(async (tx) => {
+      const existing = await tx.purchaseOrder.findFirst({
+        where: { id, organizationId: user.organizationId },
+        include: { lines: { include: { product: true }, orderBy: { createdAt: 'asc' } } },
+      });
+      if (!existing) throw new NotFoundException('Purchase order not found');
+      if (existing.status === PurchaseOrderStatus.cancelled) throw new BadRequestException('Cancelled purchase orders cannot be received');
+
+      let totalOrdered = 0;
+      let totalReceived = 0;
+
       for (const line of existing.lines) {
-        const receiveDelta = incoming.get(line.id);
-        if (receiveDelta === undefined) continue;
+        totalOrdered += line.quantityOrdered;
+        const receiveDelta = incoming.get(line.id) ?? 0;
         if (!Number.isInteger(receiveDelta) || receiveDelta < 0) throw new BadRequestException('Received quantity must be zero or more');
 
         const alreadyReceived = line.quantityReceived || 0;
         const nextReceived = alreadyReceived + receiveDelta;
         if (nextReceived > line.quantityOrdered) throw new BadRequestException(`Received quantity for ${line.product.name} cannot exceed ordered quantity`);
+
+        totalReceived += nextReceived;
         if (receiveDelta === 0) continue;
 
-        const productBefore = line.product.quantity;
-        const productAfter = productBefore + receiveDelta;
+        const productAfter = line.product.quantity + receiveDelta;
 
-        await tx.product.update({ where: { id: line.productId }, data: { quantity: productAfter } });
-        await tx.purchaseOrderLine.update({ where: { id: line.id }, data: { quantityReceived: nextReceived } });
+        await tx.product.update({
+          where: { id: line.productId },
+          data: { quantity: { increment: receiveDelta } },
+        });
+        await tx.purchaseOrderLine.update({
+          where: { id: line.id },
+          data: { quantityReceived: nextReceived },
+        });
         await tx.inventoryLog.create({
           data: {
             organizationId: user.organizationId,
             productId: line.productId,
             type: InventoryMovementType.purchase,
-            quantityBefore: productBefore,
+            quantityBefore: line.product.quantity,
             quantityAfter: productAfter,
             delta: receiveDelta,
             reason: this.optionalText(dto.notes) ?? `Received against ${existing.poNumber}`,
@@ -142,9 +152,6 @@ export class PurchaseOrdersService {
         });
       }
 
-      const lines = await tx.purchaseOrderLine.findMany({ where: { purchaseOrderId: existing.id } });
-      const totalOrdered = lines.reduce((sum, line) => sum + line.quantityOrdered, 0);
-      const totalReceived = lines.reduce((sum, line) => sum + line.quantityReceived, 0);
       const status = totalReceived <= 0
         ? PurchaseOrderStatus.ordered
         : totalReceived >= totalOrdered
@@ -170,7 +177,9 @@ export class PurchaseOrdersService {
           },
         },
       });
-    });
+    }, { maxWait: 10_000, timeout: 20_000 });
+
+    return updated;
   }
 
   async sendDocument(user: CurrentUserPayload, id: string, dto: SendPurchaseOrderDocumentDto) {
