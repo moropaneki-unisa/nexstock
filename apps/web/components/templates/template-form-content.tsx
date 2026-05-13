@@ -34,6 +34,7 @@ type DocumentTemplate = {
   name: string
   type: string
   description?: string | null
+  recipientEmailTemplate?: string | null
   subjectTemplate?: string | null
   htmlTemplate: string
   emailTemplate?: string | null
@@ -41,12 +42,13 @@ type DocumentTemplate = {
   isActive: boolean
 }
 
-type PreviewResult = { subject: string; html: string; email?: string | null }
+type PreviewResult = { to?: string | null; subject: string; html: string; email?: string | null }
 
 type FormState = {
   name: string
   type: string
   description: string
+  recipientEmailTemplate: string
   subjectTemplate: string
   htmlTemplate: string
   emailTemplate: string
@@ -58,6 +60,7 @@ const placeholderHelp = "Use placeholders like {{purchaseOrder.poNumber}}, {{sup
 const placeholderTokens = [
   "{{organization.name}}",
   "{{supplier.name}}",
+  "{{supplier.email}}",
   "{{supplier.supplierCode}}",
   "{{purchaseOrder.poNumber}}",
   "{{purchaseOrder.expectedAt}}",
@@ -107,6 +110,7 @@ const emptyForm: FormState = {
   name: "",
   type: "purchase_order",
   description: "",
+  recipientEmailTemplate: "{{supplier.email}}",
   subjectTemplate: "Purchase Order {{purchaseOrder.poNumber}}",
   htmlTemplate: defaultHtml,
   emailTemplate: defaultEmail,
@@ -138,6 +142,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
           name: template.name,
           type: template.type,
           description: template.description || "",
+          recipientEmailTemplate: template.recipientEmailTemplate || "{{supplier.email}}",
           subjectTemplate: template.subjectTemplate || "",
           htmlTemplate: template.htmlTemplate,
           emailTemplate: template.emailTemplate || "",
@@ -160,7 +165,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
     try {
       const result = await apiFetch<PreviewResult>("/api/document-templates/preview", {
         method: "POST",
-        body: JSON.stringify({ htmlTemplate: latestHtml, subjectTemplate: form.subjectTemplate, emailTemplate: form.emailTemplate }),
+        body: JSON.stringify({ htmlTemplate: latestHtml, recipientEmailTemplate: form.recipientEmailTemplate, subjectTemplate: form.subjectTemplate, emailTemplate: form.emailTemplate }),
       })
       setPreview(result)
       toast.success("Preview updated")
@@ -210,7 +215,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
 
       <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
         <div className="grid gap-4">
-          <Card><CardHeader><CardTitle>Template settings</CardTitle><CardDescription>Name, type, subject, and default behavior.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><label className="grid gap-2"><Label>Name</Label><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Default purchase order" /></label><label className="grid gap-2"><Label>Type</Label><Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{["purchase_order", "supplier_invoice", "email"].map((value) => <SelectItem key={value} value={value}>{titleCase(value)}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-2 md:col-span-2"><Label>Description</Label><Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Used when sending purchase orders to suppliers" /></label><label className="grid gap-2 md:col-span-2"><Label>Email subject template</Label><Input value={form.subjectTemplate} onChange={(event) => setForm((current) => ({ ...current, subjectTemplate: event.target.value }))} /></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isDefault} onCheckedChange={(checked) => setForm((current) => ({ ...current, isDefault: Boolean(checked) }))} /><span><span className="font-semibold">Default template</span><span className="block text-muted-foreground">Use this as the default for this document type.</span></span></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: Boolean(checked) }))} /><span><span className="font-semibold">Active</span><span className="block text-muted-foreground">Inactive templates are hidden from future sending flows.</span></span></label></CardContent></Card>
+          <Card><CardHeader><CardTitle>Template settings</CardTitle><CardDescription>Name, type, recipient, subject, and default behavior.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><label className="grid gap-2"><Label>Name</Label><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Default purchase order" /></label><label className="grid gap-2"><Label>Type</Label><Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{["purchase_order", "supplier_invoice", "email"].map((value) => <SelectItem key={value} value={value}>{titleCase(value)}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-2 md:col-span-2"><Label>Description</Label><Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Used when sending purchase orders to suppliers" /></label><label className="grid gap-2 md:col-span-2"><Label>Recipient email</Label><Input value={form.recipientEmailTemplate} onChange={(event) => setForm((current) => ({ ...current, recipientEmailTemplate: event.target.value }))} placeholder="{{supplier.email}} or orders@supplier.com" /><p className="text-xs text-muted-foreground">Default uses the record email. If the record email is empty, type a manual address when sending.</p></label><label className="grid gap-2 md:col-span-2"><Label>Email subject template</Label><Input value={form.subjectTemplate} onChange={(event) => setForm((current) => ({ ...current, subjectTemplate: event.target.value }))} /></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isDefault} onCheckedChange={(checked) => setForm((current) => ({ ...current, isDefault: Boolean(checked) }))} /><span><span className="font-semibold">Default template</span><span className="block text-muted-foreground">Use this as the default for this document type.</span></span></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: Boolean(checked) }))} /><span><span className="font-semibold">Active</span><span className="block text-muted-foreground">Inactive templates are hidden from future sending flows.</span></span></label></CardContent></Card>
           <DocumentHtmlEditor ref={editorRef} value={form.htmlTemplate} onChange={(htmlTemplate) => setForm((current) => ({ ...current, htmlTemplate }))} />
           <Card><CardHeader><CardTitle>Email body template</CardTitle><CardDescription>This will be rendered before sending through Resend.</CardDescription></CardHeader><CardContent><Textarea value={form.emailTemplate} onChange={(event) => setForm((current) => ({ ...current, emailTemplate: event.target.value }))} className="min-h-40 font-mono text-xs" /></CardContent></Card>
         </div>
@@ -218,6 +223,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
         <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
           <CardHeader><CardTitle>Preview</CardTitle><CardDescription>Preview renders with sample purchase order data.</CardDescription></CardHeader>
           <CardContent className="grid gap-4 text-sm">
+            <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">To</p><p className="mt-1 font-medium">{preview?.to || form.recipientEmailTemplate || "Not rendered"}</p></div>
             <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Subject</p><p className="mt-1 font-medium">{preview?.subject || form.subjectTemplate || "Not rendered"}</p></div>
             {preview?.email ? <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</p><pre className="mt-2 whitespace-pre-wrap rounded-lg border bg-card p-3 text-xs text-card-foreground">{preview.email}</pre></div> : null}
             <div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">PDF document</p><div className="mt-2 max-h-[520px] overflow-auto rounded-lg border bg-white p-3 text-slate-950 shadow-inner dark:bg-white dark:text-slate-950 [&_*]:text-inherit" dangerouslySetInnerHTML={{ __html: preview?.html || "<p>Click Preview to render the template.</p>" }} /></div>
