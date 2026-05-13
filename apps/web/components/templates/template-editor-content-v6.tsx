@@ -314,14 +314,14 @@ export function TemplateEditorContentV6({ templateId, kind = "pdf" }: { template
         }
         .nexstock-template-editor-shell main > div {
           min-height: 100% !important;
-          padding: 2rem 2.25rem !important;
+          padding: 0 !important;
         }
         .nexstock-template-editor-shell [contenteditable="true"] {
           min-height: 1123px !important;
           max-width: 794px !important;
           width: 794px !important;
           margin: 0 auto !important;
-          padding: 3.75rem 4rem !important;
+          padding: 4rem 4.25rem !important;
           box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16) !important;
           border: 1px solid hsl(var(--border)) !important;
           border-radius: 6px !important;
@@ -345,7 +345,7 @@ export function TemplateEditorContentV6({ templateId, kind = "pdf" }: { template
             display: none !important;
           }
           .nexstock-template-editor-shell [contenteditable="true"] {
-            width: min(794px, calc(100vw - 19rem)) !important;
+            width: min(794px, calc(100vw - 17rem)) !important;
           }
         }
       `}</style>
