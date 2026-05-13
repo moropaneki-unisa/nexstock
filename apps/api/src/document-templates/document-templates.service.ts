@@ -3,6 +3,86 @@ import { CurrentUserPayload } from '../common/decorators/current-user.decorator'
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTemplateDto } from './dto';
 
+type TemplateField = {
+  group: string;
+  label: string;
+  path: string;
+  description?: string;
+};
+
+const commonFields: TemplateField[] = [
+  { group: 'Organization', label: 'Organization name', path: 'organization.name' },
+  { group: 'Organization', label: 'Organization email', path: 'organization.email' },
+  { group: 'Organization', label: 'Organization phone', path: 'organization.phone' },
+];
+
+const moduleFields: Record<string, TemplateField[]> = {
+  purchase_orders: [
+    { group: 'Supplier', label: 'Supplier name', path: 'supplier.name' },
+    { group: 'Supplier', label: 'Supplier email', path: 'supplier.email' },
+    { group: 'Supplier', label: 'Supplier code', path: 'supplier.supplierCode' },
+    { group: 'Purchase order', label: 'PO number', path: 'purchaseOrder.poNumber' },
+    { group: 'Purchase order', label: 'Currency', path: 'purchaseOrder.currency' },
+    { group: 'Purchase order', label: 'Subtotal', path: 'purchaseOrder.subtotal' },
+    { group: 'Purchase order', label: 'Expected date', path: 'purchaseOrder.expectedAt' },
+    { group: 'Purchase order', label: 'Notes', path: 'purchaseOrder.notes' },
+    { group: 'Line item', label: 'Line product name', path: 'product.name', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Line product SKU', path: 'product.sku', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Quantity ordered', path: 'quantityOrdered', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Unit cost', path: 'unitCost', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
+  ],
+  quotes: [
+    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
+    { group: 'Quote', label: 'Quote number', path: 'quote.quoteNumber' },
+    { group: 'Quote', label: 'Currency', path: 'quote.currency' },
+    { group: 'Quote', label: 'Total', path: 'quote.total' },
+    { group: 'Quote', label: 'Valid until', path: 'quote.validUntil' },
+    { group: 'Line item', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Quantity', path: 'quantity', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Unit price', path: 'unitPrice', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
+  ],
+  invoices: [
+    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
+    { group: 'Invoice', label: 'Invoice number', path: 'invoice.invoiceNumber' },
+    { group: 'Invoice', label: 'Currency', path: 'invoice.currency' },
+    { group: 'Invoice', label: 'Total', path: 'invoice.total' },
+    { group: 'Invoice', label: 'Due date', path: 'invoice.dueDate' },
+    { group: 'Line item', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Quantity', path: 'quantity', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Unit price', path: 'unitPrice', description: 'Use inside a lines block' },
+    { group: 'Line item', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
+  ],
+  statements: [
+    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
+    { group: 'Statement', label: 'Statement number', path: 'statement.statementNumber' },
+    { group: 'Statement', label: 'Period', path: 'statement.period' },
+    { group: 'Statement', label: 'Currency', path: 'statement.currency' },
+    { group: 'Statement', label: 'Balance', path: 'statement.balance' },
+  ],
+  products: [
+    { group: 'Product', label: 'Product name', path: 'product.name' },
+    { group: 'Product', label: 'SKU', path: 'product.sku' },
+    { group: 'Product', label: 'Price', path: 'product.price' },
+    { group: 'Product', label: 'Quantity', path: 'product.quantity' },
+  ],
+  suppliers: [
+    { group: 'Supplier', label: 'Supplier name', path: 'supplier.name' },
+    { group: 'Supplier', label: 'Supplier code', path: 'supplier.supplierCode' },
+    { group: 'Supplier', label: 'Supplier email', path: 'supplier.email' },
+    { group: 'Supplier', label: 'Supplier phone', path: 'supplier.phone' },
+  ],
+  customers: [
+    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
+    { group: 'Customer', label: 'Customer phone', path: 'customer.phone' },
+  ],
+};
+
 @Injectable()
 export class DocumentTemplatesService {
   constructor(private readonly db: PrismaService) {}
@@ -12,6 +92,22 @@ export class DocumentTemplatesService {
       where: { organizationId: user.organizationId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     });
+  }
+
+  async fields(user: CurrentUserPayload, module = 'purchase_orders') {
+    const customFields = await this.db.customField.findMany({
+      where: { organizationId: user.organizationId, isActive: true },
+      orderBy: [{ order: 'asc' }, { label: 'asc' }],
+    });
+
+    const customTokens = customFields.map((field) => ({
+      group: 'Custom fields',
+      label: field.label,
+      path: `customFields.${field.key}`,
+      description: `${field.type} custom field`,
+    }));
+
+    return [...commonFields, ...(moduleFields[module] || []), ...customTokens];
   }
 
   async get(user: CurrentUserPayload, id: string) {
@@ -74,8 +170,8 @@ export class DocumentTemplatesService {
     return this.db.documentTemplate.update({ where: { id }, data: { isActive: false, isDefault: false } });
   }
 
-  preview(dto: PreviewDocumentTemplateDto) {
-    const sample = this.sampleContext(dto.type);
+  async preview(user: CurrentUserPayload, dto: PreviewDocumentTemplateDto) {
+    const sample = await this.sampleContext(user, dto.type);
     return {
       to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, sample) : sample.supplier?.email ?? sample.customer?.email ?? 'recipient@example.com',
       subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, sample) : 'Document preview',
@@ -119,24 +215,31 @@ export class DocumentTemplatesService {
     return text || null;
   }
 
-  private sampleContext(module?: string) {
+  private async sampleContext(user: CurrentUserPayload, module?: string) {
+    const customFields = await this.db.customField.findMany({
+      where: { organizationId: user.organizationId, isActive: true },
+      orderBy: [{ order: 'asc' }, { label: 'asc' }],
+    });
+    const customValues = Object.fromEntries(customFields.map((field) => [field.key, `Sample ${field.label}`]));
+
     const shared = {
       organization: { name: 'NexStock Demo', email: 'orders@nexstock.test', phone: '+27 00 000 0000' },
       supplier: { name: 'ABC Supplies', supplierCode: 'SUP-0001', email: 'supplier@example.com', phone: '+27 00 111 2222' },
       customer: { name: 'Sample Customer', email: 'customer@example.com', phone: '+27 00 333 4444' },
       product: { name: 'Sample Product', sku: 'SKU-001', price: '1,250.00', quantity: 12 },
+      customFields: customValues,
       lines: [
-        { product: { name: 'Sample Product A', sku: 'SKU-001' }, quantityOrdered: 5, quantity: 5, unitCost: '150.00', unitPrice: '150.00', lineTotal: '750.00' },
-        { product: { name: 'Sample Product B', sku: 'SKU-002' }, quantityOrdered: 2, quantity: 2, unitCost: '250.00', unitPrice: '250.00', lineTotal: '500.00' },
+        { product: { name: 'Sample Product A', sku: 'SKU-001' }, quantityOrdered: 5, quantity: 5, unitCost: '150.00', unitPrice: '150.00', lineTotal: '750.00', customFields: customValues },
+        { product: { name: 'Sample Product B', sku: 'SKU-002' }, quantityOrdered: 2, quantity: 2, unitCost: '250.00', unitPrice: '250.00', lineTotal: '500.00', customFields: customValues },
       ],
     };
 
     return {
       ...shared,
-      purchaseOrder: { poNumber: 'PO-00001', subtotal: '1,250.00', currency: 'ZAR', expectedAt: '2026-05-20', notes: 'Deliver to warehouse.' },
-      quote: { quoteNumber: 'QT-00001', total: '1,250.00', currency: 'ZAR', validUntil: '2026-06-20' },
-      invoice: { invoiceNumber: 'INV-00001', total: '1,250.00', currency: 'ZAR', dueDate: '2026-06-20' },
-      statement: { statementNumber: 'ST-00001', balance: '1,250.00', currency: 'ZAR', period: 'May 2026' },
+      purchaseOrder: { poNumber: 'PO-00001', subtotal: '1,250.00', currency: 'ZAR', expectedAt: '2026-05-20', notes: 'Deliver to warehouse.', customFields: customValues },
+      quote: { quoteNumber: 'QT-00001', total: '1,250.00', currency: 'ZAR', validUntil: '2026-06-20', customFields: customValues },
+      invoice: { invoiceNumber: 'INV-00001', total: '1,250.00', currency: 'ZAR', dueDate: '2026-06-20', customFields: customValues },
+      statement: { statementNumber: 'ST-00001', balance: '1,250.00', currency: 'ZAR', period: 'May 2026', customFields: customValues },
       module: module || 'purchase_orders',
     };
   }
