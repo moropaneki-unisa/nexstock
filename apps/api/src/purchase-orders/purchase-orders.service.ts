@@ -1,8 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InventoryMovementType, Prisma, PurchaseOrderStatus, SupplierStatus } from '@prisma/client';
+import { Resend } from 'resend';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { DocumentTemplatesService } from '../document-templates/document-templates.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePurchaseOrderDto, ReceivePurchaseOrderDto, UpdatePurchaseOrderDto } from './dto';
+import { CreatePurchaseOrderDto, ReceivePurchaseOrderDto, SendPurchaseOrderDocumentDto, UpdatePurchaseOrderDto } from './dto';
 
 type OrganizationCurrencyRules = {
   baseCurrency: string;
@@ -12,13 +15,22 @@ type OrganizationCurrencyRules = {
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(private readonly db: PrismaService) {}
+  private readonly resend: Resend | null;
+
+  constructor(
+    private readonly db: PrismaService,
+    private readonly templates: DocumentTemplatesService,
+    private readonly config: ConfigService,
+  ) {
+    const apiKey = this.config.get<string>('RESEND_API_KEY');
+    this.resend = apiKey ? new Resend(apiKey) : null;
+  }
 
   list(user: CurrentUserPayload) {
     return this.db.purchaseOrder.findMany({
       where: { organizationId: user.organizationId },
       include: {
-        supplier: { select: { id: true, supplierCode: true, name: true, currency: true, status: true } },
+        supplier: { select: { id: true, supplierCode: true, name: true, currency: true, status: true, email: true } },
         lines: { include: { product: { select: { id: true, name: true, sku: true, images: true } } } },
       },
       orderBy: [{ createdAt: 'desc' }],
@@ -30,6 +42,7 @@ export class PurchaseOrdersService {
       where: { id, organizationId: user.organizationId },
       include: {
         supplier: true,
+        organization: true,
         lines: {
           include: {
             product: { select: { id: true, name: true, sku: true, images: true, quantity: true } },
@@ -160,9 +173,97 @@ export class PurchaseOrdersService {
     });
   }
 
+  async sendDocument(user: CurrentUserPayload, id: string, dto: SendPurchaseOrderDocumentDto) {
+    if (!this.resend) throw new BadRequestException('RESEND_API_KEY is not configured on the API server');
+
+    const order = await this.get(user, id);
+    const template = dto.templateId
+      ? await this.db.documentTemplate.findFirst({ where: { id: dto.templateId, organizationId: user.organizationId, isActive: true } })
+      : await this.db.documentTemplate.findFirst({ where: { organizationId: user.organizationId, type: 'purchase_order', isDefault: true, isActive: true } })
+        ?? await this.db.documentTemplate.findFirst({ where: { organizationId: user.organizationId, type: 'purchase_order', isActive: true }, orderBy: { createdAt: 'desc' } });
+
+    if (!template) throw new BadRequestException('No active purchase order template found. Create one in Settings > Templates.');
+
+    const context = this.templateContext(order);
+    const to = this.optionalText(dto.to) ?? this.templates.render(template.recipientEmailTemplate || '{{supplier.email}}', context);
+    if (!to) throw new BadRequestException('Recipient email is required because the supplier record has no email');
+
+    const subject = this.optionalText(dto.subject) ?? this.templates.render(template.subjectTemplate || 'Purchase Order {{purchaseOrder.poNumber}}', context);
+    const emailText = this.optionalText(dto.message) ?? this.templates.render(template.emailTemplate || 'Please find purchase order {{purchaseOrder.poNumber}} below.', context);
+    const documentHtml = this.templates.render(template.htmlTemplate, context);
+    const bodyHtml = `<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">${this.escapeHtml(emailText).replace(/\n/g, '<br>')}<hr style="margin:24px 0;border:0;border-top:1px solid #ddd;" />${documentHtml}</div>`;
+
+    const generatedDocument = await this.db.generatedDocument.create({
+      data: {
+        organizationId: user.organizationId,
+        templateId: template.id,
+        purchaseOrderId: order.id,
+        documentType: template.type,
+        title: `${order.poNumber} ${template.name}`,
+        htmlSnapshot: documentHtml,
+        metadata: { to, subject },
+      },
+    });
+
+    const from = this.config.get<string>('RESEND_FROM_EMAIL') || 'NexStock <onboarding@resend.dev>';
+    const log = await this.db.emailLog.create({
+      data: {
+        organizationId: user.organizationId,
+        purchaseOrderId: order.id,
+        generatedDocumentId: generatedDocument.id,
+        to,
+        subject,
+        provider: 'resend',
+        status: 'pending',
+      },
+    });
+
+    try {
+      const response = await this.resend.emails.send({ from, to, subject, html: bodyHtml });
+      const providerMessageId = response.data?.id || null;
+      await this.db.emailLog.update({ where: { id: log.id }, data: { status: 'sent', sentAt: new Date(), providerMessageId, metadata: response as any } });
+      return { ok: true, message: `Email sent to ${to}`, to, subject, providerMessageId, generatedDocumentId: generatedDocument.id };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Resend failed to send email';
+      await this.db.emailLog.update({ where: { id: log.id }, data: { status: 'failed', error: message } });
+      throw new BadRequestException(message);
+    }
+  }
+
   async cancel(user: CurrentUserPayload, id: string) {
     await this.get(user, id);
     return this.db.purchaseOrder.update({ where: { id }, data: { status: PurchaseOrderStatus.cancelled }, include: { supplier: true, lines: true } });
+  }
+
+  private templateContext(order: any) {
+    const formatMoney = (value: unknown) => Number(value || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return {
+      organization: {
+        name: order.organization?.name || 'NexStock',
+        email: order.organization?.billingEmail || '',
+        phone: order.organization?.phone || '',
+      },
+      supplier: {
+        name: order.supplier?.name || '',
+        supplierCode: order.supplier?.supplierCode || '',
+        email: order.supplier?.email || '',
+        phone: order.supplier?.phone || '',
+      },
+      purchaseOrder: {
+        poNumber: order.poNumber,
+        subtotal: formatMoney(order.subtotal),
+        currency: order.currency,
+        expectedAt: order.expectedAt ? new Date(order.expectedAt).toLocaleDateString() : '',
+        notes: order.notes || '',
+      },
+      lines: (order.lines || []).map((line: any) => ({
+        product: { name: line.product?.name || line.description || '', sku: line.product?.sku || '' },
+        quantityOrdered: line.quantityOrdered,
+        quantityReceived: line.quantityReceived,
+        unitCost: formatMoney(line.unitCost),
+        lineTotal: formatMoney(line.lineTotal),
+      })),
+    };
   }
 
   private async buildLines(organizationId: string, supplierId: string, currency: string, lines: CreatePurchaseOrderDto['lines']) {
@@ -249,5 +350,9 @@ export class PurchaseOrdersService {
     if (value === undefined || value === null) return null;
     const text = value.trim();
     return text || null;
+  }
+
+  private escapeHtml(value: string) {
+    return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char] || char));
   }
 }
