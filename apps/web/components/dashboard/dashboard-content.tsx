@@ -123,10 +123,10 @@ export function DashboardContent() {
 
     try {
       const [productResult, supplierResult, poResult, orgResult] = await Promise.all([
-        apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100").catch(() => []),
-        apiFetch<Supplier[]>("/api/suppliers").catch(() => []),
-        apiFetch<PurchaseOrder[]>("/api/purchase-orders").catch(() => []),
-        apiFetch<Organization>("/api/organization").catch(() => null),
+        apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100").catch((): Product[] | Paginated<Product> => []),
+        apiFetch<Supplier[]>("/api/suppliers").catch((): Supplier[] => []),
+        apiFetch<PurchaseOrder[]>("/api/purchase-orders").catch((): PurchaseOrder[] => []),
+        apiFetch<Organization>("/api/organization").catch((): null => null),
       ])
 
       setProducts(normalizeList(productResult))
@@ -141,7 +141,7 @@ export function DashboardContent() {
   }
 
   React.useEffect(() => {
-    void loadDashboard()
+    void Promise.resolve().then(loadDashboard)
   }, [])
 
   const baseCurrency = organization?.baseCurrency || "USD"
