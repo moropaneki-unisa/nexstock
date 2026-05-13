@@ -3,11 +3,13 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BoldIcon, CodeIcon, ExternalLinkIcon, FileTextIcon, ItalicIcon, Loader2Icon, MailIcon, SaveIcon, SearchIcon, Settings2Icon, TypeIcon, UnderlineIcon, XIcon } from "lucide-react"
+import { BoldIcon, CodeIcon, ExternalLinkIcon, FileTextIcon, ItalicIcon, Loader2Icon, MailIcon, SaveIcon, SearchIcon, Settings2Icon, TableIcon, TypeIcon, UnderlineIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -20,6 +22,7 @@ type TemplateKind = "pdf" | "email"
 type Template = { id: string; name: string; type: string; kind?: TemplateKind | null; description?: string | null; recipientEmailTemplate?: string | null; subjectTemplate?: string | null; htmlTemplate: string; emailTemplate?: string | null }
 type FieldToken = { label: string; path: string; group: string; description?: string }
 type PreviewResult = { to?: string | null; subject: string; html: string; email?: string | null }
+type TableColumn = { id: string; label: string; token: string; align: "left" | "right"; enabled: boolean }
 
 const modules = [
   { value: "purchase_orders", label: "Purchase Orders" },
@@ -49,17 +52,28 @@ Please find attached {{purchaseOrder.poNumber}}.
 Regards,
 {{organization.name}}`
 
-const lineRowsSnippet = `{{#lines}}<tr><td style="border-bottom:1px solid #eee; padding:8px;">{{product.name}}<br><small>{{product.sku}}</small></td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{quantityOrdered}}</td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{unitCost}}</td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{lineTotal}}</td></tr>{{/lines}}`
-const lineTableSnippet = `<table style="width:100%; border-collapse: collapse; margin-top: 24px;">
-  <thead><tr><th style="border-bottom:1px solid #ddd; text-align:left; padding:8px;">Product</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Qty</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Unit</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Total</th></tr></thead>
-  <tbody>${lineRowsSnippet}</tbody>
-</table>`
+const defaultTableColumns: TableColumn[] = [
+  { id: "product", label: "Product", token: "{{product.name}}", align: "left", enabled: true },
+  { id: "sku", label: "SKU", token: "{{product.sku}}", align: "left", enabled: false },
+  { id: "qty", label: "Qty", token: "{{quantityOrdered}}", align: "right", enabled: true },
+  { id: "unit", label: "Unit cost", token: "{{unitCost}}", align: "right", enabled: true },
+  { id: "total", label: "Total", token: "{{lineTotal}}", align: "right", enabled: true },
+]
 
 function messageFromError(err: unknown, fallback: string) { return err instanceof Error ? err.message : fallback }
 function groupFields(fields: FieldToken[]) { return fields.reduce<Record<string, FieldToken[]>>((acc, field) => { acc[field.group] = acc[field.group] || []; acc[field.group].push(field); return acc }, {}) }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
 function pdfDocument(html: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>PDF Preview</title><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.toolbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;font-size:13px;color:#475569}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}@media print{.toolbar{display:none}body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="toolbar">PDF preview · Press Ctrl+P to print or save as PDF</div><div class="page">${html}</div></body></html>` }
 function emailDocument(result: PreviewResult, fallbackBody: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>Email Preview</title><style>body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#111827}.wrap{max-width:860px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.12);overflow:hidden}.head{padding:20px 24px;border-bottom:1px solid #e5e7eb}.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.value{margin-top:4px;font-weight:600}.body{padding:24px;white-space:pre-wrap;line-height:1.6}</style></head><body><div class="wrap"><div class="head"><div class="label">To</div><div class="value">${result.to || ""}</div><br/><div class="label">Subject</div><div class="value">${result.subject || ""}</div></div><div class="body">${result.email || fallbackBody}</div></div></body></html>` }
+function buildLineTable(columns: TableColumn[]) {
+  const active = columns.filter((column) => column.enabled)
+  const header = active.map((column) => `<th style="border-bottom:1px solid #d1d5db; text-align:${column.align}; padding:10px 8px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#475569;">${column.label}</th>`).join("")
+  const row = active.map((column) => `<td style="border-bottom:1px solid #e5e7eb; padding:10px 8px; text-align:${column.align};">${column.token}</td>`).join("")
+  return `<table style="width:100%; border-collapse: collapse; margin-top: 24px; font-size:13px;">
+  <thead><tr>${header}</tr></thead>
+  <tbody>{{#lines}}<tr>${row}</tr>{{/lines}}</tbody>
+</table>`
+}
 
 export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId?: string; kind?: TemplateKind }) {
   const router = useRouter()
@@ -77,6 +91,8 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
   const [emailBody, setEmailBody] = React.useState(defaultEmailBody)
   const [subject, setSubject] = React.useState("Document {{purchaseOrder.poNumber}}")
   const [to, setTo] = React.useState("{{supplier.email}}")
+  const [tableBuilderOpen, setTableBuilderOpen] = React.useState(false)
+  const [tableColumns, setTableColumns] = React.useState<TableColumn[]>(defaultTableColumns)
   const [loading, setLoading] = React.useState(Boolean(templateId))
   const [saving, setSaving] = React.useState(false)
   const [previewing, setPreviewing] = React.useState(false)
@@ -170,18 +186,14 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
       wrapper.innerHTML = snippet
       const fragment = document.createDocumentFragment()
       let lastNode: ChildNode | null = null
-      while (wrapper.firstChild) {
-        lastNode = fragment.appendChild(wrapper.firstChild)
-      }
+      while (wrapper.firstChild) lastNode = fragment.appendChild(wrapper.firstChild)
       range.insertNode(fragment)
       if (lastNode) {
         range.setStartAfter(lastNode)
         range.setEndAfter(lastNode)
         selection.removeAllRanges(); selection.addRange(range); savedRangeRef.current = range.cloneRange()
       }
-    } else {
-      editor.insertAdjacentHTML("beforeend", snippet)
-    }
+    } else editor.insertAdjacentHTML("beforeend", snippet)
     syncHtml()
     toast.success(`${label} inserted`)
   }
@@ -211,6 +223,12 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     } else editor.append(document.createTextNode(token))
     syncHtml()
     toast.success("Field inserted", { description: token })
+  }
+
+  function insertBuiltTable() {
+    if (!tableColumns.some((column) => column.enabled)) return toast.error("Select at least one table column")
+    insertHtmlSnippet(buildLineTable(tableColumns), "Line table")
+    setTableBuilderOpen(false)
   }
 
   async function save() {
@@ -272,39 +290,71 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
             <div><p className="text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template</p><h1 className="font-heading text-lg font-semibold tracking-tight">{name}</h1></div>
             <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div>
           </div>
-          <div className="flex flex-wrap items-stretch gap-0 border-t bg-card px-4 py-2 lg:px-6">
-            {templateKind === "pdf" ? <RibbonGroup label="Clipboard"><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("<p>New paragraph</p>", "Paragraph")}>Paragraph</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("<div style='height:24px'></div>", "Spacer")}>Spacer</Button></RibbonGroup> : null}
+          <div className="flex flex-wrap items-stretch gap-0 border-t bg-card px-2 py-2 lg:px-4">
+            {templateKind === "pdf" ? <RibbonGroup label="Mode"><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></RibbonGroup> : null}
+            {templateKind === "pdf" ? <RibbonGroup label="Insert"><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("<p>New paragraph</p>", "Paragraph")}>Paragraph</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("<div style='height:24px'></div>", "Spacer")}>Spacer</Button></RibbonGroup> : null}
             {templateKind === "pdf" ? <RibbonGroup label="Font"><Button variant="ghost" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button><Button variant="ghost" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button><Button variant="ghost" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button></RibbonGroup> : null}
             {templateKind === "pdf" ? <RibbonGroup label="Styles"><Button variant="ghost" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button><Button variant="ghost" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button><Button variant="ghost" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>Body</Button></RibbonGroup> : null}
-            {templateKind === "pdf" ? <RibbonGroup label="Tables"><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet(lineTableSnippet, "Repeating line table")}>Line table</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet(lineRowsSnippet, "Repeating rows")}>Repeating rows</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("{{#lines}}<p>{{product.name}} - {{quantityOrdered}} x {{unitCost}} = {{lineTotal}}</p>{{/lines}}", "Repeating list")}>Repeating list</Button></RibbonGroup> : null}
+            {templateKind === "pdf" ? <RibbonGroup label="Tables"><Button variant="ghost" size="sm" onClick={() => setTableBuilderOpen(true)}><TableIcon className="size-4" />Line table builder</Button></RibbonGroup> : null}
             <RibbonGroup label="Fields"><Button variant="ghost" size="sm" onClick={() => setFieldSearch("")}>Browse fields</Button><Button variant="ghost" size="sm" onClick={() => insertField(templateKind === "email" ? "supplier.email" : "organization.name")}>Quick field</Button></RibbonGroup>
             <RibbonGroup label="View"><Button variant="ghost" size="sm" onClick={renderPreview} disabled={previewing}><ExternalLinkIcon className="size-4" />Preview tab</Button></RibbonGroup>
           </div>
         </header>
 
-        <main className="p-4 lg:p-6">
+        <main className="p-0">
           {templateKind === "pdf" ? (
-            <div className="mx-auto max-w-5xl">
-              <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="font-heading text-xl font-semibold">PDF document</h2><p className="text-sm text-muted-foreground">Edit like a document. Use the ribbon above for formatting, repeating rows, and tables.</p></div><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div>
-              <div className="rounded-2xl border bg-muted p-4 shadow-sm">
-                {mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("mx-auto min-h-[1123px] w-full max-w-[794px] overflow-auto bg-white p-10 text-sm leading-6 text-slate-950 shadow-xl outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-[1123px] font-mono text-xs" />}
-              </div>
+            <div className="bg-muted p-0">
+              {mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("mx-auto min-h-[calc(100vh-9rem)] w-full max-w-[900px] overflow-auto bg-white p-8 text-sm leading-6 text-slate-950 shadow-xl outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-[calc(100vh-9rem)] rounded-none border-0 font-mono text-xs" />}
             </div>
           ) : (
-            <div className="mx-auto grid max-w-4xl gap-4">
-              <div><h2 className="font-heading text-xl font-semibold">Email template</h2><p className="text-sm text-muted-foreground">Design the email. Use the fields sidebar and preview in a separate tab.</p></div>
+            <div className="mx-auto grid max-w-4xl gap-4 p-6">
               <Card><CardContent className="grid gap-4 p-6"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[560px]" /></label></CardContent></Card>
             </div>
           )}
         </main>
       </div>
+
+      <Dialog open={tableBuilderOpen} onOpenChange={setTableBuilderOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Line table builder</DialogTitle>
+            <DialogDescription>Choose the columns and rename the table headings before inserting the repeating line-items table.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="overflow-hidden rounded-xl border">
+              <div className="grid grid-cols-[2rem_1fr_1fr_7rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span />
+                <span>Heading</span>
+                <span>Field</span>
+                <span>Align</span>
+              </div>
+              {tableColumns.map((column) => (
+                <div key={column.id} className="grid grid-cols-[2rem_1fr_1fr_7rem] items-center gap-2 border-b px-3 py-2 last:border-b-0">
+                  <Checkbox checked={column.enabled} onCheckedChange={(checked) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, enabled: Boolean(checked) } : item))} />
+                  <Input value={column.label} onChange={(event) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, label: event.target.value } : item))} />
+                  <Input value={column.token} onChange={(event) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, token: event.target.value } : item))} className="font-mono text-xs" />
+                  <Select value={column.align} onValueChange={(value: "left" | "right") => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, align: value } : item))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl border bg-white p-4 text-slate-950 shadow-inner dark:bg-white dark:text-slate-950" dangerouslySetInnerHTML={{ __html: buildLineTable(tableColumns) }} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTableBuilderOpen(false)}>Cancel</Button>
+            <Button onClick={insertBuiltTable}><TableIcon className="size-4" />Insert table</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 function RibbonGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mr-2 flex min-h-16 flex-col justify-between border-r pr-2 last:border-r-0">
+    <div className="mr-2 flex min-h-14 flex-col justify-between border-r pr-2 last:border-r-0">
       <div className="flex flex-wrap items-center gap-1">{children}</div>
       <p className="mt-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     </div>
