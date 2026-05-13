@@ -1,11 +1,11 @@
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateDocumentTemplateDto {
   @IsString()
   name!: string;
 
   @IsOptional()
-  @IsIn(['purchase_order', 'supplier_invoice', 'email'])
+  @IsString()
   type?: string;
 
   @IsOptional()
@@ -42,7 +42,7 @@ export class UpdateDocumentTemplateDto {
   name?: string;
 
   @IsOptional()
-  @IsIn(['purchase_order', 'supplier_invoice', 'email'])
+  @IsString()
   type?: string;
 
   @IsOptional()
@@ -77,6 +77,10 @@ export class UpdateDocumentTemplateDto {
 export class PreviewDocumentTemplateDto {
   @IsString()
   htmlTemplate!: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
 
   @IsOptional()
   @IsString()
