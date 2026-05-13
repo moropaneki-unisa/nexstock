@@ -2,15 +2,19 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardListIcon, EditIcon, Loader2Icon, PackageCheckIcon, RefreshCwIcon, TruckIcon, WalletCardsIcon } from "lucide-react"
+import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardListIcon, EditIcon, Loader2Icon, PackageCheckIcon, RefreshCwIcon, TruckIcon, WalletCardsIcon, WarehouseIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +36,9 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   const [order, setOrder] = React.useState<PurchaseOrder | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
+  const [receiveOpen, setReceiveOpen] = React.useState(false)
+  const [receiveNotes, setReceiveNotes] = React.useState("")
+  const [receiveLines, setReceiveLines] = React.useState<Record<string, string>>({})
   const [detailsOpen, setDetailsOpen] = React.useState(true)
   const [linesOpen, setLinesOpen] = React.useState(true)
   const [supplierOpen, setSupplierOpen] = React.useState(true)
@@ -45,6 +52,37 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   }
 
   React.useEffect(() => { void loadOrder() }, [purchaseOrderId])
+
+  function openReceiveDialog() {
+    if (!order) return
+    const next: Record<string, string> = {}
+    for (const line of order.lines ?? []) {
+      const remaining = Math.max(0, line.quantityOrdered - numberValue(line.quantityReceived))
+      next[line.id] = remaining ? String(remaining) : "0"
+    }
+    setReceiveLines(next)
+    setReceiveNotes(`Received against ${order.poNumber}`)
+    setReceiveOpen(true)
+  }
+
+  async function receiveOrder() {
+    if (!order) return
+    const lines = (order.lines ?? []).map((line) => ({ lineId: line.id, quantityReceived: Math.max(0, Math.floor(numberValue(receiveLines[line.id]))) }))
+    const hasReceived = lines.some((line) => line.quantityReceived > 0)
+    if (!hasReceived) return toast.error("Enter received quantity for at least one line")
+
+    setRunning(true)
+    try {
+      await apiFetch(`/api/purchase-orders/${order.id}/receive`, { method: "POST", body: JSON.stringify({ lines, notes: receiveNotes.trim() || undefined }) })
+      toast.success("Purchase order received", { description: "Stock quantities were updated." })
+      setReceiveOpen(false)
+      await loadOrder()
+    } catch (err) {
+      toast.error("Could not receive purchase order", { description: err instanceof Error ? err.message : "Receive failed" })
+    } finally {
+      setRunning(false)
+    }
+  }
 
   async function cancelOrder() {
     if (!order) return
@@ -60,6 +98,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   const lineCount = order.lines?.length ?? 0
   const receivedQty = (order.lines ?? []).reduce((sum, line) => sum + numberValue(line.quantityReceived), 0)
   const orderedQty = (order.lines ?? []).reduce((sum, line) => sum + numberValue(line.quantityOrdered), 0)
+  const canReceive = order.status !== "cancelled" && order.status !== "received" && (order.lines ?? []).some((line) => numberValue(line.quantityReceived) < line.quantityOrdered)
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
@@ -69,7 +108,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
           <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{order.poNumber}</h1><StatusBadge status={order.status} /></div>
           <p className="mt-1 text-sm text-muted-foreground">{order.supplier?.name || "No supplier"} · {formatMoney(order.subtotal, order.currency)}</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadOrder()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button asChild size="sm" variant="outline"><Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={cancelOrder} disabled={running || order.status === "cancelled"}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Cancel</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadOrder()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button size="sm" onClick={openReceiveDialog} disabled={!canReceive || running}><WarehouseIcon className="size-4" />Receive stock</Button><Button asChild size="sm" variant="outline"><Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={cancelOrder} disabled={running || order.status === "cancelled"}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Cancel</Button></div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
@@ -82,12 +121,23 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
       <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
         <div className="grid gap-4">
           <DetailSection title="Purchase order details" description="Status, timeline, and order metadata." open={detailsOpen} onOpenChange={setDetailsOpen} badge="8 fields"><FieldGrid fields={[["PO number", order.poNumber], ["Status", titleCase(order.status)], ["Currency", order.currency], ["Subtotal", formatMoney(order.subtotal, order.currency)], ["Expected", formatDate(order.expectedAt)], ["Ordered", formatDate(order.orderedAt)], ["Received", formatDate(order.receivedAt)], ["Created", formatDate(order.createdAt)]]} /></DetailSection>
-          <DetailSection title="Order lines" description="Products, quantities, unit costs, and line totals." open={linesOpen} onOpenChange={setLinesOpen} badge={`${lineCount} lines`}><LinesTable lines={order.lines ?? []} currency={order.currency} /></DetailSection>
+          <DetailSection title="Order lines" description="Products, quantities, unit costs, received quantities, and line totals." open={linesOpen} onOpenChange={setLinesOpen} badge={`${lineCount} lines`}><LinesTable lines={order.lines ?? []} currency={order.currency} /></DetailSection>
           <DetailSection title="Supplier" description="Supplier linked to this purchase order." open={supplierOpen} onOpenChange={setSupplierOpen} badge={order.supplier?.supplierCode || "None"}><FieldGrid fields={[["Supplier", cleanValue(order.supplier?.name)], ["Supplier code", cleanValue(order.supplier?.supplierCode)], ["Email", cleanValue(order.supplier?.email)], ["Phone", cleanValue(order.supplier?.phone)], ["City", cleanValue(order.supplier?.city)], ["Country", cleanValue(order.supplier?.country)]]} /></DetailSection>
           <DetailSection title="Notes" description="Internal purchase order notes." open={notesOpen} onOpenChange={setNotesOpen} badge={order.notes ? "Saved" : "Empty"}><p className="whitespace-pre-wrap rounded-xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">{order.notes || "No notes saved for this purchase order."}</p></DetailSection>
         </div>
         <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]"><CardHeader><CardTitle>Quick facts</CardTitle><CardDescription>At-a-glance purchasing context.</CardDescription></CardHeader><CardContent className="grid gap-3 text-sm"><QuickFact label="PO" value={order.poNumber} mono /><QuickFact label="Status" value={titleCase(order.status)} /><QuickFact label="Supplier" value={order.supplier?.name || "Not set"} /><QuickFact label="Expected" value={formatDate(order.expectedAt)} /><QuickFact label="Updated" value={formatDate(order.updatedAt)} /></CardContent></Card>
       </div>
+
+      <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader><DialogTitle>Receive stock</DialogTitle><DialogDescription>Enter quantities received now. Product stock and purchase order status will update automatically.</DialogDescription></DialogHeader>
+          <div className="grid gap-4">
+            <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Already received</TableHead><TableHead className="w-40 text-right">Receive now</TableHead></TableRow></TableHeader><TableBody>{(order.lines ?? []).map((line) => { const already = numberValue(line.quantityReceived); const remaining = Math.max(0, line.quantityOrdered - already); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{already}</TableCell><TableCell><Input type="number" min="0" max={remaining} value={receiveLines[line.id] ?? "0"} onChange={(event) => setReceiveLines((current) => ({ ...current, [line.id]: event.target.value }))} className="text-right" /></TableCell></TableRow> })}</TableBody></Table></div>
+            <label className="grid gap-2"><Label>Receiving notes</Label><Textarea value={receiveNotes} onChange={(event) => setReceiveNotes(event.target.value)} className="min-h-24" /></label>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setReceiveOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={receiveOrder} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}Receive stock</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -95,5 +145,5 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
 function MetricCard({ title, value, detail, icon: Icon, mono }: { title: string; value: string | number; detail: string; icon: React.ComponentType<{ className?: string }>; mono?: boolean }) { return <Card className="@container/card"><CardHeader><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums @[250px]/card:text-3xl", mono && "font-mono text-xl")}>{value}</CardTitle></CardHeader><CardFooter className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{detail}</span><Icon className="size-4 text-muted-foreground" /></CardFooter></Card> }
 function DetailSection({ title, description, badge, open, onOpenChange, children }: { title: string; description: string; badge: string; open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode }) { return <Collapsible open={open} onOpenChange={onOpenChange}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{badge}</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="pt-0">{children}</CardContent></CollapsibleContent></Card></Collapsible> }
 function FieldGrid({ fields }: { fields: Array<[string, string | number]> }) { return <div className="grid overflow-hidden rounded-xl border md:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r even:md:border-r-0"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 break-words font-medium">{value}</p></div>)}</div> }
-function LinesTable({ lines, currency }: { lines: PurchaseOrderLine[]; currency: string }) { return <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || "-"}</TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{line.quantityReceived ?? 0}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || currency)}</TableCell><TableCell className="text-right font-medium">{formatMoney(line.lineTotal, line.currency || currency)}</TableCell></TableRow>)}</TableBody></Table></div> }
+function LinesTable({ lines, currency }: { lines: PurchaseOrderLine[]; currency: string }) { return <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const received = numberValue(line.quantityReceived); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || "-"}</TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{received}</TableCell><TableCell className="text-right">{Math.max(0, line.quantityOrdered - received)}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || currency)}</TableCell><TableCell className="text-right font-medium">{formatMoney(line.lineTotal, line.currency || currency)}</TableCell></TableRow> })}</TableBody></Table></div> }
 function QuickFact({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className={cn("truncate font-medium", mono && "font-mono text-xs")}>{value}</span></div> }
