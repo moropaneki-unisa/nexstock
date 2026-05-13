@@ -75,10 +75,10 @@ export class DocumentTemplatesService {
   }
 
   preview(dto: PreviewDocumentTemplateDto) {
-    const sample = this.sampleContext();
+    const sample = this.sampleContext(dto.type);
     return {
-      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, sample) : sample.supplier.email,
-      subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, sample) : 'Purchase Order PO-00001',
+      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, sample) : sample.supplier?.email ?? sample.customer?.email ?? 'recipient@example.com',
+      subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, sample) : 'Document preview',
       html: this.render(dto.htmlTemplate, sample),
       email: dto.emailTemplate ? this.render(dto.emailTemplate, sample) : null,
     };
@@ -108,8 +108,8 @@ export class DocumentTemplatesService {
   }
 
   private templateType(value?: string) {
-    const type = value || 'purchase_order';
-    if (!['purchase_order', 'supplier_invoice', 'email'].includes(type)) throw new BadRequestException('Unsupported template type');
+    const type = (value || 'purchase_orders').trim();
+    if (!type) throw new BadRequestException('Template module is required');
     return type;
   }
 
@@ -119,15 +119,25 @@ export class DocumentTemplatesService {
     return text || null;
   }
 
-  private sampleContext() {
-    return {
+  private sampleContext(module?: string) {
+    const shared = {
       organization: { name: 'NexStock Demo', email: 'orders@nexstock.test', phone: '+27 00 000 0000' },
-      supplier: { name: 'ABC Supplies', supplierCode: 'SUP-0001', email: 'supplier@example.com' },
-      purchaseOrder: { poNumber: 'PO-00001', subtotal: '1,250.00', currency: 'ZAR', expectedAt: '2026-05-20', notes: 'Deliver to warehouse.' },
+      supplier: { name: 'ABC Supplies', supplierCode: 'SUP-0001', email: 'supplier@example.com', phone: '+27 00 111 2222' },
+      customer: { name: 'Sample Customer', email: 'customer@example.com', phone: '+27 00 333 4444' },
+      product: { name: 'Sample Product', sku: 'SKU-001', price: '1,250.00', quantity: 12 },
       lines: [
-        { product: { name: 'Sample Product A', sku: 'SKU-001' }, quantityOrdered: 5, unitCost: '150.00', lineTotal: '750.00' },
-        { product: { name: 'Sample Product B', sku: 'SKU-002' }, quantityOrdered: 2, unitCost: '250.00', lineTotal: '500.00' },
+        { product: { name: 'Sample Product A', sku: 'SKU-001' }, quantityOrdered: 5, quantity: 5, unitCost: '150.00', unitPrice: '150.00', lineTotal: '750.00' },
+        { product: { name: 'Sample Product B', sku: 'SKU-002' }, quantityOrdered: 2, quantity: 2, unitCost: '250.00', unitPrice: '250.00', lineTotal: '500.00' },
       ],
+    };
+
+    return {
+      ...shared,
+      purchaseOrder: { poNumber: 'PO-00001', subtotal: '1,250.00', currency: 'ZAR', expectedAt: '2026-05-20', notes: 'Deliver to warehouse.' },
+      quote: { quoteNumber: 'QT-00001', total: '1,250.00', currency: 'ZAR', validUntil: '2026-06-20' },
+      invoice: { invoiceNumber: 'INV-00001', total: '1,250.00', currency: 'ZAR', dueDate: '2026-06-20' },
+      statement: { statementNumber: 'ST-00001', balance: '1,250.00', currency: 'ZAR', period: 'May 2026' },
+      module: module || 'purchase_orders',
     };
   }
 }
