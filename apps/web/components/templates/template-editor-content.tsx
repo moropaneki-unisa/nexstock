@@ -61,8 +61,8 @@ const defaultTableColumns: TableColumn[] = [
 ]
 
 function messageFromError(err: unknown, fallback: string) { return err instanceof Error ? err.message : fallback }
-function groupFields(fields: FieldToken[]) { return fields.reduce<Record<string, FieldToken[]>>((acc, field) => { acc[field.group] = acc[field.group] || []; acc[field.group].push(field); return acc }, {}) }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
+function groupFields(fields: FieldToken[]) { return fields.reduce<Record<string, FieldToken[]>>((acc, field) => { acc[field.group] = acc[field.group] || []; acc[field.group].push(field); return acc }, {}) }
 function pdfDocument(html: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>PDF Preview</title><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.toolbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;font-size:13px;color:#475569}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}@media print{.toolbar{display:none}body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="toolbar">PDF preview · Press Ctrl+P to print or save as PDF</div><div class="page">${html}</div></body></html>` }
 function emailDocument(result: PreviewResult, fallbackBody: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>Email Preview</title><style>body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#111827}.wrap{max-width:860px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.12);overflow:hidden}.head{padding:20px 24px;border-bottom:1px solid #e5e7eb}.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.value{margin-top:4px;font-weight:600}.body{padding:24px;white-space:pre-wrap;line-height:1.6}</style></head><body><div class="wrap"><div class="head"><div class="label">To</div><div class="value">${result.to || ""}</div><br/><div class="label">Subject</div><div class="value">${result.subject || ""}</div></div><div class="body">${result.email || fallbackBody}</div></div></body></html>` }
 function buildLineTable(columns: TableColumn[]) {
@@ -268,10 +268,39 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     } finally { setPreviewing(false) }
   }
 
+  const fieldsPanel = (
+    <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none lg:border-border lg:bg-card">
+      <CardHeader className="p-3">
+        <CardTitle className="text-sm">Fields</CardTitle>
+        <CardDescription>Click a field to insert it into the template.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 p-3 pt-0">
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" />
+        </div>
+        <div className="grid max-h-[calc(100vh-13rem)] gap-4 overflow-y-auto pr-1">
+          {Object.entries(groupedFields).map(([group, items]) => (
+            <div key={group} className="grid gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>
+              {items.map((field) => (
+                <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="rounded-lg border bg-background p-3 text-left text-foreground transition hover:bg-muted/50">
+                  <span className="block text-sm font-medium">{field.label}</span>
+                  <span className="mt-1 block font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>
+                  {field.description ? <span className="mt-1 block text-xs text-muted-foreground">{field.description}</span> : null}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-muted/20"><Loader2Icon className="size-6 animate-spin text-muted-foreground" /></div>
 
   return (
-    <div className="grid min-h-screen bg-muted/30 lg:grid-cols-[20rem_1fr]">
+    <div className="grid min-h-screen bg-muted/30 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
       <aside className="border-r bg-sidebar text-sidebar-foreground">
         <div className="flex h-16 items-center gap-2 border-b px-4">
           <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">{templateKind === "email" ? <MailIcon className="size-4" /> : <FileTextIcon className="size-4" />}</div>
@@ -280,7 +309,6 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
         <div className="grid max-h-[calc(100vh-4rem)] gap-3 overflow-y-auto p-4">
           <div className="rounded-lg border bg-sidebar-accent/40 p-3"><p className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/60">Template</p><p className="mt-1 text-sm font-medium">{name || "Untitled"}</p><p className="text-xs text-sidebar-foreground/70">{titleCase(module)}</p></div>
           <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="flex items-center gap-2 text-sm"><Settings2Icon className="size-4" />Setup</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><label className="grid gap-1"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></label><label className="grid gap-1"><Label>Module</Label><Select value={module} onValueChange={setModule}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{modules.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-1"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-20" /></label></CardContent></Card>
-          <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="text-sm">Fields</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><div className="relative"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div><div className="grid max-h-[34rem] gap-4 overflow-y-auto pr-1">{Object.entries(groupedFields).map(([group, items]) => <div key={group} className="grid gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="rounded-lg border bg-background p-3 text-left text-foreground transition hover:bg-muted/50"><span className="block text-sm font-medium">{field.label}</span><span className="mt-1 block font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>{field.description ? <span className="mt-1 block text-xs text-muted-foreground">{field.description}</span> : null}</button>)}</div>)}</div></CardContent></Card>
         </div>
       </aside>
 
@@ -314,38 +342,17 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
         </main>
       </div>
 
+      <aside className="border-l bg-background p-3 lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
+        <div className="lg:sticky lg:top-3">
+          {fieldsPanel}
+        </div>
+      </aside>
+
       <Dialog open={tableBuilderOpen} onOpenChange={setTableBuilderOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Line table builder</DialogTitle>
-            <DialogDescription>Choose the columns and rename the table headings before inserting the repeating line-items table.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="overflow-hidden rounded-xl border">
-              <div className="grid grid-cols-[2rem_1fr_1fr_7rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                <span />
-                <span>Heading</span>
-                <span>Field</span>
-                <span>Align</span>
-              </div>
-              {tableColumns.map((column) => (
-                <div key={column.id} className="grid grid-cols-[2rem_1fr_1fr_7rem] items-center gap-2 border-b px-3 py-2 last:border-b-0">
-                  <Checkbox checked={column.enabled} onCheckedChange={(checked) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, enabled: Boolean(checked) } : item))} />
-                  <Input value={column.label} onChange={(event) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, label: event.target.value } : item))} />
-                  <Input value={column.token} onChange={(event) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, token: event.target.value } : item))} className="font-mono text-xs" />
-                  <Select value={column.align} onValueChange={(value: "left" | "right") => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, align: value } : item))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-xl border bg-white p-4 text-slate-950 shadow-inner dark:bg-white dark:text-slate-950" dangerouslySetInnerHTML={{ __html: buildLineTable(tableColumns) }} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTableBuilderOpen(false)}>Cancel</Button>
-            <Button onClick={insertBuiltTable}><TableIcon className="size-4" />Insert table</Button>
-          </DialogFooter>
+          <DialogHeader><DialogTitle>Line table builder</DialogTitle><DialogDescription>Choose the columns and rename the table headings before inserting the repeating line-items table.</DialogDescription></DialogHeader>
+          <div className="grid gap-4"><div className="overflow-hidden rounded-xl border"><div className="grid grid-cols-[2rem_1fr_1fr_7rem] gap-2 border-b bg-muted/40 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><span /><span>Heading</span><span>Field</span><span>Align</span></div>{tableColumns.map((column) => <div key={column.id} className="grid grid-cols-[2rem_1fr_1fr_7rem] items-center gap-2 border-b px-3 py-2 last:border-b-0"><Checkbox checked={column.enabled} onCheckedChange={(checked) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, enabled: Boolean(checked) } : item))} /><Input value={column.label} onChange={(event) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, label: event.target.value } : item))} /><Input value={column.token} onChange={(event) => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, token: event.target.value } : item))} className="font-mono text-xs" /><Select value={column.align} onValueChange={(value: "left" | "right") => setTableColumns((current) => current.map((item) => item.id === column.id ? { ...item, align: value } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></div>)}</div><div className="rounded-xl border bg-white p-4 text-slate-950 shadow-inner dark:bg-white dark:text-slate-950" dangerouslySetInnerHTML={{ __html: buildLineTable(tableColumns) }} /></div>
+          <DialogFooter><Button variant="outline" onClick={() => setTableBuilderOpen(false)}>Cancel</Button><Button onClick={insertBuiltTable}><TableIcon className="size-4" />Insert table</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -353,10 +360,5 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
 }
 
 function RibbonGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="mr-2 flex min-h-14 flex-col justify-between border-r pr-2 last:border-r-0">
-      <div className="flex flex-wrap items-center gap-1">{children}</div>
-      <p className="mt-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-    </div>
-  )
+  return <div className="mr-2 flex min-h-14 flex-col justify-between border-r pr-2 last:border-r-0"><div className="flex flex-wrap items-center gap-1">{children}</div><p className="mt-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p></div>
 }
