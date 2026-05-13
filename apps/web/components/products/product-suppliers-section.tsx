@@ -16,14 +16,17 @@ import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CURRENCY = "USD";
+
 function normalizeCurrencyCode(value?: string | null, fallback = DEFAULT_CURRENCY) {
   const code = String(value || fallback).trim().toUpperCase();
   return /^[A-Z]{3}$/.test(code) ? code : fallback;
 }
+
 function numberValue(value: unknown) {
   const next = Number(value ?? 0);
   return Number.isFinite(next) ? next : 0;
 }
+
 function formatMoney(value: unknown, currency = DEFAULT_CURRENCY) {
   return new Intl.NumberFormat("en", {
     style: "currency",
@@ -65,7 +68,17 @@ type ProductSupplierLink = {
 
 type ProductSuppliersSectionProps = { productId: string; baseCurrency: string };
 
-const emptyForm = { supplierId: "", supplierSku: "", cost: "", currency: "USD", minimumOrderQty: "", leadTimeDays: "", isPreferred: false, lastPurchaseAt: "", notes: "" };
+const emptyForm = {
+  supplierId: "",
+  supplierSku: "",
+  cost: "",
+  currency: "USD",
+  minimumOrderQty: "",
+  leadTimeDays: "",
+  isPreferred: false,
+  lastPurchaseAt: "",
+  notes: "",
+};
 
 export function ProductSuppliersSection({ productId, baseCurrency }: ProductSuppliersSectionProps) {
   const [expanded, setExpanded] = useState(false);
@@ -207,26 +220,64 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
   }
 
   return (
-    <section className="overflow-hidden border bg-card/95">
-      <button type="button" onClick={() => setExpanded((current) => !current)} className="flex w-full items-start justify-between gap-4 p-5 text-left transition hover:bg-muted/25" aria-expanded={expanded}>
+    <Card className="overflow-hidden">
+      <button type="button" onClick={() => setExpanded((current) => !current)} className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40" aria-expanded={expanded}>
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight"><Truck className="h-5 w-5" />Suppliers & costing</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Preferred supplier drives product cost. Alternative suppliers stay available for comparison and purchase orders.</p>
-          {preferred && <p className="mt-2 text-xs text-muted-foreground">Preferred source: <span className="font-semibold text-foreground">{preferred.supplier.name}</span> <span className="font-mono">({preferred.supplier.supplierCode})</span></p>}
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Truck className="size-4" />
+            Suppliers & costing
+          </CardTitle>
+          <CardDescription className="mt-1">Preferred supplier drives product cost. Alternative suppliers stay available for comparison and purchase orders.</CardDescription>
+          {preferred ? <p className="mt-2 text-xs text-muted-foreground">Preferred source: <span className="font-medium text-foreground">{preferred.supplier.name}</span> <span className="font-mono">({preferred.supplier.supplierCode})</span></p> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2"><Badge variant="secondary">{links.length} linked</Badge><ChevronDown className={cn("h-5 w-5 text-muted-foreground transition-transform", expanded && "rotate-180")} /></div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="secondary">{links.length} linked</Badge>
+          <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+        </div>
       </button>
 
-      {expanded && <div className="border-t">
-        <div className="border-b p-4"><ProductCostingPanel product={product} preferred={preferred} links={links} baseCurrency={baseCurrency} /></div>
-        <div className="flex justify-end border-b p-4"><Button type="button" variant="outline" onClick={openCreate} disabled={loading || availableSuppliers.length === 0} className="rounded-xl bg-background/70"><Plus className="h-4 w-4" />Link supplier</Button></div>
-        {error && <div className="border-b border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
-        {success && <div className="border-b border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{success}</div>}
-        {loading ? <div className="flex items-center gap-3 p-8 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />Loading product suppliers...</div> : links.length ? <SupplierLinksTable links={links} baseCurrency={baseCurrency} onEdit={openEdit} onRemove={(link) => void removeLink(link)} /> : <div className="border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No suppliers linked yet. Link this product to a supplier so future purchase orders, receiving, and cost comparisons have the right foundation.</div>}
-      </div>}
+      {expanded ? (
+        <CardContent className="grid gap-4 border-t p-4">
+          <ProductCostingPanel product={product} preferred={preferred} links={links} baseCurrency={baseCurrency} />
 
-      <Dialog open={open} onOpenChange={setOpen}><DialogContent className="sm:max-w-3xl"><DialogHeader><DialogTitle>{editing ? "Update product supplier" : "Link supplier to product"}</DialogTitle><DialogDescription>Supplier code is automatically linked from the selected supplier and cannot be edited here.</DialogDescription></DialogHeader><div className="grid gap-4 py-2"><div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Supplier</Label><Select value={form.supplierId} onValueChange={selectSupplier} disabled={Boolean(editing)}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent>{availableSuppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></label><label className="space-y-2"><Label>Supplier code</Label><Input value={selectedSupplier?.supplierCode || ""} readOnly className="bg-muted font-mono" placeholder="Auto-linked" /></label></div><div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Supplier product SKU</Label><Input value={form.supplierSku} onChange={(event) => setForm((current) => ({ ...current, supplierSku: event.target.value }))} placeholder="Supplier product code" /></label><label className="space-y-2"><Label>Currency</Label><Select value={form.currency} onValueChange={(value) => setForm((current) => ({ ...current, currency: value }))}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose currency" /></SelectTrigger><SelectContent>{enabledCurrencies.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></label></div><div className="grid gap-4 md:grid-cols-3"><label className="space-y-2"><Label>Cost</Label><Input value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} type="number" min="0" step="0.01" placeholder="0.00" /></label><label className="space-y-2"><Label>MOQ</Label><Input value={form.minimumOrderQty} onChange={(event) => setForm((current) => ({ ...current, minimumOrderQty: event.target.value }))} type="number" min="0" placeholder="10" /></label><label className="space-y-2"><Label>Lead time days</Label><Input value={form.leadTimeDays} onChange={(event) => setForm((current) => ({ ...current, leadTimeDays: event.target.value }))} type="number" min="0" placeholder="7" /></label></div><div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Last purchase date</Label><Input value={form.lastPurchaseAt} onChange={(event) => setForm((current) => ({ ...current, lastPurchaseAt: event.target.value }))} type="date" /></label><label className="flex items-center gap-3 border bg-muted/15 p-4 text-sm"><input type="checkbox" checked={form.isPreferred} onChange={(event) => setForm((current) => ({ ...current, isPreferred: event.target.checked }))} /><span><span className="font-semibold">Preferred supplier</span><span className="block text-muted-foreground">Only one supplier should be preferred per product.</span></span></label></div><label className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-24" placeholder="Packaging rules, import notes, MOQ exceptions, supplier risks..." /></label></div><DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button type="button" onClick={saveLink} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{editing ? "Save changes" : "Link supplier"}</Button></DialogFooter></DialogContent></Dialog>
-    </section>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Linked suppliers</p>
+              <p className="text-xs text-muted-foreground">Supplier SKU, cost, MOQ, lead time, and preferred source.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={openCreate} disabled={loading || availableSuppliers.length === 0}>
+              <Plus className="size-4" />
+              Link supplier
+            </Button>
+          </div>
+
+          {error ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
+          {success ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div> : null}
+
+          {loading ? (
+            <div className="flex items-center gap-3 rounded-xl border border-dashed bg-muted/20 p-8 text-sm text-muted-foreground"><Loader2 className="size-5 animate-spin" />Loading product suppliers...</div>
+          ) : links.length ? (
+            <SupplierLinksTable links={links} baseCurrency={baseCurrency} onEdit={openEdit} onRemove={(link) => void removeLink(link)} />
+          ) : (
+            <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No suppliers linked yet. Link this product to a supplier so future purchase orders, receiving, and cost comparisons have the right foundation.</div>
+          )}
+        </CardContent>
+      ) : null}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader><DialogTitle>{editing ? "Update product supplier" : "Link supplier to product"}</DialogTitle><DialogDescription>Supplier code is automatically linked from the selected supplier and cannot be edited here.</DialogDescription></DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Supplier</Label><Select value={form.supplierId} onValueChange={selectSupplier} disabled={Boolean(editing)}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent>{availableSuppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></label><label className="space-y-2"><Label>Supplier code</Label><Input value={selectedSupplier?.supplierCode || ""} readOnly className="bg-muted font-mono" placeholder="Auto-linked" /></label></div>
+            <div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Supplier product SKU</Label><Input value={form.supplierSku} onChange={(event) => setForm((current) => ({ ...current, supplierSku: event.target.value }))} placeholder="Supplier product code" /></label><label className="space-y-2"><Label>Currency</Label><Select value={form.currency} onValueChange={(value) => setForm((current) => ({ ...current, currency: value }))}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose currency" /></SelectTrigger><SelectContent>{enabledCurrencies.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></label></div>
+            <div className="grid gap-4 md:grid-cols-3"><label className="space-y-2"><Label>Cost</Label><Input value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} type="number" min="0" step="0.01" placeholder="0.00" /></label><label className="space-y-2"><Label>MOQ</Label><Input value={form.minimumOrderQty} onChange={(event) => setForm((current) => ({ ...current, minimumOrderQty: event.target.value }))} type="number" min="0" placeholder="10" /></label><label className="space-y-2"><Label>Lead time days</Label><Input value={form.leadTimeDays} onChange={(event) => setForm((current) => ({ ...current, leadTimeDays: event.target.value }))} type="number" min="0" placeholder="7" /></label></div>
+            <div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Last purchase date</Label><Input value={form.lastPurchaseAt} onChange={(event) => setForm((current) => ({ ...current, lastPurchaseAt: event.target.value }))} type="date" /></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><input type="checkbox" checked={form.isPreferred} onChange={(event) => setForm((current) => ({ ...current, isPreferred: event.target.checked }))} /><span><span className="font-semibold">Preferred supplier</span><span className="block text-muted-foreground">Only one supplier should be preferred per product.</span></span></label></div>
+            <label className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-24" placeholder="Packaging rules, import notes, MOQ exceptions, supplier risks..." /></label>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button type="button" onClick={saveLink} disabled={saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}{editing ? "Save changes" : "Link supplier"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 
@@ -237,24 +288,40 @@ function ProductCostingPanel({ product, preferred, links, baseCurrency }: { prod
   const supplierCost = preferred?.cost == null ? (product?.cost == null ? undefined : Number(product.cost)) : Number(preferred.cost);
   const convertedCost = product?.convertedCost == null ? undefined : Number(product.convertedCost);
   const margin = convertedCost == null || !sellingPrice ? undefined : Math.round(((sellingPrice - convertedCost) / sellingPrice) * 100);
-  return <Card className="border bg-background/70 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Calculator className="h-4 w-4" />Costing summary</CardTitle><CardDescription>Preferred supplier cost is the source for product cost and purchase-order planning.</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><CostMetric label="Selling price" value={formatMoney(sellingPrice, sellingCurrency)} detail={`${sellingCurrency} base selling currency`} /><CostMetric label="Preferred supplier" value={preferred?.supplier?.supplierCode ?? "Not set"} detail={preferred?.supplier?.name ?? `${links.length} supplier alternative${links.length === 1 ? "" : "s"}`} /><CostMetric label="Supplier cost" value={supplierCost == null || Number.isNaN(supplierCost) ? "Not set" : formatMoney(supplierCost, supplierCurrency)} detail={`${supplierCurrency} supplier currency`} /><CostMetric label={`Converted cost (${baseCurrency})`} value={convertedCost == null || Number.isNaN(convertedCost) ? "Not set" : formatMoney(convertedCost, baseCurrency)} detail={margin == null || Number.isNaN(margin) ? "Margin unavailable" : `${margin}% margin`} /></CardContent></Card>;
+
+  return (
+    <div className="rounded-xl border bg-muted/10 p-4">
+      <div className="mb-4">
+        <h3 className="flex items-center gap-2 text-sm font-medium"><Calculator className="size-4" />Costing summary</h3>
+        <p className="mt-1 text-sm text-muted-foreground">Preferred supplier cost is the source for product cost and purchase-order planning.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <CostMetric label="Selling price" value={formatMoney(sellingPrice, sellingCurrency)} detail={`${sellingCurrency} base selling currency`} />
+        <CostMetric label="Preferred supplier" value={preferred?.supplier?.supplierCode ?? "Not set"} detail={preferred?.supplier?.name ?? `${links.length} supplier alternative${links.length === 1 ? "" : "s"}`} />
+        <CostMetric label="Supplier cost" value={supplierCost == null || Number.isNaN(supplierCost) ? "Not set" : formatMoney(supplierCost, supplierCurrency)} detail={`${supplierCurrency} supplier currency`} />
+        <CostMetric label={`Converted cost (${baseCurrency})`} value={convertedCost == null || Number.isNaN(convertedCost) ? "Not set" : formatMoney(convertedCost, baseCurrency)} detail={margin == null || Number.isNaN(margin) ? "Margin unavailable" : `${margin}% margin`} />
+      </div>
+    </div>
+  );
 }
 
-function CostMetric({ label, value, detail }: { label: string; value: string; detail: string }) { return <div className="rounded-xl border bg-card/95 p-4"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p><p className="mt-2 truncate text-base font-semibold">{value}</p><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{detail}</p></div>; }
+function CostMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <div className="rounded-lg border bg-background p-3"><p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 truncate text-base font-semibold">{value}</p><p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p></div>;
+}
 
 function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: ProductSupplierLink[]; baseCurrency: string; onEdit: (link: ProductSupplierLink) => void; onRemove: (link: ProductSupplierLink) => void }) {
   return (
-    <div className="overflow-hidden border-t bg-background">
+    <div className="overflow-hidden rounded-xl border bg-background">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead>Supplier</TableHead>
+            <TableHead className="pl-4">Supplier</TableHead>
             <TableHead>Supplier SKU</TableHead>
             <TableHead>Cost</TableHead>
             <TableHead>MOQ</TableHead>
             <TableHead>Lead time</TableHead>
             <TableHead>Last purchase</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="pr-4 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -263,30 +330,25 @@ function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: 
             const costNumber = link.cost == null ? null : Number(link.cost);
             return (
               <TableRow key={link.id} className={cn(link.isPreferred && "bg-primary/5 hover:bg-primary/10")}>
-                <TableCell className="min-w-60">
+                <TableCell className="min-w-56 pl-4">
                   <div className="flex flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{link.supplier.name}</span>
                       <Badge variant="outline" className="font-mono">{link.supplier.supplierCode}</Badge>
-                      {link.isPreferred && <Badge className="gap-1"><Star className="h-3 w-3" />Preferred</Badge>}
+                      {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : null}
                     </div>
                     <span className="text-xs text-muted-foreground">{[link.supplier.city, link.supplier.country].filter(Boolean).join(", ") || titleCase(link.supplier.supplierType || "vendor")}</span>
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs">{link.supplierSku || "-"}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</span>
-                    <span className="text-xs text-muted-foreground">{currency}</span>
-                  </div>
-                </TableCell>
+                <TableCell><div className="grid gap-0.5"><span className="font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</span><span className="text-xs text-muted-foreground">{currency}</span></div></TableCell>
                 <TableCell>{link.minimumOrderQty == null ? "-" : link.minimumOrderQty}</TableCell>
                 <TableCell>{link.leadTimeDays == null ? "-" : `${link.leadTimeDays} days`}</TableCell>
                 <TableCell>{link.lastPurchaseAt ? new Date(link.lastPurchaseAt).toLocaleDateString() : "-"}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="pr-4 text-right">
                   <div className="flex justify-end gap-1">
-                    <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(link)} className="size-8 rounded-lg"><Pencil className="h-4 w-4" /></Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(link)} className="size-8 rounded-lg text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(link)} className="size-8"><Pencil className="size-4" /></Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(link)} className="size-8 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
