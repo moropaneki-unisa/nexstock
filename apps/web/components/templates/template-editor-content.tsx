@@ -3,7 +3,23 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { BoldIcon, CodeIcon, ExternalLinkIcon, FileTextIcon, ItalicIcon, Loader2Icon, MailIcon, SaveIcon, SearchIcon, Settings2Icon, TableIcon, TypeIcon, UnderlineIcon, XIcon } from "lucide-react"
+import {
+  BoldIcon,
+  CodeIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
+  ImageIcon,
+  ItalicIcon,
+  Loader2Icon,
+  MailIcon,
+  SaveIcon,
+  SearchIcon,
+  Settings2Icon,
+  TableIcon,
+  TypeIcon,
+  UnderlineIcon,
+  XIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -19,7 +35,18 @@ import { apiFetch } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 type TemplateKind = "pdf" | "email"
-type Template = { id: string; name: string; type: string; kind?: TemplateKind | null; description?: string | null; recipientEmailTemplate?: string | null; subjectTemplate?: string | null; htmlTemplate: string; emailTemplate?: string | null }
+type LogoPosition = "left" | "right"
+type Template = {
+  id: string
+  name: string
+  type: string
+  kind?: TemplateKind | null
+  description?: string | null
+  recipientEmailTemplate?: string | null
+  subjectTemplate?: string | null
+  htmlTemplate: string
+  emailTemplate?: string | null
+}
 type FieldToken = { label: string; path: string; group: string; description?: string }
 type PreviewResult = { to?: string | null; subject: string; html: string; email?: string | null }
 type TableColumn = { id: string; label: string; token: string; align: "left" | "right"; enabled: boolean }
@@ -33,6 +60,9 @@ const modules = [
   { value: "suppliers", label: "Suppliers" },
   { value: "customers", label: "Customers" },
 ]
+
+const logoStart = "<!-- nexstock-logo:start -->"
+const logoEnd = "<!-- nexstock-logo:end -->"
 
 const defaultPdfHtml = `<div style="font-family: Arial, sans-serif; color: #111; padding: 32px;">
   <h1>{{purchaseOrder.poNumber}}</h1>
@@ -60,11 +90,58 @@ const defaultTableColumns: TableColumn[] = [
   { id: "total", label: "Total", token: "{{lineTotal}}", align: "right", enabled: true },
 ]
 
-function messageFromError(err: unknown, fallback: string) { return err instanceof Error ? err.message : fallback }
-function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
-function groupFields(fields: FieldToken[]) { return fields.reduce<Record<string, FieldToken[]>>((acc, field) => { acc[field.group] = acc[field.group] || []; acc[field.group].push(field); return acc }, {}) }
-function pdfDocument(html: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>PDF Preview</title><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.toolbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;font-size:13px;color:#475569}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}@media print{.toolbar{display:none}body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="toolbar">PDF preview · Press Ctrl+P to print or save as PDF</div><div class="page">${html}</div></body></html>` }
-function emailDocument(result: PreviewResult, fallbackBody: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>Email Preview</title><style>body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#111827}.wrap{max-width:860px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.12);overflow:hidden}.head{padding:20px 24px;border-bottom:1px solid #e5e7eb}.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.value{margin-top:4px;font-weight:600}.body{padding:24px;white-space:pre-wrap;line-height:1.6}</style></head><body><div class="wrap"><div class="head"><div class="label">To</div><div class="value">${result.to || ""}</div><br/><div class="label">Subject</div><div class="value">${result.subject || ""}</div></div><div class="body">${result.email || fallbackBody}</div></div></body></html>` }
+function messageFromError(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
+
+function titleCase(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function groupFields(fields: FieldToken[]) {
+  return fields.reduce<Record<string, FieldToken[]>>((acc, field) => {
+    acc[field.group] = acc[field.group] || []
+    acc[field.group].push(field)
+    return acc
+  }, {})
+}
+
+function escapeAttribute(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
+function stripLogoBlock(value: string) {
+  return value.replace(new RegExp(`${logoStart}[\\s\\S]*?${logoEnd}`, "g"), "").trimStart()
+}
+
+function buildLogoBlock(logoUrl: string, logoPosition: LogoPosition) {
+  const url = logoUrl.trim()
+  if (!url) return ""
+  return `${logoStart}<div data-nexstock-logo="true" style="width:100%; display:flex; justify-content:${logoPosition === "right" ? "flex-end" : "flex-start"}; margin-bottom:24px;"><img src="${escapeAttribute(url)}" alt="Logo" style="max-width:160px; max-height:72px; object-fit:contain;" /></div>${logoEnd}`
+}
+
+function applyLogo(html: string, logoUrl: string, logoPosition: LogoPosition) {
+  const cleanHtml = stripLogoBlock(html)
+  const block = buildLogoBlock(logoUrl, logoPosition)
+  return block ? `${block}${cleanHtml}` : cleanHtml
+}
+
+function extractLogo(html: string) {
+  const blockMatch = html.match(new RegExp(`${logoStart}([\\s\\S]*?)${logoEnd}`))
+  const block = blockMatch?.[1] || ""
+  const urlMatch = block.match(/<img[^>]*src="([^"]+)"/i)
+  const position: LogoPosition = block.includes("flex-end") ? "right" : "left"
+  return { logoUrl: urlMatch?.[1]?.replace(/&quot;/g, "\"").replace(/&amp;/g, "&") || "", logoPosition: position, html: stripLogoBlock(html) }
+}
+
+function pdfDocument(html: string) {
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>PDF Preview</title><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.toolbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;font-size:13px;color:#475569}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}@media print{.toolbar{display:none}body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="toolbar">PDF preview · Press Ctrl+P to print or save as PDF</div><div class="page">${html}</div></body></html>`
+}
+
+function emailDocument(result: PreviewResult, fallbackBody: string) {
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>Email Preview</title><style>body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#111827}.wrap{max-width:860px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.12);overflow:hidden}.head{padding:20px 24px;border-bottom:1px solid #e5e7eb}.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.value{margin-top:4px;font-weight:600}.body{padding:24px;white-space:pre-wrap;line-height:1.6}</style></head><body><div class="wrap"><div class="head"><div class="label">To</div><div class="value">${result.to || ""}</div><br/><div class="label">Subject</div><div class="value">${result.subject || ""}</div></div><div class="body">${result.email || fallbackBody}</div></div></body></html>`
+}
+
 function buildLineTable(columns: TableColumn[]) {
   const active = columns.filter((column) => column.enabled)
   const header = active.map((column) => `<th style="border-bottom:1px solid #d1d5db; text-align:${column.align}; padding:10px 8px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#475569;">${column.label}</th>`).join("")
@@ -79,11 +156,14 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
   const router = useRouter()
   const editorRef = React.useRef<HTMLDivElement>(null)
   const savedRangeRef = React.useRef<Range | null>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [template, setTemplate] = React.useState<Template | null>(null)
   const [templateKind, setTemplateKind] = React.useState<TemplateKind>(kind)
   const [name, setName] = React.useState(kind === "email" ? "New email template" : "New PDF template")
   const [module, setModule] = React.useState("purchase_orders")
   const [description, setDescription] = React.useState("")
+  const [logoUrl, setLogoUrl] = React.useState("")
+  const [logoPosition, setLogoPosition] = React.useState<LogoPosition>("left")
   const [fields, setFields] = React.useState<FieldToken[]>([])
   const [mode, setMode] = React.useState("document")
   const [fieldSearch, setFieldSearch] = React.useState("")
@@ -103,26 +183,34 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
       setLoading(true)
       try {
         const data = await apiFetch<Template>(`/api/document-templates/${templateId}`)
+        const logo = extractLogo(data.htmlTemplate || defaultPdfHtml)
         setTemplate(data)
         setTemplateKind((data.kind || "pdf") as TemplateKind)
         setName(data.name || "Untitled template")
         setModule(data.type || "purchase_orders")
         setDescription(data.description || "")
-        setHtml(data.htmlTemplate || defaultPdfHtml)
+        setLogoUrl(logo.logoUrl)
+        setLogoPosition(logo.logoPosition)
+        setHtml(logo.html || defaultPdfHtml)
         setEmailBody(data.emailTemplate || defaultEmailBody)
         setSubject(data.subjectTemplate || "")
         setTo(data.recipientEmailTemplate || "")
       } catch (err) {
         toast.error("Template editor could not load", { description: messageFromError(err, "Load failed") })
-      } finally { setLoading(false) }
+      } finally {
+        setLoading(false)
+      }
     }
     void loadTemplate()
   }, [templateId])
 
   React.useEffect(() => {
     async function loadFields() {
-      try { setFields(await apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`)) }
-      catch (err) { toast.error("Could not load fields", { description: messageFromError(err, "Fields failed") }) }
+      try {
+        setFields(await apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`))
+      } catch (err) {
+        toast.error("Could not load fields", { description: messageFromError(err, "Fields failed") })
+      }
     }
     void loadFields()
   }, [module])
@@ -181,7 +269,9 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     const selection = window.getSelection()
     const range = savedRangeRef.current
     if (selection && range && editor.contains(range.commonAncestorContainer)) {
-      selection.removeAllRanges(); selection.addRange(range); range.deleteContents()
+      selection.removeAllRanges()
+      selection.addRange(range)
+      range.deleteContents()
       const wrapper = document.createElement("div")
       wrapper.innerHTML = snippet
       const fragment = document.createDocumentFragment()
@@ -191,7 +281,9 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
       if (lastNode) {
         range.setStartAfter(lastNode)
         range.setEndAfter(lastNode)
-        selection.removeAllRanges(); selection.addRange(range); savedRangeRef.current = range.cloneRange()
+        selection.removeAllRanges()
+        selection.addRange(range)
+        savedRangeRef.current = range.cloneRange()
       }
     } else editor.insertAdjacentHTML("beforeend", snippet)
     syncHtml()
@@ -216,10 +308,16 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     const selection = window.getSelection()
     const range = savedRangeRef.current
     if (selection && range && editor.contains(range.commonAncestorContainer)) {
-      selection.removeAllRanges(); selection.addRange(range); range.deleteContents()
+      selection.removeAllRanges()
+      selection.addRange(range)
+      range.deleteContents()
       const node = document.createTextNode(token)
-      range.insertNode(node); range.setStartAfter(node); range.setEndAfter(node)
-      selection.removeAllRanges(); selection.addRange(range); savedRangeRef.current = range.cloneRange()
+      range.insertNode(node)
+      range.setStartAfter(node)
+      range.setEndAfter(node)
+      selection.removeAllRanges()
+      selection.addRange(range)
+      savedRangeRef.current = range.cloneRange()
     } else editor.append(document.createTextNode(token))
     syncHtml()
     toast.success("Field inserted", { description: token })
@@ -231,8 +329,28 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     setTableBuilderOpen(false)
   }
 
-  async function save() {
+  function chooseLogoFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file")
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setLogoUrl(String(reader.result || ""))
+      toast.success("Logo attached")
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function currentHtmlForSaveOrPreview() {
     const latestHtml = templateKind === "pdf" && mode === "document" ? syncHtml() : html
+    return templateKind === "pdf" ? applyLogo(latestHtml, logoUrl, logoPosition) : latestHtml
+  }
+
+  async function save() {
+    const latestHtml = currentHtmlForSaveOrPreview()
     if (!name.trim()) return toast.error("Template name is required")
     setSaving(true)
     try {
@@ -249,11 +367,13 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
       }
     } catch (err) {
       toast.error("Template could not be saved", { description: messageFromError(err, "Save failed") })
-    } finally { setSaving(false) }
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function renderPreview() {
-    const latestHtml = templateKind === "pdf" && mode === "document" ? syncHtml() : html
+    const latestHtml = currentHtmlForSaveOrPreview()
     setPreviewing(true)
     try {
       const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", { method: "POST", body: JSON.stringify({ type: module, kind: templateKind, htmlTemplate: latestHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }) })
@@ -265,7 +385,9 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
       toast.success(templateKind === "pdf" ? "PDF preview opened" : "Email preview opened", { description: result.subject })
     } catch (err) {
       toast.error("Preview failed", { description: messageFromError(err, "Preview failed") })
-    } finally { setPreviewing(false) }
+    } finally {
+      setPreviewing(false)
+    }
   }
 
   const fieldsPanel = (
@@ -297,24 +419,25 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     </Card>
   )
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-muted/20"><Loader2Icon className="size-6 animate-spin text-muted-foreground" /></div>
+  if (loading) return <div className="flex h-screen items-center justify-center bg-muted/20"><Loader2Icon className="size-6 animate-spin text-muted-foreground" /></div>
 
   return (
-    <div className="grid min-h-screen bg-muted/30 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
-      <aside className="border-r bg-sidebar text-sidebar-foreground">
+    <div className="grid h-screen overflow-hidden bg-muted/30 lg:grid-cols-[20rem_minmax(0,1fr)_22rem]">
+      <aside className="h-screen overflow-hidden border-r bg-sidebar text-sidebar-foreground">
         <div className="flex h-16 items-center gap-2 border-b px-4">
           <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">{templateKind === "email" ? <MailIcon className="size-4" /> : <FileTextIcon className="size-4" />}</div>
           <div><p className="text-sm font-semibold">{templateKind === "email" ? "Email editor" : "PDF editor"}</p><p className="text-xs text-sidebar-foreground/70">Template workspace</p></div>
         </div>
-        <div className="grid max-h-[calc(100vh-4rem)] gap-3 overflow-y-auto p-4">
+        <div className="grid h-[calc(100vh-4rem)] gap-3 overflow-y-auto p-4">
           <div className="rounded-lg border bg-sidebar-accent/40 p-3"><p className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/60">Template</p><p className="mt-1 text-sm font-medium">{name || "Untitled"}</p><p className="text-xs text-sidebar-foreground/70">{titleCase(module)}</p></div>
           <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="flex items-center gap-2 text-sm"><Settings2Icon className="size-4" />Setup</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><label className="grid gap-1"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></label><label className="grid gap-1"><Label>Module</Label><Select value={module} onValueChange={setModule}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{modules.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-1"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-20" /></label></CardContent></Card>
+          {templateKind === "pdf" ? <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="flex items-center gap-2 text-sm"><ImageIcon className="size-4" />Logo</CardTitle><CardDescription>Logo is always placed at the top of the PDF.</CardDescription></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={chooseLogoFile} /><Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}><ImageIcon className="size-4" />Attach logo</Button><label className="grid gap-1"><Label>Logo URL</Label><Input value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} placeholder="https://.../logo.png" /></label><label className="grid gap-1"><Label>Position</Label><Select value={logoPosition} onValueChange={(value: LogoPosition) => setLogoPosition(value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="right">Right</SelectItem></SelectContent></Select></label>{logoUrl ? <div className={cn("rounded-lg border bg-background p-2", logoPosition === "right" ? "text-right" : "text-left")}><img src={logoUrl} alt="Logo preview" className="inline-block max-h-14 max-w-36 object-contain" /></div> : null}</CardContent></Card> : null}
         </div>
       </aside>
 
-      <div className="min-w-0">
-        <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-          <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+      <div className="flex h-screen min-w-0 flex-col overflow-hidden">
+        <header className="shrink-0 border-b bg-background/95 backdrop-blur">
+          <div className="flex min-h-16 flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
             <div><p className="text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template</p><h1 className="font-heading text-lg font-semibold tracking-tight">{name}</h1></div>
             <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div>
           </div>
@@ -329,10 +452,10 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
           </div>
         </header>
 
-        <main className="p-0">
+        <main className="min-h-0 flex-1 overflow-y-auto p-0">
           {templateKind === "pdf" ? (
-            <div className="bg-muted p-0">
-              {mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("mx-auto min-h-[calc(100vh-9rem)] w-full max-w-[900px] overflow-auto bg-white p-8 text-sm leading-6 text-slate-950 shadow-xl outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-[calc(100vh-9rem)] rounded-none border-0 font-mono text-xs" />}
+            <div className="min-h-full bg-muted p-0">
+              {mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("mx-auto min-h-full w-full max-w-[900px] overflow-visible bg-white p-8 text-sm leading-6 text-slate-950 shadow-xl outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-full rounded-none border-0 font-mono text-xs" />}
             </div>
           ) : (
             <div className="mx-auto grid max-w-4xl gap-4 p-6">
@@ -342,10 +465,8 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
         </main>
       </div>
 
-      <aside className="border-l bg-background p-3 lg:sticky lg:top-0 lg:h-screen lg:overflow-hidden">
-        <div className="lg:sticky lg:top-3">
-          {fieldsPanel}
-        </div>
+      <aside className="hidden h-screen overflow-hidden border-l bg-background p-3 lg:block">
+        {fieldsPanel}
       </aside>
 
       <Dialog open={tableBuilderOpen} onOpenChange={setTableBuilderOpen}>
