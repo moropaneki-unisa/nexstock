@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronRightIcon } from "lucide-react"
+import { ChevronRightIcon, PlusIcon } from "lucide-react"
 
 import {
   Collapsible,
@@ -14,6 +14,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
@@ -22,6 +23,7 @@ type NavItem = {
   title: string
   url: string
   icon?: React.ReactNode
+  createUrl?: string
 }
 
 export function NavMain({
@@ -62,6 +64,13 @@ export function NavMain({
                         <span>{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {item.createUrl ? (
+                      <SidebarMenuAction asChild showOnHover title={`Create ${item.title}`}>
+                        <Link href={item.createUrl} aria-label={`Create ${item.title}`}>
+                          <PlusIcon />
+                        </Link>
+                      </SidebarMenuAction>
+                    ) : null}
                   </SidebarMenuItem>
                 )
               })}
