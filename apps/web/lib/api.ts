@@ -19,6 +19,20 @@ export function clearAccessToken() {
   window.localStorage.removeItem("accessToken")
 }
 
+function sendToLogin() {
+  if (typeof window === "undefined") return
+
+  clearAccessToken()
+
+  const pathname = window.location.pathname
+  const authRoutes = ["/login", "/signup", "/verify-email", "/forgot-password", "/reset-password"]
+  const alreadyOnAuthRoute = authRoutes.some((route) => pathname.startsWith(route))
+
+  if (!alreadyOnAuthRoute) {
+    window.location.href = "/login"
+  }
+}
+
 async function parseError(response: Response, fallback: string) {
   const body = await response.json().catch(() => null)
   return body?.message || body?.error || fallback
@@ -41,6 +55,11 @@ export async function apiFetch<T = unknown>(url: string, options: RequestInit = 
     headers,
     credentials: "include",
   })
+
+  if (response.status === 401 || response.status === 419) {
+    sendToLogin()
+    throw new Error("Your session expired. Please sign in again.")
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response, "API request failed"))
