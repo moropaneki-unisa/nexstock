@@ -1,12 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { FileTextIcon, Settings2Icon, Building2Icon, KeyRoundIcon, WebhookIcon } from "lucide-react"
+import { Building2Icon, FileTextIcon, KeyRoundIcon, MailIcon, Settings2Icon, WebhookIcon } from "lucide-react"
 
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 const settingsLinks = [
-  { title: "Templates", description: "Create mail-merge PDF and email templates for purchase orders and invoices.", href: "/settings/templates", icon: FileTextIcon },
+  { title: "PDF Templates", description: "Create mail-merge PDF documents for quotes, invoices, statements, purchase orders, and more.", href: "/settings/templates/pdf", icon: FileTextIcon },
+  { title: "Email Templates", description: "Create reusable Resend email templates with dynamic fields and record data.", href: "/settings/templates/email", icon: MailIcon },
+  { title: "All Templates", description: "Manage every template in one directory.", href: "/settings/templates", icon: FileTextIcon },
   { title: "Organization", description: "Company profile, currency, and workspace details.", href: "/organization", icon: Building2Icon },
   { title: "API Keys", description: "Manage API keys for external systems.", href: "/api-keys", icon: KeyRoundIcon },
   { title: "Webhooks", description: "Configure outbound events for integrations.", href: "/webhooks", icon: WebhookIcon },
@@ -21,7 +23,7 @@ export function SettingsContent() {
         <p className="mt-1 text-sm text-muted-foreground">Manage workspace defaults, templates, integrations, and developer settings.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {settingsLinks.map((item) => {
           const Icon = item.icon
           return (
@@ -44,7 +46,7 @@ export function SettingsContent() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Settings2Icon className="size-4" />Template workflow</CardTitle>
           <CardDescription>
-            Templates are the foundation for generating purchase order PDFs, supplier invoice PDFs, and Resend email messages.
+            PDF templates generate record documents. Email templates control message content and recipients when sending through Resend.
           </CardDescription>
         </CardHeader>
       </Card>
