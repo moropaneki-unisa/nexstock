@@ -2,11 +2,11 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
   ArchiveIcon,
   ArrowLeftIcon,
   Building2Icon,
+  ChevronDownIcon,
   EditIcon,
   Loader2Icon,
   MapPinIcon,
@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -88,10 +89,12 @@ function SupplierStatusBadge({ supplier }: { supplier: Supplier }) {
 }
 
 export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
-  const router = useRouter()
   const [supplier, setSupplier] = React.useState<Supplier | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
+  const [detailsOpen, setDetailsOpen] = React.useState(true)
+  const [contactOpen, setContactOpen] = React.useState(true)
+  const [notesOpen, setNotesOpen] = React.useState(true)
 
   async function loadSupplier() {
     setLoading(true)
@@ -194,9 +197,14 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
 
       <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
         <div className="grid gap-4">
-          <Card>
-            <CardHeader><CardTitle>Supplier details</CardTitle><CardDescription>Core fields and purchasing settings for this supplier.</CardDescription></CardHeader>
-            <CardContent><FieldGrid fields={[
+          <DetailSection
+            title="Supplier details"
+            description="Core fields and purchasing settings for this supplier."
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+            badge={`${17} fields`}
+          >
+            <FieldGrid fields={[
               ["Name", supplier.name],
               ["Supplier code", supplier.supplierCode],
               ["Type", titleCase(supplier.supplierType || "vendor")],
@@ -214,12 +222,17 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
               ["Lead time", supplier.leadTimeDays == null ? "Not set" : `${supplier.leadTimeDays} days`],
               ["Minimum order qty", cleanValue(supplier.minimumOrderQty)],
               ["Last order", formatDate(supplier.lastOrderAt)],
-            ]} /></CardContent>
-          </Card>
+            ]} />
+          </DetailSection>
 
-          <Card>
-            <CardHeader><CardTitle>Contact and address</CardTitle><CardDescription>Communication and supplier location details.</CardDescription></CardHeader>
-            <CardContent><FieldGrid fields={[
+          <DetailSection
+            title="Contact and address"
+            description="Communication and supplier location details."
+            open={contactOpen}
+            onOpenChange={setContactOpen}
+            badge="10 fields"
+          >
+            <FieldGrid fields={[
               ["Contact person", cleanValue(supplier.contactName)],
               ["Email", cleanValue(supplier.email)],
               ["Phone", cleanValue(supplier.phone)],
@@ -230,13 +243,20 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
               ["Province", cleanValue(supplier.province)],
               ["Country", cleanValue(supplier.country)],
               ["Postal code", cleanValue(supplier.postalCode)],
-            ]} /></CardContent>
-          </Card>
+            ]} />
+          </DetailSection>
 
-          <Card>
-            <CardHeader><CardTitle>Notes</CardTitle><CardDescription>Internal supplier notes and reminders.</CardDescription></CardHeader>
-            <CardContent><p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{supplier.notes || "No notes saved for this supplier."}</p></CardContent>
-          </Card>
+          <DetailSection
+            title="Notes"
+            description="Internal supplier notes and reminders."
+            open={notesOpen}
+            onOpenChange={setNotesOpen}
+            badge={supplier.notes ? "Saved" : "Empty"}
+          >
+            <p className="whitespace-pre-wrap rounded-xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
+              {supplier.notes || "No notes saved for this supplier."}
+            </p>
+          </DetailSection>
         </div>
 
         <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
@@ -260,6 +280,46 @@ function MetricCard({ title, value, detail, icon: Icon, mono }: { title: string;
       <CardHeader><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums @[250px]/card:text-3xl", mono && "font-mono text-xl")}>{value}</CardTitle></CardHeader>
       <CardFooter className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{detail}</span><Icon className="size-4 text-muted-foreground" /></CardFooter>
     </Card>
+  )
+}
+
+function DetailSection({
+  title,
+  description,
+  badge,
+  open,
+  onOpenChange,
+  children,
+}: {
+  title: string
+  description: string
+  badge: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: React.ReactNode
+}) {
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40">
+            <div>
+              <CardTitle>{title}</CardTitle>
+              <CardDescription className="mt-1">{description}</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{badge}</Badge>
+              <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+            </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            {children}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   )
 }
 
