@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
-import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto } from './dto';
+import { CreatePurchaseOrderDto, ReceivePurchaseOrderDto, UpdatePurchaseOrderDto } from './dto';
 import { PurchaseOrdersService } from './purchase-orders.service';
 
 @Controller('purchase-orders')
@@ -27,6 +27,11 @@ export class PurchaseOrdersController {
   @Patch(':id')
   update(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() dto: UpdatePurchaseOrderDto) {
     return this.purchaseOrders.update(user, id, dto);
+  }
+
+  @Post(':id/receive')
+  receive(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() dto: ReceivePurchaseOrderDto) {
+    return this.purchaseOrders.receive(user, id, dto);
   }
 
   @Delete(':id')
