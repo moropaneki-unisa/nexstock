@@ -144,8 +144,8 @@ export function ProductDetailContent({ productId }: { productId: string }) {
         <SummaryCard title="Status" value={productState(product).replace("out", "Out of stock")} detail={product.status || "active"} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
-        <div className="grid gap-4 self-start">
+      <div className="grid items-start gap-4 xl:grid-cols-[20rem_1fr]">
+        <div className="grid gap-4 self-start xl:sticky xl:top-[calc(var(--header-height)+1rem)] xl:max-h-[calc(100vh-var(--header-height)-2rem)] xl:overflow-y-auto xl:pr-1">
           <Card className="gap-0 overflow-hidden py-0">
             <div className="relative aspect-square overflow-hidden bg-muted">
               {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="block h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="size-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}
@@ -157,7 +157,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Quick facts</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm"><SideFact label="SKU" value={product.sku || "No SKU"} mono /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={String(images.length)} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={formatDate(product.updatedAt)} /></CardContent></Card>
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid min-w-0 gap-4">
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Product details</CardTitle><CardDescription>Core fields stored on every product record.</CardDescription></CardHeader><CardContent><FieldGrid fields={defaultFields} /></CardContent></Card>
           <Collapsible open={attributesOpen} onOpenChange={setAttributesOpen}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle className="flex items-center gap-2"><DatabaseZapIcon className="size-4" />Attributes</CardTitle><CardDescription className="mt-1">Custom business attributes for this product.</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{customAttributes.length} custom</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", attributesOpen && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="pt-0">{customAttributes.length ? <FieldGrid fields={customAttributes} /> : <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No custom attributes have been saved for this product yet.</div>}</CardContent></CollapsibleContent></Card></Collapsible>
           <ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} />
