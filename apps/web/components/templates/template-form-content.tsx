@@ -120,6 +120,7 @@ function titleCase(value: string) {
 
 export function TemplateFormContent({ templateId }: { templateId?: string }) {
   const router = useRouter()
+  const editorRef = React.useRef<{ getHtml: () => string }>(null)
   const [form, setForm] = React.useState<FormState>(emptyForm)
   const [loading, setLoading] = React.useState(Boolean(templateId))
   const [saving, setSaving] = React.useState(false)
@@ -153,12 +154,16 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
   }, [templateId])
 
   async function renderPreview() {
+    const latestHtml = editorRef.current?.getHtml() || form.htmlTemplate
+    setForm((current) => ({ ...current, htmlTemplate: latestHtml }))
     setPreviewing(true)
     try {
-      setPreview(await apiFetch<PreviewResult>("/api/document-templates/preview/render", {
+      const result = await apiFetch<PreviewResult>("/api/document-templates/preview", {
         method: "POST",
-        body: JSON.stringify({ htmlTemplate: form.htmlTemplate, subjectTemplate: form.subjectTemplate, emailTemplate: form.emailTemplate }),
-      }))
+        body: JSON.stringify({ htmlTemplate: latestHtml, subjectTemplate: form.subjectTemplate, emailTemplate: form.emailTemplate }),
+      })
+      setPreview(result)
+      toast.success("Preview updated")
     } catch (err) {
       toast.error("Could not render preview", { description: err instanceof Error ? err.message : "Preview failed" })
     } finally {
@@ -167,14 +172,16 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
   }
 
   async function saveTemplate() {
+    const latestHtml = editorRef.current?.getHtml() || form.htmlTemplate
     if (!form.name.trim()) return toast.error("Template name is required")
-    if (!form.htmlTemplate.trim()) return toast.error("Template document is required")
+    if (!latestHtml.trim()) return toast.error("Template document is required")
     setSaving(true)
     setError(null)
     try {
+      const payload = { ...form, htmlTemplate: latestHtml }
       const result = templateId
-        ? await apiFetch<DocumentTemplate>(`/api/document-templates/${templateId}`, { method: "PATCH", body: JSON.stringify(form) })
-        : await apiFetch<DocumentTemplate>("/api/document-templates", { method: "POST", body: JSON.stringify(form) })
+        ? await apiFetch<DocumentTemplate>(`/api/document-templates/${templateId}`, { method: "PATCH", body: JSON.stringify(payload) })
+        : await apiFetch<DocumentTemplate>("/api/document-templates", { method: "POST", body: JSON.stringify(payload) })
       toast.success(templateId ? "Template updated" : "Template created", { description: result.name })
       router.push("/settings/templates")
     } catch (err) {
@@ -204,7 +211,7 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
       <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
         <div className="grid gap-4">
           <Card><CardHeader><CardTitle>Template settings</CardTitle><CardDescription>Name, type, subject, and default behavior.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><label className="grid gap-2"><Label>Name</Label><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Default purchase order" /></label><label className="grid gap-2"><Label>Type</Label><Select value={form.type} onValueChange={(value) => setForm((current) => ({ ...current, type: value }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{["purchase_order", "supplier_invoice", "email"].map((value) => <SelectItem key={value} value={value}>{titleCase(value)}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-2 md:col-span-2"><Label>Description</Label><Input value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Used when sending purchase orders to suppliers" /></label><label className="grid gap-2 md:col-span-2"><Label>Email subject template</Label><Input value={form.subjectTemplate} onChange={(event) => setForm((current) => ({ ...current, subjectTemplate: event.target.value }))} /></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isDefault} onCheckedChange={(checked) => setForm((current) => ({ ...current, isDefault: Boolean(checked) }))} /><span><span className="font-semibold">Default template</span><span className="block text-muted-foreground">Use this as the default for this document type.</span></span></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm((current) => ({ ...current, isActive: Boolean(checked) }))} /><span><span className="font-semibold">Active</span><span className="block text-muted-foreground">Inactive templates are hidden from future sending flows.</span></span></label></CardContent></Card>
-          <DocumentHtmlEditor value={form.htmlTemplate} onChange={(htmlTemplate) => setForm((current) => ({ ...current, htmlTemplate }))} />
+          <DocumentHtmlEditor ref={editorRef} value={form.htmlTemplate} onChange={(htmlTemplate) => setForm((current) => ({ ...current, htmlTemplate }))} />
           <Card><CardHeader><CardTitle>Email body template</CardTitle><CardDescription>This will be rendered before sending through Resend.</CardDescription></CardHeader><CardContent><Textarea value={form.emailTemplate} onChange={(event) => setForm((current) => ({ ...current, emailTemplate: event.target.value }))} className="min-h-40 font-mono text-xs" /></CardContent></Card>
         </div>
 
@@ -221,9 +228,13 @@ export function TemplateFormContent({ templateId }: { templateId?: string }) {
   )
 }
 
-function DocumentHtmlEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: string; onChange: (value: string) => void }>(function DocumentHtmlEditor({ value, onChange }, ref) {
   const editorRef = React.useRef<HTMLDivElement>(null)
   const [mode, setMode] = React.useState("document")
+
+  React.useImperativeHandle(ref, () => ({
+    getHtml: () => mode === "document" ? editorRef.current?.innerHTML || value : value,
+  }), [mode, value])
 
   React.useEffect(() => {
     if (mode !== "document") return
@@ -300,4 +311,4 @@ function DocumentHtmlEditor({ value, onChange }: { value: string; onChange: (val
       </CardContent>
     </Card>
   )
-}
+})
