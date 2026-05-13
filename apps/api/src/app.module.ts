@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { BillingModule } from './billing/billing.module';
 import { SecurityHeadersMiddleware } from './common/middleware/security-headers.middleware';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { DocumentTemplatesModule } from './document-templates/document-templates.module';
 import { HealthModule } from './health/health.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -35,6 +36,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     InventoryModule,
     SuppliersModule,
     PurchaseOrdersModule,
+    DocumentTemplatesModule,
     ApiKeysModule,
     PublicApiModule,
     WebhooksModule,
