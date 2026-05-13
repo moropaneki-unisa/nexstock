@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsDateString, IsEmail, IsIn, IsInt, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PurchaseOrderLineDto {
@@ -82,4 +82,21 @@ export class ReceivePurchaseOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class SendPurchaseOrderDocumentDto {
+  @IsOptional()
+  @IsString()
+  templateId?: string;
+
+  @IsEmail()
+  to!: string;
+
+  @IsOptional()
+  @IsString()
+  subject?: string;
+
+  @IsOptional()
+  @IsString()
+  message?: string;
 }
