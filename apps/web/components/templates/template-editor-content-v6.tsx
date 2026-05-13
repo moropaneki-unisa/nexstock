@@ -68,36 +68,41 @@ function buildHeader(state: HeaderState) {
   header.dataset.templateHeader = "true"
   header.contentEditable = "false"
   header.style.display = "grid"
-  header.style.gridTemplateColumns = state.logo && state.address ? "1fr 1fr" : "1fr"
+  header.style.gridTemplateColumns = state.logo && state.address ? "minmax(0, 1fr) minmax(0, 1fr)" : "1fr"
   header.style.alignItems = "start"
-  header.style.gap = "24px"
-  header.style.margin = "0 0 28px 0"
-  header.style.padding = "0 0 18px 0"
+  header.style.gap = "28px"
+  header.style.margin = "0 0 32px 0"
+  header.style.padding = "0 0 22px 0"
   header.style.borderBottom = "1px solid #e5e7eb"
 
   if (state.logo) {
     const logoWrap = document.createElement("div")
     logoWrap.style.display = "flex"
     logoWrap.style.justifyContent = state.position === "right" && !state.address ? "flex-end" : "flex-start"
-    logoWrap.style.minHeight = "72px"
+    logoWrap.style.minHeight = "76px"
     logoWrap.style.alignItems = "center"
 
     if (state.logoUrl) {
       const image = document.createElement("img")
       image.src = state.logoUrl
       image.alt = "Logo"
-      image.style.maxWidth = "160px"
-      image.style.maxHeight = "72px"
+      image.style.maxWidth = "170px"
+      image.style.maxHeight = "76px"
       image.style.objectFit = "contain"
       image.style.display = "block"
+      image.style.borderRadius = "14px"
+      image.style.border = "1px solid #e2e8f0"
+      image.style.background = "#fff"
+      image.style.padding = "6px"
+      image.style.boxShadow = "0 8px 20px rgba(15,23,42,0.08)"
       logoWrap.appendChild(image)
     } else {
       const placeholder = document.createElement("div")
       placeholder.textContent = "Logo"
-      placeholder.style.width = "160px"
-      placeholder.style.height = "72px"
+      placeholder.style.width = "170px"
+      placeholder.style.height = "76px"
       placeholder.style.border = "1px dashed #cbd5e1"
-      placeholder.style.borderRadius = "12px"
+      placeholder.style.borderRadius = "14px"
       placeholder.style.display = "flex"
       placeholder.style.alignItems = "center"
       placeholder.style.justifyContent = "center"
@@ -116,6 +121,7 @@ function buildHeader(state: HeaderState) {
     address.style.fontSize = "13px"
     address.style.lineHeight = "1.65"
     address.style.color = "#475569"
+    address.style.paddingTop = "4px"
     address.innerHTML = '<strong style="color:#0f172a;font-size:15px">{{organization.name}}</strong><br>{{organization.address}}<br>{{organization.email}}<br>{{organization.phone}}'
     header.appendChild(address)
   }
@@ -129,7 +135,9 @@ function ensureTypingArea(editor: HTMLElement) {
 
   if (!header) {
     if (!editor.textContent?.trim() && !editor.querySelector("br")) {
-      editor.appendChild(document.createElement("p"))
+      const paragraph = document.createElement("p")
+      paragraph.innerHTML = "<br>"
+      editor.appendChild(paragraph)
     }
     return
   }
@@ -137,6 +145,7 @@ function ensureTypingArea(editor: HTMLElement) {
   if (!afterHeader) {
     const paragraph = document.createElement("p")
     paragraph.innerHTML = "<br>"
+    paragraph.style.margin = "0 0 12px 0"
     editor.appendChild(paragraph)
     return
   }
@@ -144,8 +153,21 @@ function ensureTypingArea(editor: HTMLElement) {
   if (afterHeader.nodeType === Node.TEXT_NODE && !afterHeader.textContent?.trim()) {
     const paragraph = document.createElement("p")
     paragraph.innerHTML = "<br>"
+    paragraph.style.margin = "0 0 12px 0"
     editor.insertBefore(paragraph, afterHeader.nextSibling)
   }
+}
+
+function focusTypingArea(editor: HTMLElement) {
+  editor.focus()
+  const selection = window.getSelection()
+  const range = document.createRange()
+  const header = editor.querySelector(headerSelector)
+  const target = header?.nextSibling || editor.lastChild || editor
+  range.selectNodeContents(target)
+  range.collapse(false)
+  selection?.removeAllRanges()
+  selection?.addRange(range)
 }
 
 function applyHeader() {
@@ -161,12 +183,14 @@ function applyHeader() {
       existing.remove()
       ensureTypingArea(editor)
       emitEditorInput(editor)
+      focusTypingArea(editor)
     }
     return
   }
 
   if (existing?.dataset.signature === signature) {
     ensureTypingArea(editor)
+    focusTypingArea(editor)
     return
   }
 
@@ -178,6 +202,7 @@ function applyHeader() {
 
   ensureTypingArea(editor)
   emitEditorInput(editor)
+  focusTypingArea(editor)
 }
 
 function addHeaderControls() {
@@ -201,7 +226,7 @@ function addHeaderControls() {
       <input data-template-toggle="address" type="checkbox" style="width:16px;height:16px" />
     </label>
     <button type="button" data-template-apply-header="true" style="border:1px solid hsl(var(--border));border-radius:8px;padding:8px 10px;background:hsl(var(--background));font-size:13px;font-weight:500;text-align:center">Apply header</button>
-    <p style="margin:0;color:hsl(var(--muted-foreground));font-size:12px;line-height:1.4">Turn on logo/address, then click Apply header. It will not rewrite the editor while you type.</p>
+    <p style="margin:0;color:hsl(var(--muted-foreground));font-size:12px;line-height:1.4">Turn on logo/address, then click Apply header. The document remains editable after insertion.</p>
   `
 
   logoSection.prepend(panel)
@@ -240,16 +265,29 @@ export function TemplateEditorContentV6({ templateId, kind = "pdf" }: { template
       <TemplateEditorContentV2 templateId={templateId} kind={kind} />
       <style jsx global>{`
         .nexstock-template-editor-shell > .grid.h-screen {
-          grid-template-columns: 17rem minmax(0, 1fr) 18rem !important;
+          grid-template-columns: 17.5rem minmax(0, 1fr) 18.5rem !important;
+          background: hsl(var(--muted) / 0.45) !important;
         }
         .nexstock-template-editor-shell > .grid.h-screen > aside:last-of-type {
           display: block !important;
         }
+        .nexstock-template-editor-shell > .grid.h-screen > aside,
+        .nexstock-template-editor-shell > .grid.h-screen > div {
+          min-width: 0 !important;
+        }
         .nexstock-template-editor-shell aside {
           background: hsl(var(--background)) !important;
         }
+        .nexstock-template-editor-shell aside:first-child,
+        .nexstock-template-editor-shell aside:last-of-type {
+          height: 100vh !important;
+          overflow: hidden !important;
+        }
         .nexstock-template-editor-shell aside:first-child > div:last-child,
         .nexstock-template-editor-shell aside:last-of-type > div {
+          height: calc(100vh - 3.5rem) !important;
+          overflow-y: auto !important;
+          overflow-x: hidden !important;
           padding: 0 !important;
         }
         .nexstock-template-editor-shell aside:first-child .border-b,
@@ -258,30 +296,56 @@ export function TemplateEditorContentV6({ templateId, kind = "pdf" }: { template
           padding-left: 0.875rem !important;
           padding-right: 0.875rem !important;
         }
+        .nexstock-template-editor-shell aside:first-child section,
+        .nexstock-template-editor-shell aside .rounded-lg,
+        .nexstock-template-editor-shell aside .rounded-xl {
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          background: transparent !important;
+        }
         .nexstock-template-editor-shell aside:first-child .border.bg-background.p-2 {
           display: none !important;
         }
+        .nexstock-template-editor-shell header {
+          z-index: 20 !important;
+        }
+        .nexstock-template-editor-shell main {
+          background: hsl(var(--muted) / 0.55) !important;
+        }
         .nexstock-template-editor-shell main > div {
-          padding: 0 !important;
+          min-height: 100% !important;
+          padding: 2rem 2.25rem !important;
         }
         .nexstock-template-editor-shell [contenteditable="true"] {
-          min-height: calc(100vh - 9rem) !important;
-          max-width: none !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 1.5rem 1.75rem !important;
-          box-shadow: none !important;
+          min-height: 1123px !important;
+          max-width: 794px !important;
+          width: 794px !important;
+          margin: 0 auto !important;
+          padding: 3.75rem 4rem !important;
+          box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16) !important;
+          border: 1px solid hsl(var(--border)) !important;
+          border-radius: 6px !important;
+          background: #fff !important;
         }
         .nexstock-template-editor-shell [contenteditable="true"]:empty::before {
           content: "Start designing your template...";
           color: hsl(var(--muted-foreground));
         }
-        @media (max-width: 980px) {
+        .nexstock-template-editor-shell [contenteditable="true"] p {
+          margin: 0 0 12px 0;
+        }
+        .nexstock-template-editor-shell aside:last-of-type .h-full.overflow-y-auto {
+          scrollbar-width: thin;
+        }
+        @media (max-width: 1100px) {
           .nexstock-template-editor-shell > .grid.h-screen {
-            grid-template-columns: 16rem minmax(0, 1fr) !important;
+            grid-template-columns: 16.5rem minmax(0, 1fr) !important;
           }
           .nexstock-template-editor-shell > .grid.h-screen > aside:last-of-type {
             display: none !important;
+          }
+          .nexstock-template-editor-shell [contenteditable="true"] {
+            width: min(794px, calc(100vw - 19rem)) !important;
           }
         }
       `}</style>
