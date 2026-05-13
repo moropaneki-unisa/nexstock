@@ -3,11 +3,11 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, BoldIcon, CodeIcon, FileTextIcon, ItalicIcon, Loader2Icon, MailIcon, SaveIcon, SearchIcon, Settings2Icon, TypeIcon, UnderlineIcon, XIcon } from "lucide-react"
+import { BoldIcon, CodeIcon, ExternalLinkIcon, FileTextIcon, ItalicIcon, Loader2Icon, MailIcon, SaveIcon, SearchIcon, Settings2Icon, TypeIcon, UnderlineIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -52,6 +52,8 @@ Regards,
 function messageFromError(err: unknown, fallback: string) { return err instanceof Error ? err.message : fallback }
 function groupFields(fields: FieldToken[]) { return fields.reduce<Record<string, FieldToken[]>>((acc, field) => { acc[field.group] = acc[field.group] || []; acc[field.group].push(field); return acc }, {}) }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
+function pdfDocument(html: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>PDF Preview</title><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.toolbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;font-size:13px;color:#475569}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box}@media print{.toolbar{display:none}body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="toolbar">PDF preview · Press Ctrl+P to print or save as PDF</div><div class="page">${html}</div></body></html>` }
+function emailDocument(result: PreviewResult, fallbackBody: string) { return `<!doctype html><html><head><meta charset="utf-8"/><title>Email Preview</title><style>body{margin:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#111827}.wrap{max-width:860px;margin:32px auto;background:#fff;border:1px solid #e5e7eb;border-radius:18px;box-shadow:0 18px 45px rgba(15,23,42,.12);overflow:hidden}.head{padding:20px 24px;border-bottom:1px solid #e5e7eb}.label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#64748b}.value{margin-top:4px;font-weight:600}.body{padding:24px;white-space:pre-wrap;line-height:1.6}</style></head><body><div class="wrap"><div class="head"><div class="label">To</div><div class="value">${result.to || ""}</div><br/><div class="label">Subject</div><div class="value">${result.subject || ""}</div></div><div class="body">${result.email || fallbackBody}</div></div></body></html>` }
 
 export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId?: string; kind?: TemplateKind }) {
   const router = useRouter()
@@ -72,7 +74,6 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
   const [loading, setLoading] = React.useState(Boolean(templateId))
   const [saving, setSaving] = React.useState(false)
   const [previewing, setPreviewing] = React.useState(false)
-  const [preview, setPreview] = React.useState<PreviewResult | null>(null)
 
   React.useEffect(() => {
     async function loadTemplate() {
@@ -100,11 +101,8 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
 
   React.useEffect(() => {
     async function loadFields() {
-      try {
-        setFields(await apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`))
-      } catch (err) {
-        toast.error("Could not load fields", { description: messageFromError(err, "Fields failed") })
-      }
+      try { setFields(await apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`)) }
+      catch (err) { toast.error("Could not load fields", { description: messageFromError(err, "Fields failed") }) }
     }
     void loadFields()
   }, [module])
@@ -121,6 +119,7 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     return fields.filter((field) => [field.label, field.path, field.group, field.description].filter(Boolean).join(" ").toLowerCase().includes(query))
   }, [fieldSearch, fields])
   const groupedFields = React.useMemo(() => groupFields(filteredFields), [filteredFields])
+  const closeHref = templateKind === "email" ? "/settings/templates/email" : "/settings/templates/pdf"
 
   function saveSelection() {
     if (mode !== "document" || templateKind !== "pdf") return
@@ -190,9 +189,7 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
       }
     } catch (err) {
       toast.error("Template could not be saved", { description: messageFromError(err, "Save failed") })
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   async function renderPreview() {
@@ -200,32 +197,31 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     setPreviewing(true)
     try {
       const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", { method: "POST", body: JSON.stringify({ type: module, kind: templateKind, htmlTemplate: latestHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }) })
-      setPreview(result)
-      toast.success(templateKind === "pdf" ? "PDF preview updated" : "Email preview updated", { description: result.subject })
+      const doc = templateKind === "pdf" ? pdfDocument(result.html || latestHtml) : emailDocument(result, emailBody)
+      const blob = new Blob([doc], { type: "text/html" })
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank", "noopener,noreferrer")
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000)
+      toast.success(templateKind === "pdf" ? "PDF preview opened" : "Email preview opened", { description: result.subject })
     } catch (err) {
       toast.error("Preview failed", { description: messageFromError(err, "Preview failed") })
-    } finally {
-      setPreviewing(false)
-    }
+    } finally { setPreviewing(false) }
   }
-
-  const pdfHtml = preview?.html || html || "<p>No preview yet.</p>"
-  const pdfSrcDoc = `<!doctype html><html><head><meta charset="utf-8"/><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box} @media print{body{background:white}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="page">${pdfHtml}</div></body></html>`
-  const closeHref = templateKind === "email" ? "/settings/templates/email" : "/settings/templates/pdf"
 
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-muted/20"><Loader2Icon className="size-6 animate-spin text-muted-foreground" /></div>
 
   return (
-    <div className="grid min-h-screen bg-muted/30 lg:grid-cols-[18rem_1fr]">
+    <div className="grid min-h-screen bg-muted/30 lg:grid-cols-[20rem_1fr]">
       <aside className="border-r bg-sidebar text-sidebar-foreground">
         <div className="flex h-16 items-center gap-2 border-b px-4">
           <div className="flex size-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">{templateKind === "email" ? <MailIcon className="size-4" /> : <FileTextIcon className="size-4" />}</div>
           <div><p className="text-sm font-semibold">{templateKind === "email" ? "Email editor" : "PDF editor"}</p><p className="text-xs text-sidebar-foreground/70">Template workspace</p></div>
         </div>
-        <div className="grid gap-3 p-4">
+        <div className="grid max-h-[calc(100vh-4rem)] gap-3 overflow-y-auto p-4">
           <div className="rounded-lg border bg-sidebar-accent/40 p-3"><p className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/60">Template</p><p className="mt-1 text-sm font-medium">{name || "Untitled"}</p><p className="text-xs text-sidebar-foreground/70">{titleCase(module)}</p></div>
           <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="flex items-center gap-2 text-sm"><Settings2Icon className="size-4" />Setup</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><label className="grid gap-1"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></label><label className="grid gap-1"><Label>Module</Label><Select value={module} onValueChange={setModule}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{modules.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-1"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-20" /></label></CardContent></Card>
-          {templateKind === "pdf" ? <p className="rounded-lg bg-sidebar-accent/40 p-3 text-xs text-sidebar-foreground/70">PDF sidebar tools include document mode, HTML mode, text formatting, fields, and PDF preview.</p> : <p className="rounded-lg bg-sidebar-accent/40 p-3 text-xs text-sidebar-foreground/70">Email sidebar tools include recipient, subject, body editor, dynamic fields, and email preview.</p>}
+          {templateKind === "pdf" ? <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="text-sm">Text tools</CardTitle></CardHeader><CardContent className="grid grid-cols-3 gap-2 p-3 pt-0"><Button variant="outline" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>P</Button></CardContent></Card> : null}
+          <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="text-sm">Fields</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><div className="relative"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div><div className="grid max-h-[28rem] gap-4 overflow-y-auto pr-1">{Object.entries(groupedFields).map(([group, items]) => <div key={group} className="grid gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="rounded-lg border bg-background p-3 text-left text-foreground transition hover:bg-muted/50"><span className="block text-sm font-medium">{field.label}</span><span className="mt-1 block font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>{field.description ? <span className="mt-1 block text-xs text-muted-foreground">{field.description}</span> : null}</button>)}</div>)}</div></CardContent></Card>
         </div>
       </aside>
 
@@ -233,20 +229,24 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
         <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
           <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
             <div><p className="text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template</p><h1 className="font-heading text-lg font-semibold tracking-tight">{name}</h1></div>
-            <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : null}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div>
           </div>
         </header>
 
-        <main className="grid gap-4 p-4 lg:grid-cols-[1fr_22rem] lg:p-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <section className="grid gap-4 xl:grid-cols-2">
-            {templateKind === "pdf" ? <Card className="overflow-hidden"><CardHeader className="border-b"><div className="flex items-start justify-between gap-3"><div><CardTitle>PDF document</CardTitle><CardDescription>Design the document or switch to HTML.</CardDescription></div><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div></CardHeader><CardContent className="bg-muted/20 p-4">{mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("min-h-[calc(100vh-15rem)] overflow-auto rounded-xl border bg-white p-8 text-sm leading-6 text-slate-950 shadow-inner outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-[calc(100vh-15rem)] font-mono text-xs" />}</CardContent></Card> : <Card><CardHeader><CardTitle>Email template</CardTitle><CardDescription>Design the recipient, subject, and message body.</CardDescription></CardHeader><CardContent className="grid gap-4"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[calc(100vh-20rem)]" /></label></CardContent></Card>}
-            <Card className="overflow-hidden"><CardHeader className="border-b"><CardTitle>{templateKind === "pdf" ? "PDF preview" : "Email preview"}</CardTitle><CardDescription>{templateKind === "pdf" ? "Rendered inside a PDF page frame." : "Rendered email recipient, subject, and body."}</CardDescription></CardHeader><CardContent className={templateKind === "pdf" ? "h-[calc(100vh-10rem)] bg-muted p-0" : "grid gap-4 p-4"}>{templateKind === "pdf" ? <iframe title="PDF preview" srcDoc={pdfSrcDoc} className="h-full w-full border-0" /> : <><div><p className="text-xs font-medium uppercase text-muted-foreground">To</p><p className="mt-1 font-medium">{preview?.to || to}</p></div><div><p className="text-xs font-medium uppercase text-muted-foreground">Subject</p><p className="mt-1 font-medium">{preview?.subject || subject}</p></div><pre className="min-h-96 whitespace-pre-wrap rounded-xl border bg-card p-4 text-sm text-card-foreground">{preview?.email || emailBody}</pre></>}</CardContent></Card>
-          </section>
-
-          <aside className="grid h-fit gap-4 lg:sticky lg:top-24">
-            {templateKind === "pdf" ? <Card><CardHeader><CardTitle>Text tools</CardTitle><CardDescription>Format selected text.</CardDescription></CardHeader><CardContent className="grid grid-cols-3 gap-2"><Button variant="outline" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>P</Button></CardContent></Card> : null}
-            <Card><CardHeader><CardTitle>Fields</CardTitle><CardDescription>Click to insert standard or custom fields.</CardDescription></CardHeader><CardContent className="grid gap-3"><div className="relative"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div><div className="grid max-h-[34rem] gap-4 overflow-y-auto pr-1">{Object.entries(groupedFields).map(([group, items]) => <div key={group} className="grid gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="rounded-lg border bg-background p-3 text-left transition hover:bg-muted/50"><span className="block text-sm font-medium">{field.label}</span><span className="mt-1 block font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>{field.description ? <span className="mt-1 block text-xs text-muted-foreground">{field.description}</span> : null}</button>)}</div>)}</div></CardContent></Card>
-          </aside>
+        <main className="p-4 lg:p-6">
+          {templateKind === "pdf" ? (
+            <div className="mx-auto max-w-5xl">
+              <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="font-heading text-xl font-semibold">PDF document</h2><p className="text-sm text-muted-foreground">Edit like a document. Preview opens in a separate tab.</p></div><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div>
+              <div className="rounded-2xl border bg-muted p-4 shadow-sm">
+                {mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("mx-auto min-h-[1123px] w-full max-w-[794px] overflow-auto bg-white p-10 text-sm leading-6 text-slate-950 shadow-xl outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-[1123px] font-mono text-xs" />}
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto grid max-w-4xl gap-4">
+              <div><h2 className="font-heading text-xl font-semibold">Email template</h2><p className="text-sm text-muted-foreground">Design the email. Preview opens in a separate tab.</p></div>
+              <Card><CardContent className="grid gap-4 p-6"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[560px]" /></label></CardContent></Card>
+            </div>
+          )}
         </main>
       </div>
     </div>
