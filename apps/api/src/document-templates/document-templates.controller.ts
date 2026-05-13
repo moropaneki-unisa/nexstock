@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTemplateDto } from './dto';
@@ -14,14 +14,19 @@ export class DocumentTemplatesController {
     return this.templates.list(user);
   }
 
+  @Get('fields')
+  fields(@CurrentUser() user: CurrentUserPayload, @Query('module') module = 'purchase_orders') {
+    return this.templates.fields(user, module);
+  }
+
   @Post('preview')
-  preview(@Body() dto: PreviewDocumentTemplateDto) {
-    return this.templates.preview(dto);
+  preview(@CurrentUser() user: CurrentUserPayload, @Body() dto: PreviewDocumentTemplateDto) {
+    return this.templates.preview(user, dto);
   }
 
   @Post('preview/render')
-  previewLegacy(@Body() dto: PreviewDocumentTemplateDto) {
-    return this.templates.preview(dto);
+  previewLegacy(@CurrentUser() user: CurrentUserPayload, @Body() dto: PreviewDocumentTemplateDto) {
+    return this.templates.preview(user, dto);
   }
 
   @Get(':id')
