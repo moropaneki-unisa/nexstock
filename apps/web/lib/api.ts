@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.nexstock.co.za"
+const DEFAULT_API_URL = process.env.NODE_ENV === "development"
+  ? "http://localhost:3001"
+  : "https://api.nexstock.co.za"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_API_URL
 
 export function getApiUrl() {
   return API_URL
