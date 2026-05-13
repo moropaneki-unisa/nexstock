@@ -31,6 +31,7 @@ export class DocumentTemplatesService {
           name: dto.name.trim(),
           type,
           description: this.optionalText(dto.description),
+          recipientEmailTemplate: this.optionalText(dto.recipientEmailTemplate),
           subjectTemplate: this.optionalText(dto.subjectTemplate),
           htmlTemplate: dto.htmlTemplate,
           emailTemplate: this.optionalText(dto.emailTemplate),
@@ -55,6 +56,7 @@ export class DocumentTemplatesService {
           name: dto.name === undefined ? undefined : dto.name.trim(),
           type,
           description: dto.description === undefined ? undefined : this.optionalText(dto.description),
+          recipientEmailTemplate: dto.recipientEmailTemplate === undefined ? undefined : this.optionalText(dto.recipientEmailTemplate),
           subjectTemplate: dto.subjectTemplate === undefined ? undefined : this.optionalText(dto.subjectTemplate),
           htmlTemplate: dto.htmlTemplate,
           emailTemplate: dto.emailTemplate === undefined ? undefined : this.optionalText(dto.emailTemplate),
@@ -75,6 +77,7 @@ export class DocumentTemplatesService {
   preview(dto: PreviewDocumentTemplateDto) {
     const sample = this.sampleContext();
     return {
+      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, sample) : sample.supplier.email,
       subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, sample) : 'Purchase Order PO-00001',
       html: this.render(dto.htmlTemplate, sample),
       email: dto.emailTemplate ? this.render(dto.emailTemplate, sample) : null,
