@@ -394,7 +394,7 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle>PDF document template</CardTitle>
-            <CardDescription>Type <span className="font-mono">#</span> in the document to open searchable {moduleLabel} fields. Use <span className="font-mono">{{"{{#lines}}"}}</span>...<span className="font-mono">{{"{{/lines}}"}}</span> for repeated line items.</CardDescription>
+            <CardDescription>{`Type # in the document to open searchable ${moduleLabel} fields. Use {{#lines}}...{{/lines}} for repeated line items.`}</CardDescription>
           </div>
           <Tabs value={mode} onValueChange={setMode} className="w-fit">
             <TabsList>
@@ -450,7 +450,7 @@ const DocumentHtmlEditor = React.forwardRef<{ getHtml: () => string }, { value: 
                     <span className="block font-medium">{field.label}</span>
                     <span className="block text-xs text-muted-foreground">{field.group}{field.description ? ` · ${field.description}` : ""}</span>
                   </span>
-                  <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">{{`{{${field.path}}}`}}</span>
+                  <span className="rounded-md bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>
                 </button>
               )) : (
                 <div className="p-6 text-center text-sm text-muted-foreground">No fields found.</div>
