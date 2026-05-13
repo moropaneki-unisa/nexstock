@@ -32,13 +32,26 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { apiFetch } from "@/lib/api"
+
+type CurrentUser = {
+  name?: string | null
+  email?: string | null
+  avatar?: string | null
+  image?: string | null
+  organization?: {
+    name?: string | null
+    role?: string | null
+  } | null
+}
+
+const fallbackUser = {
+  name: "NexStock User",
+  email: "workspace@nexstock.co.za",
+  avatar: "",
+}
 
 const data = {
-  user: {
-    name: "NexStock Admin",
-    email: "admin@nexstock.co.za",
-    avatar: "",
-  },
   workspace: [
     { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
     { title: "Products", url: "/products", icon: <BoxesIcon /> },
@@ -63,7 +76,35 @@ const data = {
   ],
 }
 
+function normalizeUser(user: CurrentUser | null) {
+  if (!user) return fallbackUser
+
+  return {
+    name: user.name || user.email || fallbackUser.name,
+    email: user.email || fallbackUser.email,
+    avatar: user.avatar || user.image || "",
+  }
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [currentUser, setCurrentUser] = React.useState<CurrentUser | null>(null)
+
+  React.useEffect(() => {
+    let active = true
+
+    apiFetch<CurrentUser>("/api/users/me")
+      .then((user) => {
+        if (active) setCurrentUser(user)
+      })
+      .catch(() => {
+        if (active) setCurrentUser(null)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -85,7 +126,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.account} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={normalizeUser(currentUser)} />
       </SidebarFooter>
     </Sidebar>
   )
