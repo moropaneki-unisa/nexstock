@@ -14,6 +14,16 @@ export class DocumentTemplatesController {
     return this.templates.list(user);
   }
 
+  @Post('preview')
+  preview(@Body() dto: PreviewDocumentTemplateDto) {
+    return this.templates.preview(dto);
+  }
+
+  @Post('preview/render')
+  previewLegacy(@Body() dto: PreviewDocumentTemplateDto) {
+    return this.templates.preview(dto);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.templates.get(user, id);
@@ -32,10 +42,5 @@ export class DocumentTemplatesController {
   @Delete(':id')
   delete(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.templates.delete(user, id);
-  }
-
-  @Post('preview/render')
-  preview(@Body() dto: PreviewDocumentTemplateDto) {
-    return this.templates.preview(dto);
   }
 }
