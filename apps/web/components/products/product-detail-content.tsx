@@ -3,12 +3,13 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, DatabaseZapIcon, EditIcon, FileTextIcon, HistoryIcon, ImageIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon, WarehouseIcon } from "lucide-react"
+import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DatabaseZapIcon, EditIcon, FileTextIcon, HistoryIcon, ImageIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon, WarehouseIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ProductSuppliersSection } from "@/components/products/product-suppliers-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -93,7 +94,20 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const costValue = product.cost ?? product.costPrice
   const images = product.images ?? []
   const primaryImage = selectedImage || images[0]
+  const currentImageIndex = Math.max(0, images.findIndex((image) => image === primaryImage))
   const cleanDescription = cleanText(product.description)
+
+  function showPreviousImage() {
+    if (images.length < 2) return
+    const previousIndex = (currentImageIndex - 1 + images.length) % images.length
+    setSelectedImage(images[previousIndex])
+  }
+
+  function showNextImage() {
+    if (images.length < 2) return
+    const nextIndex = (currentImageIndex + 1) % images.length
+    setSelectedImage(images[nextIndex])
+  }
 
   const defaultFields: ProductDataField[] = [
     { id: "name", label: "Product name", value: cleanText(product.name) || "-" },
@@ -136,9 +150,8 @@ export function ProductDetailContent({ productId }: { productId: string }) {
             <div className="relative aspect-square overflow-hidden bg-muted">
               {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="block h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="size-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}
               <div className="absolute left-3 top-3"><ProductBadge product={product} /></div>
-              {images.length > 1 ? <Badge variant="secondary" className="absolute bottom-3 right-3 bg-background/90">{images.findIndex((image) => image === primaryImage) + 1} / {images.length}</Badge> : null}
             </div>
-            {images.length ? <CardContent className="grid gap-3 border-t p-4"><div className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span>Click an image to preview</span><span>{images.length} total</span></div><div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto pr-1">{images.map((image, index) => { const active = image === primaryImage; return <button key={`${image}-${index}`} type="button" onClick={() => setSelectedImage(image)} className={cn("group relative h-14 overflow-hidden rounded-md border bg-muted transition hover:border-primary", active ? "border-primary ring-2 ring-primary/30" : "border-border")} aria-label={`View product image ${index + 1}`} aria-pressed={active}><img src={image} alt={`Product image ${index + 1}`} className="block h-full w-full object-cover transition group-hover:scale-105" /></button> })}</div></CardContent> : null}
+            {images.length ? <CardContent className="flex items-center justify-center border-t p-3"><ButtonGroup><Button type="button" variant="outline" size="icon" onClick={showPreviousImage} disabled={images.length < 2} aria-label="Previous product image"><ChevronLeftIcon className="size-4" /></Button><ButtonGroupText className="min-w-24 justify-center bg-background px-3 text-xs tabular-nums">{currentImageIndex + 1} / {images.length}</ButtonGroupText><Button type="button" variant="outline" size="icon" onClick={showNextImage} disabled={images.length < 2} aria-label="Next product image"><ChevronRightIcon className="size-4" /></Button></ButtonGroup></CardContent> : null}
           </Card>
 
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Quick facts</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm"><SideFact label="SKU" value={product.sku || "No SKU"} mono /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={String(images.length)} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={formatDate(product.updatedAt)} /></CardContent></Card>
