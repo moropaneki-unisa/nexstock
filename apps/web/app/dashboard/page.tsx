@@ -1,5 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { NexStockDashboard } from "@/components/dashboard/nexstock-dashboard"
+import { DashboardContent } from "@/components/dashboard/dashboard-content"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
@@ -13,10 +13,10 @@ export default function Page() {
         } as React.CSSProperties
       }
     >
-      <AppSidebar />
+      <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <NexStockDashboard />
+        <DashboardContent />
       </SidebarInset>
     </SidebarProvider>
   )
