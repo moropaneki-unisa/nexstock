@@ -6,11 +6,18 @@ import { useRouter } from "next/navigation"
 import {
   ArchiveIcon,
   ArrowLeftIcon,
+  ChevronDownIcon,
+  DatabaseZapIcon,
   EditIcon,
+  FileTextIcon,
+  HistoryIcon,
+  ImageIcon,
   Loader2Icon,
   PackageIcon,
   RefreshCwIcon,
+  TruckIcon,
   TriangleAlertIcon,
+  WarehouseIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -24,8 +31,46 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
+import { cn } from "@/lib/utils"
+
+type InventoryLog = {
+  id: string
+  type: string
+  quantityBefore: number
+  quantityAfter: number
+  delta: number
+  reason?: string | null
+  source?: string | null
+  createdAt: string
+}
+
+type CustomFieldValue = {
+  fieldId: string
+  value: unknown
+  field?: {
+    key?: string | null
+    label?: string | null
+    type?: string | null
+  } | null
+}
 
 type Product = {
   id: string
@@ -37,10 +82,30 @@ type Product = {
   quantity?: number | string | null
   lowStockLevel?: number | string | null
   price?: number | string | null
+  priceCurrency?: string | null
+  cost?: number | string | null
   costPrice?: number | string | null
+  costCurrency?: string | null
+  convertedCost?: number | string | null
   currency?: string | null
+  images?: string[] | null
+  customFieldValues?: CustomFieldValue[] | null
+  inventoryLogs?: InventoryLog[] | null
   createdAt?: string | null
   updatedAt?: string | null
+}
+
+type OrganizationSummary = {
+  baseCurrency?: string | null
+}
+
+type ProductDataField = {
+  id: string
+  label: string
+  value: string
+  type?: string | null
+  mono?: boolean
+  multiline?: boolean
 }
 
 function numberValue(value: unknown) {
@@ -48,10 +113,15 @@ function numberValue(value: unknown) {
   return Number.isFinite(next) ? next : 0
 }
 
+function normalizeCurrency(value?: string | null, fallback = "USD") {
+  const next = String(value || fallback).trim().toUpperCase()
+  return next || fallback
+}
+
 function formatMoney(value: unknown, currency = "USD") {
   return new Intl.NumberFormat("en", {
     style: "currency",
-    currency,
+    currency: normalizeCurrency(currency),
     maximumFractionDigits: 2,
   }).format(numberValue(value))
 }
@@ -60,11 +130,38 @@ function formatDate(value?: string | null) {
   if (!value) return "Not set"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "Not set"
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+  return date.toLocaleString()
+}
+
+function cleanText(value?: string | null) {
+  if (!value) return ""
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, maxLength).trim()}...`
+}
+
+function formatCustomValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-"
+  if (typeof value === "object") return truncateText(JSON.stringify(value, null, 2), 400)
+  return truncateText(cleanText(String(value)) || String(value), 400)
 }
 
 function productState(product: Product) {
@@ -82,23 +179,35 @@ function ProductBadge({ product }: { product: Product }) {
   if (state === "archived") return <Badge variant="outline">Archived</Badge>
   if (state === "draft") return <Badge variant="secondary">Draft</Badge>
   if (state === "out") return <Badge variant="destructive">Out of stock</Badge>
-  if (state === "low") return <Badge variant="secondary">Low stock</Badge>
+  if (state === "low") return <Badge variant="destructive">Low stock</Badge>
   return <Badge>Active</Badge>
 }
 
 export function ProductDetailContent({ productId }: { productId: string }) {
   const router = useRouter()
   const [product, setProduct] = React.useState<Product | null>(null)
+  const [organization, setOrganization] = React.useState<OrganizationSummary | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null)
+  const [attributesOpen, setAttributesOpen] = React.useState(true)
+  const [logsOpen, setLogsOpen] = React.useState(true)
+  const [adjustOpen, setAdjustOpen] = React.useState(false)
+  const [delta, setDelta] = React.useState("")
+  const [reason, setReason] = React.useState("")
+  const [adjustError, setAdjustError] = React.useState<string | null>(null)
 
   async function loadProduct() {
     setLoading(true)
     setError(null)
     try {
-      const result = await apiFetch<Product>(`/api/products/${productId}`)
+      const [result, org] = await Promise.all([
+        apiFetch<Product>(`/api/products/${productId}`),
+        apiFetch<OrganizationSummary>("/api/organization").catch(() => null),
+      ])
       setProduct(result)
+      setOrganization(org)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load product"
       setError(message)
@@ -111,6 +220,15 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   React.useEffect(() => {
     void loadProduct()
   }, [productId])
+
+  React.useEffect(() => {
+    const images = product?.images ?? []
+    if (!images.length) {
+      setSelectedImage(null)
+      return
+    }
+    setSelectedImage((current) => (current && images.includes(current) ? current : images[0]))
+  }, [product?.images])
 
   async function archiveProduct() {
     if (!product) return
@@ -128,11 +246,49 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     }
   }
 
+  async function submitStockAdjustment() {
+    if (!product) return
+
+    const numericDelta = Number(delta)
+    setAdjustError(null)
+
+    if (!Number.isInteger(numericDelta) || numericDelta === 0) {
+      setAdjustError("Enter a whole number above or below zero. Example: 10 or -3.")
+      return
+    }
+
+    if (numberValue(product.quantity) + numericDelta < 0) {
+      setAdjustError("Stock cannot go below zero.")
+      return
+    }
+
+    setRunning(true)
+    try {
+      await apiFetch(`/api/products/${product.id}/adjust`, {
+        method: "POST",
+        body: JSON.stringify({
+          delta: numericDelta,
+          reason: reason.trim() || "Manual stock adjustment",
+          source: "app",
+        }),
+      })
+      setDelta("")
+      setReason("")
+      setAdjustOpen(false)
+      toast.success("Stock adjusted")
+      await loadProduct()
+    } catch (err) {
+      setAdjustError(err instanceof Error ? err.message : "Failed to adjust stock")
+    } finally {
+      setRunning(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
         <Skeleton className="h-12 w-72" />
-        <Skeleton className="h-[520px] rounded-xl" />
+        <Skeleton className="h-[680px] rounded-xl" />
       </div>
     )
   }
@@ -159,6 +315,38 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     )
   }
 
+  const baseCurrency = normalizeCurrency(organization?.baseCurrency || product.currency || product.priceCurrency || "USD")
+  const priceCurrency = normalizeCurrency(product.priceCurrency || product.currency || baseCurrency)
+  const costCurrency = normalizeCurrency(product.costCurrency || product.currency || priceCurrency)
+  const costValue = product.cost ?? product.costPrice
+  const images = product.images ?? []
+  const primaryImage = selectedImage || images[0]
+  const cleanDescription = cleanText(product.description)
+
+  const defaultFields: ProductDataField[] = [
+    { id: "name", label: "Product name", value: cleanText(product.name) || "-" },
+    { id: "sku", label: "SKU", value: product.sku || "-", mono: true },
+    { id: "status", label: "Status", value: productState(product).replace("out", "Out of stock") },
+    { id: "category", label: "Category", value: cleanText(product.category) || "Uncategorized" },
+    { id: "description", label: "Description", value: cleanDescription || "No description", multiline: true },
+    { id: "price", label: `Selling price (${priceCurrency})`, value: formatMoney(product.price, priceCurrency) },
+    { id: "cost", label: `Supplier/fallback cost (${costCurrency})`, value: costValue == null ? "Not set" : formatMoney(costValue, costCurrency) },
+    { id: "convertedCost", label: `Converted cost (${baseCurrency})`, value: product.convertedCost == null ? "Not set" : formatMoney(product.convertedCost, baseCurrency) },
+    { id: "quantity", label: "Current stock", value: `${numberValue(product.quantity).toLocaleString()} units` },
+    { id: "lowStockLevel", label: "Low-stock level", value: `${numberValue(product.lowStockLevel).toLocaleString()} units` },
+    { id: "images", label: "Images", value: `${images.length} image${images.length === 1 ? "" : "s"}` },
+    { id: "createdAt", label: "Created", value: formatDate(product.createdAt) },
+    { id: "updatedAt", label: "Updated", value: formatDate(product.updatedAt) },
+  ]
+
+  const customAttributes: ProductDataField[] = (product.customFieldValues ?? []).map((item) => ({
+    id: item.fieldId,
+    label: item.field?.label ?? item.field?.key ?? item.fieldId,
+    value: formatCustomValue(item.value),
+    type: item.field?.type,
+    multiline: item.field?.type === "json",
+  }))
+
   return (
     <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -170,15 +358,21 @@ export function ProductDetailContent({ productId }: { productId: string }) {
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight">{product.name}</h1>
+            <h1 className="font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1>
             <ProductBadge product={product} />
           </div>
-          <p className="mt-1 font-mono text-sm text-muted-foreground">{product.sku || "No SKU"}</p>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Review identity, images, pricing, inventory, attributes, suppliers, and stock movement from one profile.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}>
             <RefreshCwIcon className="size-4" />
             Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}>
+            <WarehouseIcon className="size-4" />
+            Adjust stock
           </Button>
           <Button asChild size="sm" variant="outline">
             <Link href={`/products/${product.id}/edit`}>
@@ -194,71 +388,257 @@ export function ProductDetailContent({ productId }: { productId: string }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard title="Stock on hand" value={numberValue(product.quantity).toLocaleString()} detail={`Low stock alert: ${numberValue(product.lowStockLevel).toLocaleString()}`} />
-        <SummaryCard title="Selling price" value={formatMoney(product.price, product.currency || "USD")} detail={`Currency: ${product.currency || "USD"}`} />
-        <SummaryCard title="Fallback cost" value={formatMoney(product.costPrice, product.currency || "USD")} detail="Supplier cost links come next" />
-        <SummaryCard title="Category" value={product.category || "Uncategorized"} detail={`Updated ${formatDate(product.updatedAt || product.createdAt)}`} />
+        <SummaryCard title="SKU" value={product.sku || "No SKU"} detail="Product code" mono />
+        <SummaryCard title="Stock on hand" value={numberValue(product.quantity).toLocaleString()} detail={`Alert: ${numberValue(product.lowStockLevel).toLocaleString()} units`} />
+        <SummaryCard title={`Selling price (${priceCurrency})`} value={formatMoney(product.price, priceCurrency)} detail={`Base currency: ${baseCurrency}`} />
+        <SummaryCard title="Status" value={productState(product).replace("out", "Out of stock")} detail={product.status || "active"} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Product details</CardTitle>
-            <CardDescription>Core catalog information used across stock and purchasing workflows.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <Detail label="Name" value={product.name} />
-            <Detail label="SKU" value={product.sku || "No SKU"} />
-            <Detail label="Category" value={product.category || "Uncategorized"} />
-            <Detail label="Description" value={product.description || "No description added."} />
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
+        <div className="grid gap-4 self-start">
+          <Card>
+            <div className="relative aspect-square overflow-hidden bg-muted">
+              {primaryImage ? (
+                <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+                  <ImageIcon className="size-10" />
+                  <p className="mt-3 text-sm font-medium">No image</p>
+                </div>
+              )}
+              <div className="absolute left-3 top-3">
+                <ProductBadge product={product} />
+              </div>
+              {images.length > 1 ? (
+                <Badge variant="secondary" className="absolute bottom-3 right-3 bg-background/90">
+                  {images.findIndex((image) => image === primaryImage) + 1} / {images.length}
+                </Badge>
+              ) : null}
+            </div>
+            {images.length ? (
+              <CardContent className="grid gap-3 pt-4">
+                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>Click an image to preview</span>
+                  <span>{images.length} total</span>
+                </div>
+                <div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto pr-1">
+                  {images.map((image, index) => {
+                    const active = image === primaryImage
+                    return (
+                      <button
+                        key={`${image}-${index}`}
+                        type="button"
+                        onClick={() => setSelectedImage(image)}
+                        className={cn(
+                          "group relative h-14 overflow-hidden rounded-md border bg-muted transition hover:border-primary",
+                          active ? "border-primary ring-2 ring-primary/30" : "border-border"
+                        )}
+                        aria-label={`View product image ${index + 1}`}
+                        aria-pressed={active}
+                      >
+                        <img src={image} alt={`Product image ${index + 1}`} className="h-full w-full object-cover transition group-hover:scale-105" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            ) : null}
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Guidance</CardTitle>
-            <CardDescription>Operational recommendations for this product.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm">
-            {productState(product) === "out" ? (
-              <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-destructive">This product is out of stock. Connect suppliers and create a purchase order.</p>
-            ) : productState(product) === "low" ? (
-              <p className="rounded-lg border bg-muted/40 p-3">This product is below the low-stock threshold. Review supplier lead times.</p>
-            ) : (
-              <p className="rounded-lg border bg-muted/40 p-3">This product currently has no urgent stock warning.</p>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button asChild variant="outline" className="w-full">
-              <Link href={`/products/${product.id}/edit`}>
-                <EditIcon className="size-4" />
-                Update product
-              </Link>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileTextIcon className="size-4" />
+                Quick facts
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              <SideFact label="SKU" value={product.sku || "No SKU"} mono />
+              <SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} />
+              <SideFact label="Images" value={String(images.length)} />
+              <SideFact label="Base currency" value={baseCurrency} />
+              <SideFact label="Updated" value={formatDate(product.updatedAt)} />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileTextIcon className="size-4" />
+                Product details
+              </CardTitle>
+              <CardDescription>Core fields stored on every product record.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGrid fields={defaultFields} />
+            </CardContent>
+          </Card>
+
+          <Collapsible open={attributesOpen} onOpenChange={setAttributesOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <DatabaseZapIcon className="size-4" />
+                      Attributes
+                    </CardTitle>
+                    <CardDescription className="mt-1">Custom business attributes for this product.</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{customAttributes.length} custom</Badge>
+                    <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", attributesOpen && "rotate-180")} />
+                  </div>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0">
+                  {customAttributes.length ? (
+                    <FieldGrid fields={customAttributes} />
+                  ) : (
+                    <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                      No custom attributes have been saved for this product yet.
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TruckIcon className="size-4" />
+                Supplier links
+              </CardTitle>
+              <CardDescription>Supplier SKU, supplier currency, and supplier cost controls will appear here as supplier logic is migrated.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
+                Supplier linking is preserved as a required product section. Next migration will connect the supplier records table here.
+              </div>
+            </CardContent>
+          </Card>
+
+          <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <HistoryIcon className="size-4" />
+                      Inventory movement
+                    </CardTitle>
+                    <CardDescription className="mt-1">Every stock adjustment is recorded with before/after quantity and reason.</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{product.inventoryLogs?.length ?? 0} logs</Badge>
+                    <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", logsOpen && "rotate-180")} />
+                  </div>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="grid gap-3 pt-0">
+                  {product.inventoryLogs?.length ? (
+                    product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />)
+                  ) : (
+                    <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                      No inventory movement yet.
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        </div>
+      </div>
+
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adjust stock</DialogTitle>
+            <DialogDescription>
+              Current stock is {numberValue(product.quantity).toLocaleString()} units. Add stock with a positive number or reduce stock with a negative number.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            {adjustError ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{adjustError}</div>
+            ) : null}
+            <div className="grid gap-2">
+              <Label htmlFor="delta">Adjustment quantity</Label>
+              <Input id="delta" value={delta} onChange={(event) => setDelta(event.target.value)} type="number" step="1" placeholder="Example: 10 or -3" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="reason">Reason</Label>
+              <Textarea id="reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Stock count correction, supplier delivery, damaged goods..." className="min-h-24" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} disabled={running}>Cancel</Button>
+            <Button type="button" onClick={submitStockAdjustment} disabled={running}>
+              {running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}
+              Save adjustment
             </Button>
-          </CardFooter>
-        </Card>
-      </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function SummaryCard({ title, value, detail }: { title: string; value: string; detail: string }) {
+function SummaryCard({ title, value, detail, mono }: { title: string; value: string; detail: string; mono?: boolean }) {
   return (
     <Card>
       <CardHeader>
         <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums">{value}</CardTitle>
+        <CardTitle className={cn("text-2xl font-semibold tabular-nums", mono && "font-mono text-lg")}>{value}</CardTitle>
       </CardHeader>
       <CardFooter className="text-sm text-muted-foreground">{detail}</CardFooter>
     </Card>
   )
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function FieldGrid({ fields }: { fields: ProductDataField[] }) {
   return (
-    <div className="grid gap-1 border-b pb-3 last:border-b-0 last:pb-0">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-sm">{value}</p>
+    <div className="grid overflow-hidden rounded-xl border md:grid-cols-2">
+      {fields.map((field) => (
+        <div key={field.id} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r even:md:border-r-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{field.label}</p>
+            {field.type ? <Badge variant="outline">{field.type}</Badge> : null}
+          </div>
+          <p className={cn("mt-2 break-words font-medium", field.mono && "font-mono", field.multiline && "whitespace-pre-wrap leading-6")}>{field.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SideFact({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn("truncate font-medium", mono && "font-mono text-xs")}>{value}</span>
+    </div>
+  )
+}
+
+function InventoryLogRow({ log }: { log: InventoryLog }) {
+  return (
+    <div className="rounded-xl border p-4 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium capitalize">{log.type.replaceAll("_", " ")}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {log.quantityBefore} to {log.quantityAfter} · {log.reason ?? "No reason"}
+          </p>
+        </div>
+        <Badge variant={log.delta < 0 ? "destructive" : "secondary"}>{log.delta > 0 ? `+${log.delta}` : log.delta}</Badge>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{formatDate(log.createdAt)}{log.source ? ` · ${log.source}` : ""}</p>
     </div>
   )
 }
