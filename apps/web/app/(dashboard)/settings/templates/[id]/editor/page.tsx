@@ -1,6 +1,6 @@
-import { TemplateEditorContentV3 } from "@/components/templates/template-editor-content-v3"
+import { TemplateEditorContentV4 } from "@/components/templates/template-editor-content-v4"
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return <TemplateEditorContentV3 templateId={id} />
+  return <TemplateEditorContentV4 templateId={id} />
 }
