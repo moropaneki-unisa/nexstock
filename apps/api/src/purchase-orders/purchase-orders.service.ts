@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, PurchaseOrderStatus, SupplierStatus } from '@prisma/client';
+import { InventoryMovementType, Prisma, PurchaseOrderStatus, SupplierStatus } from '@prisma/client';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto } from './dto';
+import { CreatePurchaseOrderDto, ReceivePurchaseOrderDto, UpdatePurchaseOrderDto } from './dto';
 
 type OrganizationCurrencyRules = {
   baseCurrency: string;
@@ -84,6 +84,79 @@ export class PurchaseOrdersService {
         notes: dto.notes === undefined ? undefined : this.optionalText(dto.notes),
       },
       include: { supplier: true, lines: { include: { product: true, productSupplier: true } } },
+    });
+  }
+
+  async receive(user: CurrentUserPayload, id: string, dto: ReceivePurchaseOrderDto) {
+    const existing = await this.db.purchaseOrder.findFirst({
+      where: { id, organizationId: user.organizationId },
+      include: { lines: { include: { product: true } } },
+    });
+    if (!existing) throw new NotFoundException('Purchase order not found');
+    if (existing.status === PurchaseOrderStatus.cancelled) throw new BadRequestException('Cancelled purchase orders cannot be received');
+
+    const incoming = new Map(dto.lines.map((line) => [line.lineId, line.quantityReceived]));
+    if (incoming.size !== dto.lines.length) throw new BadRequestException('Duplicate received lines are not allowed');
+
+    return this.db.$transaction(async (tx) => {
+      for (const line of existing.lines) {
+        const receiveDelta = incoming.get(line.id);
+        if (receiveDelta === undefined) continue;
+        if (!Number.isInteger(receiveDelta) || receiveDelta < 0) throw new BadRequestException('Received quantity must be zero or more');
+
+        const alreadyReceived = line.quantityReceived || 0;
+        const nextReceived = alreadyReceived + receiveDelta;
+        if (nextReceived > line.quantityOrdered) throw new BadRequestException(`Received quantity for ${line.product.name} cannot exceed ordered quantity`);
+        if (receiveDelta === 0) continue;
+
+        const productBefore = line.product.quantity;
+        const productAfter = productBefore + receiveDelta;
+
+        await tx.product.update({ where: { id: line.productId }, data: { quantity: productAfter } });
+        await tx.purchaseOrderLine.update({ where: { id: line.id }, data: { quantityReceived: nextReceived } });
+        await tx.inventoryLog.create({
+          data: {
+            organizationId: user.organizationId,
+            productId: line.productId,
+            type: InventoryMovementType.purchase,
+            quantityBefore: productBefore,
+            quantityAfter: productAfter,
+            delta: receiveDelta,
+            reason: this.optionalText(dto.notes) ?? `Received against ${existing.poNumber}`,
+            source: 'purchase_order',
+            referenceId: existing.id,
+          },
+        });
+      }
+
+      const lines = await tx.purchaseOrderLine.findMany({ where: { purchaseOrderId: existing.id } });
+      const totalOrdered = lines.reduce((sum, line) => sum + line.quantityOrdered, 0);
+      const totalReceived = lines.reduce((sum, line) => sum + line.quantityReceived, 0);
+      const status = totalReceived <= 0
+        ? PurchaseOrderStatus.ordered
+        : totalReceived >= totalOrdered
+          ? PurchaseOrderStatus.received
+          : PurchaseOrderStatus.partially_received;
+
+      return tx.purchaseOrder.update({
+        where: { id: existing.id },
+        data: {
+          status,
+          orderedAt: existing.orderedAt ?? new Date(),
+          receivedAt: status === PurchaseOrderStatus.received ? new Date() : null,
+          notes: dto.notes === undefined ? undefined : this.optionalText(dto.notes),
+        },
+        include: {
+          supplier: true,
+          lines: {
+            include: {
+              product: { select: { id: true, name: true, sku: true, images: true, quantity: true } },
+              productSupplier: { include: { supplier: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
     });
   }
 
