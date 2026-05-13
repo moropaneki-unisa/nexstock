@@ -171,7 +171,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
 }
 
 function SummaryCard({ title, value, detail, mono }: { title: string; value: string; detail: string; mono?: boolean }) {
-  return <Card className="h-full gap-0 overflow-hidden py-0"><CardHeader className="min-h-28 justify-between px-6 py-5"><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums", mono && "font-mono text-lg")}>{value}</CardTitle></CardHeader><CardFooter className="mt-auto border-t bg-muted/40 px-6 py-4 text-sm text-muted-foreground">{detail}</CardFooter></Card>
+  return <Card className="h-full gap-0 overflow-hidden py-0"><CardHeader className="min-h-28 justify-between px-6 py-5"><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums", mono && "font-mono text-lg")}>{value}</CardTitle></CardHeader><CardFooter className="mt-auto border-t bg-muted px-6 py-4 text-sm font-medium text-muted-foreground">{detail}</CardFooter></Card>
 }
 
 function FieldGrid({ fields }: { fields: ProductDataField[] }) { return <div className="grid overflow-hidden rounded-xl border md:grid-cols-2">{fields.map((field) => <div key={field.id} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r even:md:border-r-0"><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{field.label}</p>{field.type ? <Badge variant="outline">{field.type}</Badge> : null}</div><p className={cn("mt-2 break-words font-medium", field.mono && "font-mono", field.multiline && "whitespace-pre-wrap leading-6")}>{field.value}</p></div>)}</div> }
