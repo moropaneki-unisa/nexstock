@@ -62,3 +62,24 @@ export class UpdatePurchaseOrderDto {
   @IsString()
   notes?: string;
 }
+
+export class ReceivePurchaseOrderLineDto {
+  @IsString()
+  lineId!: string;
+
+  @IsInt()
+  @Min(0)
+  quantityReceived!: number;
+}
+
+export class ReceivePurchaseOrderDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ReceivePurchaseOrderLineDto)
+  lines!: ReceivePurchaseOrderLineDto[];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
