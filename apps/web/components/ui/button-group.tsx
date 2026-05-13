@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
@@ -35,6 +36,10 @@ function ButtonGroup({
       {...props}
     />
   )
+}
+
+function ButtonGroupItem({ children }: { children: React.ReactNode }) {
+  return <Fragment>{children}</Fragment>
 }
 
 function ButtonGroupText({
@@ -77,6 +82,7 @@ function ButtonGroupSeparator({
 
 export {
   ButtonGroup,
+  ButtonGroupItem,
   ButtonGroupSeparator,
   ButtonGroupText,
   buttonGroupVariants,
