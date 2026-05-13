@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardListIcon, EditIcon, Loader2Icon, PackageCheckIcon, RefreshCwIcon, TruckIcon, WalletCardsIcon, WarehouseIcon } from "lucide-react"
+import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardListIcon, EditIcon, Loader2Icon, MailIcon, PackageCheckIcon, RefreshCwIcon, TruckIcon, WalletCardsIcon, WarehouseIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +23,7 @@ type Supplier = { id: string; supplierCode: string; name: string; currency?: str
 type Product = { id: string; name: string; sku?: string | null; quantity?: number | string | null }
 type PurchaseOrderLine = { id: string; supplierSku?: string | null; description?: string | null; quantityOrdered: number; quantityReceived?: number | null; unitCost: string | number; currency: string; lineTotal: string | number; notes?: string | null; product?: Product | null }
 type PurchaseOrder = { id: string; poNumber: string; status: PurchaseOrderStatus; currency: string; subtotal: string | number; expectedAt?: string | null; orderedAt?: string | null; receivedAt?: string | null; notes?: string | null; createdAt?: string | null; updatedAt?: string | null; supplier?: Supplier | null; lines?: PurchaseOrderLine[] }
+type SendDocumentResponse = { ok?: boolean; message?: string; to?: string; subject?: string; providerMessageId?: string | null; generatedDocumentId?: string }
 
 function numberValue(value: unknown) { const next = Number(value ?? 0); return Number.isFinite(next) ? next : 0 }
 function normalizeCurrency(value?: string | null) { const code = String(value || "USD").trim().toUpperCase(); return /^[A-Z]{3}$/.test(code) ? code : "USD" }
@@ -39,6 +40,10 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   const [receiveOpen, setReceiveOpen] = React.useState(false)
   const [receiveNotes, setReceiveNotes] = React.useState("")
   const [receiveLines, setReceiveLines] = React.useState<Record<string, string>>({})
+  const [sendOpen, setSendOpen] = React.useState(false)
+  const [sendTo, setSendTo] = React.useState("")
+  const [sendSubject, setSendSubject] = React.useState("")
+  const [sendMessage, setSendMessage] = React.useState("")
   const [detailsOpen, setDetailsOpen] = React.useState(true)
   const [linesOpen, setLinesOpen] = React.useState(true)
   const [supplierOpen, setSupplierOpen] = React.useState(true)
@@ -65,6 +70,40 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     setReceiveOpen(true)
   }
 
+  function openSendDialog() {
+    if (!order) return
+    const fallbackTo = order.supplier?.email || ""
+    setSendTo(fallbackTo)
+    setSendSubject(`Purchase Order ${order.poNumber}`)
+    setSendMessage(`Hi ${order.supplier?.name || ""},\n\nPlease find purchase order ${order.poNumber} below.\n\nRegards,\nNexStock`)
+    setSendOpen(true)
+    if (!fallbackTo) {
+      toast.warning("Supplier email is missing", { description: "Enter the recipient email manually before sending." })
+    }
+  }
+
+  async function sendDocument() {
+    if (!order) return
+    if (!sendTo.trim()) return toast.error("Recipient email is required")
+
+    setRunning(true)
+    try {
+      const response = await apiFetch<SendDocumentResponse>(`/api/purchase-orders/${order.id}/send-document`, {
+        method: "POST",
+        body: JSON.stringify({ to: sendTo.trim(), subject: sendSubject.trim() || undefined, message: sendMessage.trim() || undefined }),
+      })
+      toast.success(response.message || "Purchase order email sent", {
+        description: [response.to, response.providerMessageId ? `Resend ID: ${response.providerMessageId}` : null].filter(Boolean).join(" · "),
+      })
+      setSendOpen(false)
+      await loadOrder()
+    } catch (err) {
+      toast.error("Could not send purchase order email", { description: err instanceof Error ? err.message : "Send failed" })
+    } finally {
+      setRunning(false)
+    }
+  }
+
   async function receiveOrder() {
     if (!order) return
     const lines = (order.lines ?? []).map((line) => ({ lineId: line.id, quantityReceived: Math.max(0, Math.floor(numberValue(receiveLines[line.id]))) }))
@@ -73,8 +112,8 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
 
     setRunning(true)
     try {
-      await apiFetch(`/api/purchase-orders/${order.id}/receive`, { method: "POST", body: JSON.stringify({ lines, notes: receiveNotes.trim() || undefined }) })
-      toast.success("Purchase order received", { description: "Stock quantities were updated." })
+      const response = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${order.id}/receive`, { method: "POST", body: JSON.stringify({ lines, notes: receiveNotes.trim() || undefined }) })
+      toast.success("Purchase order received", { description: `${response.poNumber} is now ${titleCase(response.status)}. Stock quantities were updated.` })
       setReceiveOpen(false)
       await loadOrder()
     } catch (err) {
@@ -87,7 +126,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   async function cancelOrder() {
     if (!order) return
     setRunning(true)
-    try { await apiFetch(`/api/purchase-orders/${order.id}`, { method: "DELETE" }); toast.success("Purchase order cancelled", { description: order.poNumber }); await loadOrder() }
+    try { const response = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${order.id}`, { method: "DELETE" }); toast.success("Purchase order cancelled", { description: response.poNumber }); await loadOrder() }
     catch (err) { toast.error("Could not cancel purchase order", { description: err instanceof Error ? err.message : "Cancel failed" }) }
     finally { setRunning(false) }
   }
@@ -99,6 +138,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   const receivedQty = (order.lines ?? []).reduce((sum, line) => sum + numberValue(line.quantityReceived), 0)
   const orderedQty = (order.lines ?? []).reduce((sum, line) => sum + numberValue(line.quantityOrdered), 0)
   const canReceive = order.status !== "cancelled" && order.status !== "received" && (order.lines ?? []).some((line) => numberValue(line.quantityReceived) < line.quantityOrdered)
+  const canSend = order.status !== "cancelled"
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
@@ -108,7 +148,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
           <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{order.poNumber}</h1><StatusBadge status={order.status} /></div>
           <p className="mt-1 text-sm text-muted-foreground">{order.supplier?.name || "No supplier"} · {formatMoney(order.subtotal, order.currency)}</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadOrder()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button size="sm" onClick={openReceiveDialog} disabled={!canReceive || running}><WarehouseIcon className="size-4" />Receive stock</Button><Button asChild size="sm" variant="outline"><Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={cancelOrder} disabled={running || order.status === "cancelled"}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Cancel</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadOrder()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button size="sm" onClick={openSendDialog} disabled={!canSend || running}><MailIcon className="size-4" />Send email</Button><Button size="sm" onClick={openReceiveDialog} disabled={!canReceive || running}><WarehouseIcon className="size-4" />Receive stock</Button><Button asChild size="sm" variant="outline"><Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={cancelOrder} disabled={running || order.status === "cancelled"}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Cancel</Button></div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
@@ -127,6 +167,18 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
         </div>
         <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]"><CardHeader><CardTitle>Quick facts</CardTitle><CardDescription>At-a-glance purchasing context.</CardDescription></CardHeader><CardContent className="grid gap-3 text-sm"><QuickFact label="PO" value={order.poNumber} mono /><QuickFact label="Status" value={titleCase(order.status)} /><QuickFact label="Supplier" value={order.supplier?.name || "Not set"} /><QuickFact label="Expected" value={formatDate(order.expectedAt)} /><QuickFact label="Updated" value={formatDate(order.updatedAt)} /></CardContent></Card>
       </div>
+
+      <Dialog open={sendOpen} onOpenChange={setSendOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader><DialogTitle>Send purchase order email</DialogTitle><DialogDescription>The default purchase order template will be rendered and sent through Resend. If the supplier email is missing, enter the recipient manually.</DialogDescription></DialogHeader>
+          <div className="grid gap-4">
+            <label className="grid gap-2"><Label>To</Label><Input type="email" value={sendTo} onChange={(event) => setSendTo(event.target.value)} placeholder="supplier@example.com" /></label>
+            <label className="grid gap-2"><Label>Subject</Label><Input value={sendSubject} onChange={(event) => setSendSubject(event.target.value)} placeholder={`Purchase Order ${order.poNumber}`} /></label>
+            <label className="grid gap-2"><Label>Message</Label><Textarea value={sendMessage} onChange={(event) => setSendMessage(event.target.value)} className="min-h-36" /></label>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setSendOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={sendDocument} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <MailIcon className="size-4" />}Send email</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
