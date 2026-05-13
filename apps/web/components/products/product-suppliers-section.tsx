@@ -12,8 +12,24 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
-import { DEFAULT_CURRENCY, formatMoney, normalizeCurrencyCode } from "@/lib/currencies";
 import { cn } from "@/lib/utils";
+
+const DEFAULT_CURRENCY = "USD";
+function normalizeCurrencyCode(value?: string | null, fallback = DEFAULT_CURRENCY) {
+  const code = String(value || fallback).trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : fallback;
+}
+function numberValue(value: unknown) {
+  const next = Number(value ?? 0);
+  return Number.isFinite(next) ? next : 0;
+}
+function formatMoney(value: unknown, currency = DEFAULT_CURRENCY) {
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: normalizeCurrencyCode(currency),
+    maximumFractionDigits: 2,
+  }).format(numberValue(value));
+}
 
 type OrganizationSummary = { baseCurrency?: string | null; enabledCurrencies?: string[] | null };
 type ProductSummary = { id: string; price: string | number; priceCurrency?: string | null; cost?: string | number | null; costCurrency?: string | null; convertedCost?: string | number | null };
