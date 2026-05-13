@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class CreateDocumentTemplateDto {
   @IsString()
@@ -7,6 +7,10 @@ export class CreateDocumentTemplateDto {
   @IsOptional()
   @IsString()
   type?: string;
+
+  @IsOptional()
+  @IsIn(['pdf', 'email'])
+  kind?: string;
 
   @IsOptional()
   @IsString()
@@ -46,6 +50,10 @@ export class UpdateDocumentTemplateDto {
   type?: string;
 
   @IsOptional()
+  @IsIn(['pdf', 'email'])
+  kind?: string;
+
+  @IsOptional()
   @IsString()
   description?: string;
 
@@ -81,6 +89,10 @@ export class PreviewDocumentTemplateDto {
   @IsOptional()
   @IsString()
   type?: string;
+
+  @IsOptional()
+  @IsString()
+  kind?: string;
 
   @IsOptional()
   @IsString()
