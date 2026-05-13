@@ -13,6 +13,7 @@ type HeaderState = {
 }
 
 const headerId = "nexstock-template-header-controls"
+const headerSelector = '[data-template-header="true"]'
 
 function getEditor() {
   return document.querySelector<HTMLElement>('[contenteditable="true"]')
@@ -44,10 +45,6 @@ function getState(): HeaderState {
     position: getPositionValue(),
     logoUrl: logoInput?.value.trim() || "",
   }
-}
-
-function removeOldLogoOnlyPreview(editor: HTMLElement) {
-  editor.querySelectorAll('[data-template-logo="true"]').forEach((node) => node.remove())
 }
 
 function removeStarterContent() {
@@ -126,24 +123,52 @@ function buildHeader(state: HeaderState) {
   return header
 }
 
-function syncHeader(force = false) {
+function ensureTypingArea(editor: HTMLElement) {
+  const header = editor.querySelector(headerSelector)
+  const afterHeader = header?.nextSibling
+
+  if (!header) {
+    if (!editor.textContent?.trim() && !editor.querySelector("br")) {
+      editor.appendChild(document.createElement("p"))
+    }
+    return
+  }
+
+  if (!afterHeader) {
+    const paragraph = document.createElement("p")
+    paragraph.innerHTML = "<br>"
+    editor.appendChild(paragraph)
+    return
+  }
+
+  if (afterHeader.nodeType === Node.TEXT_NODE && !afterHeader.textContent?.trim()) {
+    const paragraph = document.createElement("p")
+    paragraph.innerHTML = "<br>"
+    editor.insertBefore(paragraph, afterHeader.nextSibling)
+  }
+}
+
+function applyHeader() {
   const editor = getEditor()
   if (!editor) return
 
-  removeOldLogoOnlyPreview(editor)
   const state = getState()
   const signature = headerSignature(state)
-  const existing = editor.querySelector<HTMLElement>('[data-template-header="true"]')
+  const existing = editor.querySelector<HTMLElement>(headerSelector)
 
   if (!state.logo && !state.address) {
     if (existing) {
       existing.remove()
+      ensureTypingArea(editor)
       emitEditorInput(editor)
     }
     return
   }
 
-  if (!force && existing?.dataset.signature === signature) return
+  if (existing?.dataset.signature === signature) {
+    ensureTypingArea(editor)
+    return
+  }
 
   const next = buildHeader(state)
   next.dataset.signature = signature
@@ -151,6 +176,7 @@ function syncHeader(force = false) {
   if (existing) existing.replaceWith(next)
   else editor.prepend(next)
 
+  ensureTypingArea(editor)
   emitEditorInput(editor)
 }
 
@@ -174,54 +200,37 @@ function addHeaderControls() {
       <span>Show address</span>
       <input data-template-toggle="address" type="checkbox" style="width:16px;height:16px" />
     </label>
-    <p style="margin:0;color:hsl(var(--muted-foreground));font-size:12px;line-height:1.4">Turn these on to reserve a clean header area at the top of the PDF.</p>
+    <button type="button" data-template-apply-header="true" style="border:1px solid hsl(var(--border));border-radius:8px;padding:8px 10px;background:hsl(var(--background));font-size:13px;font-weight:500;text-align:center">Apply header</button>
+    <p style="margin:0;color:hsl(var(--muted-foreground));font-size:12px;line-height:1.4">Turn on logo/address, then click Apply header. It will not rewrite the editor while you type.</p>
   `
 
   logoSection.prepend(panel)
-  panel.addEventListener("change", () => syncHeader(true))
+  panel.querySelector('[data-template-apply-header="true"]')?.addEventListener("click", applyHeader)
 }
 
-function refreshOnce() {
+function initEditor() {
   removeStarterContent()
   addHeaderControls()
-  syncHeader()
 }
 
 export function TemplateEditorContentV6({ templateId, kind = "pdf" }: { templateId?: string; kind?: TemplateKind }) {
   React.useEffect(() => {
-    let queued = false
-    const queueRefresh = (force = false) => {
-      if (queued) return
-      queued = true
-      window.requestAnimationFrame(() => {
-        queued = false
-        removeStarterContent()
-        addHeaderControls()
-        syncHeader(force)
-      })
-    }
-
-    const observer = new MutationObserver(() => queueRefresh(false))
+    const observer = new MutationObserver(() => {
+      addHeaderControls()
+    })
     observer.observe(document.body, { childList: true, subtree: true })
 
-    const onInput = (event: Event) => {
+    const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.closest('[contenteditable="true"]')) return
-      queueRefresh(true)
+      if (target?.closest('[data-template-apply-header="true"]')) applyHeader()
     }
 
-    const onClick = () => window.setTimeout(() => queueRefresh(true), 80)
-
-    document.addEventListener("input", onInput, true)
-    document.addEventListener("change", onInput, true)
     document.addEventListener("click", onClick, true)
-    window.setTimeout(refreshOnce, 120)
-    window.setTimeout(refreshOnce, 700)
+    window.setTimeout(initEditor, 120)
+    window.setTimeout(initEditor, 700)
 
     return () => {
       observer.disconnect()
-      document.removeEventListener("input", onInput, true)
-      document.removeEventListener("change", onInput, true)
       document.removeEventListener("click", onClick, true)
     }
   }, [])
