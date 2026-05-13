@@ -49,6 +49,12 @@ Please find attached {{purchaseOrder.poNumber}}.
 Regards,
 {{organization.name}}`
 
+const lineRowsSnippet = `{{#lines}}<tr><td style="border-bottom:1px solid #eee; padding:8px;">{{product.name}}<br><small>{{product.sku}}</small></td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{quantityOrdered}}</td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{unitCost}}</td><td style="border-bottom:1px solid #eee; padding:8px; text-align:right;">{{lineTotal}}</td></tr>{{/lines}}`
+const lineTableSnippet = `<table style="width:100%; border-collapse: collapse; margin-top: 24px;">
+  <thead><tr><th style="border-bottom:1px solid #ddd; text-align:left; padding:8px;">Product</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Qty</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Unit</th><th style="border-bottom:1px solid #ddd; text-align:right; padding:8px;">Total</th></tr></thead>
+  <tbody>${lineRowsSnippet}</tbody>
+</table>`
+
 function messageFromError(err: unknown, fallback: string) { return err instanceof Error ? err.message : fallback }
 function groupFields(fields: FieldToken[]) { return fields.reduce<Record<string, FieldToken[]>>((acc, field) => { acc[field.group] = acc[field.group] || []; acc[field.group].push(field); return acc }, {}) }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
@@ -92,9 +98,7 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
         setTo(data.recipientEmailTemplate || "")
       } catch (err) {
         toast.error("Template editor could not load", { description: messageFromError(err, "Load failed") })
-      } finally {
-        setLoading(false)
-      }
+      } finally { setLoading(false) }
     }
     void loadTemplate()
   }, [templateId])
@@ -142,6 +146,44 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
     editorRef.current?.focus()
     document.execCommand(name, false, commandValue)
     syncHtml()
+  }
+
+  function insertHtmlSnippet(snippet: string, label: string) {
+    if (templateKind === "email") {
+      setEmailBody((current) => `${current}\n${snippet}`)
+      toast.success(`${label} inserted`)
+      return
+    }
+    if (mode === "html") {
+      setHtml((current) => `${current}\n${snippet}`)
+      toast.success(`${label} inserted`)
+      return
+    }
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+    const selection = window.getSelection()
+    const range = savedRangeRef.current
+    if (selection && range && editor.contains(range.commonAncestorContainer)) {
+      selection.removeAllRanges(); selection.addRange(range); range.deleteContents()
+      const wrapper = document.createElement("div")
+      wrapper.innerHTML = snippet
+      const fragment = document.createDocumentFragment()
+      let lastNode: ChildNode | null = null
+      while (wrapper.firstChild) {
+        lastNode = fragment.appendChild(wrapper.firstChild)
+      }
+      range.insertNode(fragment)
+      if (lastNode) {
+        range.setStartAfter(lastNode)
+        range.setEndAfter(lastNode)
+        selection.removeAllRanges(); selection.addRange(range); savedRangeRef.current = range.cloneRange()
+      }
+    } else {
+      editor.insertAdjacentHTML("beforeend", snippet)
+    }
+    syncHtml()
+    toast.success(`${label} inserted`)
   }
 
   function insertField(path: string) {
@@ -220,35 +262,51 @@ export function TemplateEditorContent({ templateId, kind = "pdf" }: { templateId
         <div className="grid max-h-[calc(100vh-4rem)] gap-3 overflow-y-auto p-4">
           <div className="rounded-lg border bg-sidebar-accent/40 p-3"><p className="text-xs font-medium uppercase tracking-wide text-sidebar-foreground/60">Template</p><p className="mt-1 text-sm font-medium">{name || "Untitled"}</p><p className="text-xs text-sidebar-foreground/70">{titleCase(module)}</p></div>
           <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="flex items-center gap-2 text-sm"><Settings2Icon className="size-4" />Setup</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><label className="grid gap-1"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></label><label className="grid gap-1"><Label>Module</Label><Select value={module} onValueChange={setModule}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{modules.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-1"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-20" /></label></CardContent></Card>
-          {templateKind === "pdf" ? <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="text-sm">Text tools</CardTitle></CardHeader><CardContent className="grid grid-cols-3 gap-2 p-3 pt-0"><Button variant="outline" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button><Button variant="outline" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>P</Button></CardContent></Card> : null}
-          <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="text-sm">Fields</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><div className="relative"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div><div className="grid max-h-[28rem] gap-4 overflow-y-auto pr-1">{Object.entries(groupedFields).map(([group, items]) => <div key={group} className="grid gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="rounded-lg border bg-background p-3 text-left text-foreground transition hover:bg-muted/50"><span className="block text-sm font-medium">{field.label}</span><span className="mt-1 block font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>{field.description ? <span className="mt-1 block text-xs text-muted-foreground">{field.description}</span> : null}</button>)}</div>)}</div></CardContent></Card>
+          <Card className="border-sidebar-border bg-sidebar-accent/30 shadow-none"><CardHeader className="p-3"><CardTitle className="text-sm">Fields</CardTitle></CardHeader><CardContent className="grid gap-3 p-3 pt-0"><div className="relative"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div><div className="grid max-h-[34rem] gap-4 overflow-y-auto pr-1">{Object.entries(groupedFields).map(([group, items]) => <div key={group} className="grid gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="rounded-lg border bg-background p-3 text-left text-foreground transition hover:bg-muted/50"><span className="block text-sm font-medium">{field.label}</span><span className="mt-1 block font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span>{field.description ? <span className="mt-1 block text-xs text-muted-foreground">{field.description}</span> : null}</button>)}</div>)}</div></CardContent></Card>
         </div>
       </aside>
 
       <div className="min-w-0">
-        <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+        <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
           <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
             <div><p className="text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template</p><h1 className="font-heading text-lg font-semibold tracking-tight">{name}</h1></div>
             <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={renderPreview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div>
+          </div>
+          <div className="flex flex-wrap items-stretch gap-0 border-t bg-card px-4 py-2 lg:px-6">
+            {templateKind === "pdf" ? <RibbonGroup label="Clipboard"><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("<p>New paragraph</p>", "Paragraph")}>Paragraph</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("<div style='height:24px'></div>", "Spacer")}>Spacer</Button></RibbonGroup> : null}
+            {templateKind === "pdf" ? <RibbonGroup label="Font"><Button variant="ghost" size="sm" onClick={() => command("bold")} disabled={mode !== "document"}><BoldIcon className="size-4" /></Button><Button variant="ghost" size="sm" onClick={() => command("italic")} disabled={mode !== "document"}><ItalicIcon className="size-4" /></Button><Button variant="ghost" size="sm" onClick={() => command("underline")} disabled={mode !== "document"}><UnderlineIcon className="size-4" /></Button></RibbonGroup> : null}
+            {templateKind === "pdf" ? <RibbonGroup label="Styles"><Button variant="ghost" size="sm" onClick={() => command("formatBlock", "H1")} disabled={mode !== "document"}>H1</Button><Button variant="ghost" size="sm" onClick={() => command("formatBlock", "H2")} disabled={mode !== "document"}>H2</Button><Button variant="ghost" size="sm" onClick={() => command("formatBlock", "P")} disabled={mode !== "document"}>Body</Button></RibbonGroup> : null}
+            {templateKind === "pdf" ? <RibbonGroup label="Tables"><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet(lineTableSnippet, "Repeating line table")}>Line table</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet(lineRowsSnippet, "Repeating rows")}>Repeating rows</Button><Button variant="ghost" size="sm" onClick={() => insertHtmlSnippet("{{#lines}}<p>{{product.name}} - {{quantityOrdered}} x {{unitCost}} = {{lineTotal}}</p>{{/lines}}", "Repeating list")}>Repeating list</Button></RibbonGroup> : null}
+            <RibbonGroup label="Fields"><Button variant="ghost" size="sm" onClick={() => setFieldSearch("")}>Browse fields</Button><Button variant="ghost" size="sm" onClick={() => insertField(templateKind === "email" ? "supplier.email" : "organization.name")}>Quick field</Button></RibbonGroup>
+            <RibbonGroup label="View"><Button variant="ghost" size="sm" onClick={renderPreview} disabled={previewing}><ExternalLinkIcon className="size-4" />Preview tab</Button></RibbonGroup>
           </div>
         </header>
 
         <main className="p-4 lg:p-6">
           {templateKind === "pdf" ? (
             <div className="mx-auto max-w-5xl">
-              <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="font-heading text-xl font-semibold">PDF document</h2><p className="text-sm text-muted-foreground">Edit like a document. Preview opens in a separate tab.</p></div><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div>
+              <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="font-heading text-xl font-semibold">PDF document</h2><p className="text-sm text-muted-foreground">Edit like a document. Use the ribbon above for formatting, repeating rows, and tables.</p></div><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div>
               <div className="rounded-2xl border bg-muted p-4 shadow-sm">
                 {mode === "document" ? <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={syncHtml} onBlur={syncHtml} onKeyUp={saveSelection} onMouseUp={saveSelection} className={cn("mx-auto min-h-[1123px] w-full max-w-[794px] overflow-auto bg-white p-10 text-sm leading-6 text-slate-950 shadow-xl outline-none dark:bg-white dark:text-slate-950", "[&_*]:text-inherit [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border-b [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border-b [&_th]:border-slate-300 [&_th]:p-2")} /> : <Textarea value={html} onChange={(event) => setHtml(event.target.value)} className="min-h-[1123px] font-mono text-xs" />}
               </div>
             </div>
           ) : (
             <div className="mx-auto grid max-w-4xl gap-4">
-              <div><h2 className="font-heading text-xl font-semibold">Email template</h2><p className="text-sm text-muted-foreground">Design the email. Preview opens in a separate tab.</p></div>
+              <div><h2 className="font-heading text-xl font-semibold">Email template</h2><p className="text-sm text-muted-foreground">Design the email. Use the fields sidebar and preview in a separate tab.</p></div>
               <Card><CardContent className="grid gap-4 p-6"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[560px]" /></label></CardContent></Card>
             </div>
           )}
         </main>
       </div>
+    </div>
+  )
+}
+
+function RibbonGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mr-2 flex min-h-16 flex-col justify-between border-r pr-2 last:border-r-0">
+      <div className="flex flex-wrap items-center gap-1">{children}</div>
+      <p className="mt-1 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     </div>
   )
 }
