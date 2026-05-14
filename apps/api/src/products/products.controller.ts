@@ -26,6 +26,7 @@ import {
   ListProductsDto,
   UpdateProductDto,
 } from './dto';
+import { ProductFieldsService } from './product-fields.service';
 import { ProductsImportExportService } from './products-import-export.service';
 import { ProductsService } from './products.service';
 
@@ -35,6 +36,7 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly importExport: ProductsImportExportService,
+    private readonly fields: ProductFieldsService,
   ) {}
 
   // ✅ NEW: upload + attach to product
@@ -63,6 +65,11 @@ export class ProductsController {
     @Query() query: ListProductsDto,
   ) {
     return this.products.list(user.organizationId, query);
+  }
+
+  @Get('fields')
+  listFields(@CurrentUser() user: CurrentUserPayload) {
+    return this.fields.list(user.organizationId);
   }
 
   @Get(':id')
