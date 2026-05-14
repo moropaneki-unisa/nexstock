@@ -19,12 +19,12 @@ export class ProductFieldsController {
   }
 
   @Post()
-  create(@CurrentUser() user: CurrentUserPayload, @Body() body: Record<string, unknown>) {
+  create(@CurrentUser() user: CurrentUserPayload, @Body() body: any) {
     return this.fields.create(user.organizationId, body);
   }
 
   @Patch(':id')
-  update(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: Record<string, unknown>) {
+  update(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string, @Body() body: any) {
     return this.fields.update(user.organizationId, id, body);
   }
 
