@@ -171,4 +171,17 @@
   img[alt="Uploaded image"] + span {
     display: none !important;
   }
+
+  img[alt="Product image"],
+  img[alt="No image"] {
+    object-fit: cover;
+  }
+
+  a:has(> img[alt]) img.aspect-square {
+    max-height: 6rem;
+  }
+
+  a:has(svg) .truncate {
+    min-width: 0;
+  }
 }
