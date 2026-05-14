@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, getApiUrl } from "@/lib/api"
 
 type TemplateKind = "pdf" | "email"
 type LogoPosition = "left" | "right"
@@ -71,6 +71,11 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
+async function parseResponseError(response: Response, fallback: string) {
+  const body = await response.json().catch(() => null)
+  return body?.message || body?.error || fallback
+}
+
 function stripHeader(html: string) {
   return html.replace(new RegExp(`${headerStart}[\\s\\S]*?${headerEnd}`, "g"), "").trim() || blankPdf
 }
@@ -99,10 +104,6 @@ function groupFields(fields: FieldToken[]) {
     acc[field.group].push(field)
     return acc
   }, {})
-}
-
-function pdfDocument(html: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>PDF Preview</title><style>body{margin:0;background:#e5e7eb;font-family:Arial,sans-serif}.toolbar{position:sticky;top:0;background:#fff;border-bottom:1px solid #e5e7eb;padding:10px 16px;font-size:13px;color:#475569}.page{width:794px;min-height:1123px;margin:24px auto;background:#fff;color:#111;box-shadow:0 18px 45px rgba(15,23,42,.18);box-sizing:border-box;padding:64px 68px}@media print{.toolbar{display:none}body{background:#fff}.page{margin:0;box-shadow:none;width:auto;min-height:auto}}</style></head><body><div class="toolbar">PDF preview · Press Ctrl+P to print or save as PDF</div><div class="page">${html}</div></body></html>`
 }
 
 function emailDocument(result: PreviewResult, fallback: string) {
@@ -235,8 +236,28 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
   async function preview() {
     setPreviewing(true)
     try {
-      const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", { method: "POST", body: JSON.stringify({ type: module, kind: templateKind, htmlTemplate: fullHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }) })
-      const doc = templateKind === "pdf" ? pdfDocument(result.html || fullHtml) : emailDocument(result, emailBody)
+      const payload = { type: module, kind: templateKind, htmlTemplate: fullHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }
+
+      if (templateKind === "pdf") {
+        const response = await fetch(`${getApiUrl()}/api/document-templates/preview/pdf`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) throw new Error(await parseResponseError(response, "PDF preview failed"))
+
+        const blob = await response.blob()
+        const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }))
+        window.open(url, "_blank", "noopener,noreferrer")
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+        toast.success("PDF preview opened")
+        return
+      }
+
+      const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", { method: "POST", body: JSON.stringify(payload) })
+      const doc = emailDocument(result, emailBody)
       const url = URL.createObjectURL(new Blob([doc], { type: "text/html" }))
       window.open(url, "_blank", "noopener,noreferrer")
       window.setTimeout(() => URL.revokeObjectURL(url), 30000)
