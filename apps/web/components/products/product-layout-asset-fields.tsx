@@ -18,6 +18,13 @@ type Asset = {
   resourceType?: string
 }
 
+type LayoutField = {
+  key: string
+  label: string
+  type?: string | null
+  isActive?: boolean | null
+}
+
 function safeParseAssets(value: string): Asset[] {
   if (!value.trim()) return []
   try {
@@ -108,24 +115,32 @@ function AssetField({ input, type, label }: { input: HTMLInputElement; type: "im
   )
 }
 
-function fieldLabelFor(input: HTMLInputElement) {
-  const wrapper = input.closest(".grid.gap-2")
-  return wrapper?.querySelector("label")?.textContent?.replace("*", "").trim() || "Asset field"
+function normalizeText(value: string) {
+  return value.replace("*", "").replace(/required/i, "").trim().toLowerCase()
 }
 
-export function ProductLayoutAssetFields() {
+function findInputForField(field: LayoutField) {
+  const labels = Array.from(document.querySelectorAll<HTMLLabelElement>(".product-form-layout-scope label"))
+  const label = labels.find((item) => normalizeText(item.textContent || "") === normalizeText(field.label || field.key))
+  const wrapper = label?.parentElement
+  return wrapper?.querySelector<HTMLInputElement>("input") || null
+}
+
+export function ProductLayoutAssetFields({ fields }: { fields: LayoutField[] }) {
   React.useEffect(() => {
     function enhance() {
-      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(".product-form-layout-scope input[data-layout-asset-type]"))
-      for (const input of inputs) {
-        if (input.dataset.assetEnhanced === "true") continue
-        const type = input.dataset.layoutAssetType === "images" ? "images" : "attachment"
+      const assetFields = fields.filter((field) => field.isActive !== false && (field.type === "images" || field.type === "attachment"))
+      for (const field of assetFields) {
+        const input = findInputForField(field)
+        if (!input || input.dataset.assetEnhanced === "true") continue
+        const type = field.type === "images" ? "images" : "attachment"
         const container = document.createElement("div")
         input.type = "hidden"
+        input.dataset.layoutAssetType = type
         input.dataset.assetEnhanced = "true"
         input.insertAdjacentElement("afterend", container)
         import("react-dom/client").then(({ createRoot }) => {
-          createRoot(container).render(<AssetField input={input} type={type} label={fieldLabelFor(input)} />)
+          createRoot(container).render(<AssetField input={input} type={type} label={field.label || field.key} />)
         })
       }
     }
@@ -134,7 +149,7 @@ export function ProductLayoutAssetFields() {
     const observer = new MutationObserver(enhance)
     observer.observe(document.body, { childList: true, subtree: true })
     return () => observer.disconnect()
-  }, [])
+  }, [fields])
 
   return null
 }
