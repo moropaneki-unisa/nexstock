@@ -92,7 +92,7 @@ export class ProductsImportExportService {
         lowStockLevel: product.lowStockLevel,
         category: product.category ?? '',
         status: product.status,
-        images: product.images.join('|'),
+        images: this.jsonValue(product.images),
         layout: metadata.productTypeName ?? '',
         kind: metadata.kind ?? '',
         trackInventory: metadata.trackInventory ?? '',
@@ -100,7 +100,7 @@ export class ProductsImportExportService {
 
       for (const field of fields) {
         const value = customFields[field.key];
-        if (value !== undefined) row[this.customHeader(field)] = this.stringifyCellValue(value);
+        if (value !== undefined) row[this.customHeader(field)] = this.stringifyLayoutExportValue(field, value);
       }
 
       return row;
@@ -277,7 +277,7 @@ export class ProductsImportExportService {
     const customFields: Record<string, unknown> = {};
     for (const field of fields) {
       const value = get(this.customHeader(field), field.label, field.key, `custom:${field.key}`, `custom:${field.label}`);
-      if (value !== undefined) customFields[field.key] = this.convertLayoutValue(field, value);
+      if (value !== undefined) customFields[field.key] = this.convertLayoutValue(field, value, currencySettings.baseCurrency);
     }
 
     const price = new Prisma.Decimal(this.numberValue(get('price', 'rate', 'sales rate')));
@@ -370,9 +370,49 @@ export class ProductsImportExportService {
 
   private stringifyCellValue(value: unknown) {
     if (value === null || value === undefined) return '';
-    if (Array.isArray(value)) return value.map((item) => typeof item === 'object' ? JSON.stringify(item) : String(item)).join('|');
-    if (typeof value === 'object') return JSON.stringify(value);
+    if (Array.isArray(value) || typeof value === 'object') return JSON.stringify(value);
     return String(value);
+  }
+
+  private stringifyLayoutExportValue(field: LayoutField, value: unknown) {
+    const type = String(field.type || 'text').toLowerCase();
+    if (value === null || value === undefined) return '';
+
+    if (type === 'text' || type === 'richtext' || type === 'number' || type === 'decimal' || type === 'select' || type === 'date') {
+      return typeof value === 'object' ? JSON.stringify(value) : String(value);
+    }
+
+    if (type === 'currency') {
+      const object = this.recordObject(value);
+      return this.jsonValue({ amount: this.numberValue(object.amount ?? object.value), currency: this.currencyValue(object.currency, 'ZAR') });
+    }
+
+    if (type === 'images') {
+      return this.jsonValue(Array.isArray(value) ? value.map(String).filter(Boolean) : this.imagesValue(value));
+    }
+
+    if (type === 'attachment') {
+      if (!Array.isArray(value)) return this.jsonValue([]);
+      return this.jsonValue(value.map((item) => {
+        const object = this.recordObject(item);
+        return { name: String(object.name ?? this.fileNameFromUrl(String(object.url ?? ''))), url: String(object.url ?? '') };
+      }).filter((item) => item.url));
+    }
+
+    if (type === 'lookup') {
+      const object = this.recordObject(value);
+      return String(object.name ?? object.id ?? '');
+    }
+
+    if (type === 'boolean') {
+      return this.booleanValue(value) ? 'Yes' : 'No';
+    }
+
+    return this.stringifyCellValue(value);
+  }
+
+  private jsonValue(value: unknown) {
+    return JSON.stringify(value);
   }
 
   private customHeader(field: LayoutField) {
@@ -391,6 +431,7 @@ export class ProductsImportExportService {
 
   private numberValue(value: unknown) {
     if (value === undefined || value === null || value === '') return 0;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
     const parsed = Number(String(value).replace(/[^0-9.-]/g, ''));
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -435,24 +476,86 @@ export class ProductsImportExportService {
 
   private imagesValue(value: unknown) {
     if (value === undefined || value === null || value === '') return [];
+    const parsed = this.parseJson(value);
+    if (Array.isArray(parsed)) return parsed.map((item) => String(item).trim()).filter(Boolean);
     return String(value).split(/[|,]/).map((item) => item.trim()).filter(Boolean);
   }
 
-  private convertLayoutValue(field: LayoutField, value: unknown): Prisma.InputJsonValue {
+  private convertLayoutValue(field: LayoutField, value: unknown, fallbackCurrency: string): Prisma.InputJsonValue {
     const type = String(field.type || 'text').toLowerCase();
     if (type === 'number') return Math.trunc(this.numberValue(value));
     if (type === 'decimal') return this.numberValue(value);
-    if (type === 'currency') return { amount: this.numberValue(value), currency: 'ZAR' };
-    if (type === 'boolean') return ['true', '1', 'yes', 'y'].includes(String(value).toLowerCase());
+    if (type === 'currency') return this.currencyObjectValue(value, fallbackCurrency) as Prisma.InputJsonObject;
+    if (type === 'boolean') return this.booleanValue(value);
     if (type === 'images') return this.imagesValue(value) as Prisma.InputJsonArray;
-    if (type === 'attachment') {
-      return String(value).split('|').map((item) => item.trim()).filter(Boolean).map((url) => ({ name: this.fileNameFromUrl(url), url })) as Prisma.InputJsonArray;
-    }
+    if (type === 'attachment') return this.attachmentValue(value) as Prisma.InputJsonArray;
     if (type === 'lookup') {
+      const parsed = this.parseJson(value);
+      if (this.isRecord(parsed)) {
+        const id = String(parsed.id ?? parsed.name ?? '').trim();
+        const name = String(parsed.name ?? parsed.id ?? '').trim();
+        return { id, name };
+      }
       const text = String(value).trim();
       return { id: text, name: text };
     }
+    if (type === 'date') return String(value).trim().slice(0, 10);
     return String(value).trim();
+  }
+
+  private currencyObjectValue(value: unknown, fallbackCurrency: string) {
+    const parsed = this.parseJson(value);
+    if (this.isRecord(parsed)) {
+      return {
+        amount: this.numberValue(parsed.amount ?? parsed.value),
+        currency: this.currencyValue(parsed.currency, fallbackCurrency),
+      };
+    }
+
+    const text = String(value ?? '').trim();
+    const currencyMatch = text.match(/\b[A-Za-z]{3}\b/);
+    return {
+      amount: this.numberValue(text),
+      currency: this.currencyValue(currencyMatch?.[0], fallbackCurrency),
+    };
+  }
+
+  private attachmentValue(value: unknown) {
+    const parsed = this.parseJson(value);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => {
+        const object = this.recordObject(item);
+        const url = String(object.url ?? '').trim();
+        return { name: String(object.name ?? this.fileNameFromUrl(url)).trim(), url };
+      }).filter((item) => item.url);
+    }
+
+    return String(value)
+      .split('|')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const [namePart, urlPart] = item.includes('=') ? item.split(/=(.*)/s) : ['', item];
+        const url = String(urlPart || item).trim();
+        return { name: String(namePart || this.fileNameFromUrl(url)).trim(), url };
+      })
+      .filter((item) => item.url);
+  }
+
+  private booleanValue(value: unknown) {
+    if (typeof value === 'boolean') return value;
+    return ['true', '1', 'yes', 'y'].includes(String(value).trim().toLowerCase());
+  }
+
+  private parseJson(value: unknown) {
+    if (typeof value !== 'string') return value;
+    const text = value.trim();
+    if (!text || !['[', '{'].includes(text[0])) return value;
+    try { return JSON.parse(text); } catch { return value; }
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 
   private fileNameFromUrl(value: string) {
