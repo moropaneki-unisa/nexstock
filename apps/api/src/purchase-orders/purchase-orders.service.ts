@@ -107,13 +107,14 @@ export class PurchaseOrdersService {
     const updated = await this.db.$transaction(async (tx) => {
       const existing = await tx.purchaseOrder.findFirst({
         where: { id, organizationId: user.organizationId },
-        include: { lines: { include: { product: true }, orderBy: { createdAt: 'asc' } } },
+        include: { lines: { include: { product: true, productSupplier: true }, orderBy: { createdAt: 'asc' } } },
       });
       if (!existing) throw new NotFoundException('Purchase order not found');
       if (existing.status === PurchaseOrderStatus.cancelled) throw new BadRequestException('Cancelled purchase orders cannot be received');
 
       let totalOrdered = 0;
       let totalReceived = 0;
+      const receivedAt = new Date();
 
       for (const line of existing.lines) {
         totalOrdered += line.quantityOrdered;
@@ -150,6 +151,30 @@ export class PurchaseOrdersService {
             referenceId: existing.id,
           },
         });
+
+        if (line.productSupplierId) {
+          await tx.productSupplier.update({
+            where: { id: line.productSupplierId },
+            data: {
+              cost: line.unitCost,
+              currency: line.currency,
+              supplierSku: line.supplierSku ?? undefined,
+              lastPurchaseAt: receivedAt,
+            },
+          });
+
+          if (line.productSupplier?.isPreferred) {
+            await tx.product.update({
+              where: { id: line.productId },
+              data: {
+                cost: line.unitCost,
+                costCurrency: line.currency,
+                convertedCost: line.unitCost,
+                exchangeRateToBase: new Prisma.Decimal(1),
+              },
+            });
+          }
+        }
       }
 
       const status = totalReceived <= 0
@@ -162,8 +187,8 @@ export class PurchaseOrdersService {
         where: { id: existing.id },
         data: {
           status,
-          orderedAt: existing.orderedAt ?? new Date(),
-          receivedAt: status === PurchaseOrderStatus.received ? new Date() : null,
+          orderedAt: existing.orderedAt ?? receivedAt,
+          receivedAt: status === PurchaseOrderStatus.received ? receivedAt : null,
           notes: dto.notes === undefined ? undefined : this.optionalText(dto.notes),
         },
         include: {
