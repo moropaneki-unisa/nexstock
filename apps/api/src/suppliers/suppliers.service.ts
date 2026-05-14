@@ -39,6 +39,18 @@ export class SuppliersService {
     return supplier;
   }
 
+  async listSupplierProducts(user: CurrentUserPayload, id: string) {
+    await this.ensureActiveSupplier(user, id);
+    return this.db.productSupplier.findMany({
+      where: { organizationId: user.organizationId, supplierId: id },
+      include: {
+        supplier: true,
+        product: { select: { id: true, name: true, sku: true, price: true, priceCurrency: true, cost: true, costCurrency: true, quantity: true, category: true, images: true, metadata: true } },
+      },
+      orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
   async create(user: CurrentUserPayload, dto: CreateSupplierDto) {
     const name = this.requiredText(dto.name, 'Supplier name is required');
     const organization = await this.getOrganizationCurrencyRules(user.organizationId);
