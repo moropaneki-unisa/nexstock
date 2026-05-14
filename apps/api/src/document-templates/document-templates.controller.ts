@@ -20,6 +20,11 @@ export class DocumentTemplatesController {
     return this.templates.fields(user, module);
   }
 
+  @Get('test-records')
+  testRecords(@CurrentUser() user: CurrentUserPayload, @Query('module') module = 'purchase_orders') {
+    return this.templates.testRecords(user, module);
+  }
+
   @Post('preview')
   preview(@CurrentUser() user: CurrentUserPayload, @Body() dto: PreviewDocumentTemplateDto) {
     return this.templates.preview(user, dto);
