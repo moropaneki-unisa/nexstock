@@ -13,7 +13,6 @@ import {
   PackageIcon,
   PlusIcon,
   RefreshCwIcon,
-  Settings2Icon,
   TriangleAlertIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -42,13 +41,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api"
 
-type ProductMetadata = {
-  productTypeName?: string | null
-  kind?: string | null
-  trackInventory?: boolean | null
-  customFields?: Record<string, unknown> | null
-}
-
 type Product = {
   id: string
   name: string
@@ -60,8 +52,6 @@ type Product = {
   price?: number | string | null
   costPrice?: number | string | null
   currency?: string | null
-  priceCurrency?: string | null
-  metadata?: ProductMetadata | null
   createdAt?: string | null
   updatedAt?: string | null
 }
@@ -102,25 +92,12 @@ function formatDate(value?: string | null) {
   })
 }
 
-function tracksInventory(product: Product) {
-  return product.metadata?.trackInventory !== false
-}
-
-function productKind(product: Product) {
-  return product.metadata?.kind || "physical"
-}
-
-function productTypeName(product: Product) {
-  return product.metadata?.productTypeName || "General product"
-}
-
 function getProductState(product: Product) {
-  if (product.status === "archived") return "archived"
-  if (product.status === "draft") return "draft"
-  if (!tracksInventory(product)) return "active"
-
   const quantity = numberValue(product.quantity)
   const lowStockLevel = numberValue(product.lowStockLevel)
+
+  if (product.status === "archived") return "archived"
+  if (product.status === "draft") return "draft"
   if (quantity <= 0) return "out"
   if (lowStockLevel > 0 && quantity <= lowStockLevel) return "low"
   return "active"
@@ -131,7 +108,6 @@ function ProductStatusBadge({ product }: { product: Product }) {
 
   if (state === "archived") return <Badge variant="outline">Archived</Badge>
   if (state === "draft") return <Badge variant="secondary">Draft</Badge>
-  if (!tracksInventory(product)) return <Badge variant="outline">No stock tracking</Badge>
   if (state === "out") return <Badge variant="destructive">Out of stock</Badge>
   if (state === "low") return <Badge variant="secondary">Low stock</Badge>
   return <Badge>Active</Badge>
@@ -206,9 +182,9 @@ export function ProductsContent() {
       const result = await apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100")
       setProducts(normalizeProducts(result))
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not load products and services"
+      const message = err instanceof Error ? err.message : "Could not load products"
       setError(message)
-      toast.error("Products & services could not load", { description: message })
+      toast.error("Products could not load", { description: message })
     } finally {
       setLoading(false)
     }
@@ -222,10 +198,10 @@ export function ProductsContent() {
     setRunning(true)
     try {
       await apiFetch(`/api/products/${product.id}`, { method: "DELETE" })
-      toast.success("Item archived", { description: product.name })
+      toast.success("Product archived", { description: product.name })
       await loadProducts()
     } catch (err) {
-      toast.error("Could not archive item", {
+      toast.error("Could not archive product", {
         description: err instanceof Error ? err.message : "Archive failed",
       })
     } finally {
@@ -238,10 +214,10 @@ export function ProductsContent() {
     setRunning(true)
     try {
       await Promise.all(rows.map((product) => apiFetch(`/api/products/${product.id}`, { method: "DELETE" })))
-      toast.success("Items archived", { description: `${rows.length} item${rows.length === 1 ? "" : "s"} archived.` })
+      toast.success("Products archived", { description: `${rows.length} product${rows.length === 1 ? "" : "s"} archived.` })
       await loadProducts()
     } catch (err) {
-      toast.error("Could not archive selected items", {
+      toast.error("Could not archive selected products", {
         description: err instanceof Error ? err.message : "Bulk archive failed",
       })
     } finally {
@@ -257,10 +233,10 @@ export function ProductsContent() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       })))
-      toast.success("Items updated", { description: `${rows.length} item${rows.length === 1 ? "" : "s"} set to ${status}.` })
+      toast.success("Products updated", { description: `${rows.length} product${rows.length === 1 ? "" : "s"} set to ${status}.` })
       await loadProducts()
     } catch (err) {
-      toast.error("Could not update selected items", {
+      toast.error("Could not update selected products", {
         description: err instanceof Error ? err.message : "Bulk update failed",
       })
     } finally {
@@ -273,14 +249,13 @@ export function ProductsContent() {
   const lowStockProducts = products.filter((product) => getProductState(product) === "low")
   const outOfStockProducts = products.filter((product) => getProductState(product) === "out")
   const archivedProducts = products.filter((product) => getProductState(product) === "archived")
-  const serviceProducts = products.filter((product) => productKind(product) === "service" || !tracksInventory(product))
-  const totalStock = products.filter(tracksInventory).reduce((sum, product) => sum + numberValue(product.quantity), 0)
+  const totalStock = products.reduce((sum, product) => sum + numberValue(product.quantity), 0)
 
   const columns = React.useMemo<ColumnDef<Product>[]>(() => [
     createSelectColumn<Product>(),
     {
       accessorKey: "name",
-      header: "Item",
+      header: "Product",
       cell: ({ row }) => (
         <div className="grid gap-1">
           <Link href={`/products/${row.original.id}`} className="font-medium hover:underline">
@@ -292,11 +267,6 @@ export function ProductsContent() {
       enableHiding: false,
     },
     {
-      id: "productType",
-      header: "Type",
-      cell: ({ row }) => <div className="grid gap-1"><span>{productTypeName(row.original)}</span><span className="text-xs text-muted-foreground capitalize">{productKind(row.original)}</span></div>,
-    },
-    {
       accessorKey: "category",
       header: "Category",
       cell: ({ row }) => row.original.category || "Uncategorized",
@@ -304,17 +274,17 @@ export function ProductsContent() {
     {
       accessorKey: "quantity",
       header: "Stock",
-      cell: ({ row }) => tracksInventory(row.original) ? (
+      cell: ({ row }) => (
         <div className="text-right tabular-nums">
           <span className="font-medium">{numberValue(row.original.quantity).toLocaleString()}</span>
           <span className="ml-1 text-xs text-muted-foreground">/ alert {numberValue(row.original.lowStockLevel).toLocaleString()}</span>
         </div>
-      ) : <span className="text-muted-foreground">Not tracked</span>,
+      ),
     },
     {
       accessorKey: "price",
       header: "Selling price",
-      cell: ({ row }) => <div className="font-medium tabular-nums">{formatMoney(row.original.price, row.original.currency || row.original.priceCurrency || "USD")}</div>,
+      cell: ({ row }) => <div className="font-medium tabular-nums">{formatMoney(row.original.price, row.original.currency || "USD")}</div>,
     },
     {
       id: "status",
@@ -358,11 +328,9 @@ export function ProductsContent() {
         <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div>
             <p className="text-sm text-muted-foreground">Catalog</p>
-            <h1 className="font-heading text-2xl font-semibold tracking-tight">Products & Services</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Manage physical stock items, services, digital products, bundles, cars, smartphones, clothing, and custom item layouts.</p>
+            <h1 className="font-heading text-2xl font-semibold tracking-tight">Products</h1>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm"><Link href="/products/types"><Settings2Icon className="size-4" />Product types</Link></Button>
             <Button variant="outline" size="sm" onClick={() => void loadProducts()} disabled={running || loading}>
               {running ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
               Refresh
@@ -370,7 +338,7 @@ export function ProductsContent() {
             <Button asChild size="sm">
               <Link href="/products/new">
                 <PlusIcon className="size-4" />
-                New item
+                New product
               </Link>
             </Button>
           </div>
@@ -382,7 +350,7 @@ export function ProductsContent() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive">
                   <TriangleAlertIcon className="size-4" />
-                  Products & services could not load completely
+                  Products could not load completely
                 </CardTitle>
                 <CardDescription>{error}</CardDescription>
               </CardHeader>
@@ -391,23 +359,23 @@ export function ProductsContent() {
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
-          <ProductMetricCard title="Total items" value={products.length} detail={`${activeProducts.length} active · ${draftProducts.length} draft`} icon={BoxesIcon} />
-          <ProductMetricCard title="Tracked stock" value={totalStock.toLocaleString()} detail="Quantity from inventory items only" icon={PackageIcon} />
-          <ProductMetricCard title="Services / no stock" value={serviceProducts.length} detail="Non-inventory sellable items" icon={Settings2Icon} />
-          <ProductMetricCard title="Low stock" value={lowStockProducts.length} detail={`${outOfStockProducts.length} out of stock · ${archivedProducts.length} archived`} icon={TriangleAlertIcon} />
+          <ProductMetricCard title="Total products" value={products.length} detail={`${activeProducts.length} active · ${draftProducts.length} draft`} icon={BoxesIcon} />
+          <ProductMetricCard title="Stock on hand" value={totalStock.toLocaleString()} detail="Total quantity across catalog" icon={PackageIcon} />
+          <ProductMetricCard title="Low stock" value={lowStockProducts.length} detail={`${outOfStockProducts.length} out of stock`} icon={TriangleAlertIcon} />
+          <ProductMetricCard title="Archived" value={archivedProducts.length} detail="Hidden from active operations" icon={ArchiveIcon} />
         </div>
 
         <RecordsTable
           data={products}
           columns={columns}
-          title="All products & services"
-          description="Manage sellable items, stock-tracked products, non-stock services, prices, categories, and product layouts."
-          searchPlaceholder="Search item name, SKU, category, product type..."
+          title="All products"
+          description="Manage product records, stock status, prices, categories, and product actions."
+          searchPlaceholder="Search product name, SKU, category..."
           getRowId={(row) => row.id}
           actions={
             <Button asChild variant="outline" size="sm">
-              <Link href="/products/types">
-                Product types
+              <Link href="/products/fields">
+                Product fields
                 <ArrowRightIcon className="size-4" />
               </Link>
             </Button>
