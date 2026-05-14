@@ -19,6 +19,11 @@ export class SuppliersController {
     return this.suppliers.get(user, id);
   }
 
+  @Get('suppliers/:id/products')
+  listSupplierProducts(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.suppliers.listSupplierProducts(user, id);
+  }
+
   @Post('suppliers')
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateSupplierDto) {
     return this.suppliers.create(user, dto);
