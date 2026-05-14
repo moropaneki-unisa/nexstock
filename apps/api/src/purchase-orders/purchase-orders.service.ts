@@ -1,9 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InventoryMovementType, Prisma, PurchaseOrderStatus, SupplierStatus } from '@prisma/client';
-import { Resend } from 'resend';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { DocumentTemplatesService } from '../document-templates/document-templates.service';
+import { EmailService } from '../email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePurchaseOrderDto, ReceivePurchaseOrderDto, SendPurchaseOrderDocumentDto, UpdatePurchaseOrderDto } from './dto';
 
@@ -17,16 +16,11 @@ const PURCHASE_ORDER_TEMPLATE_TYPE = 'purchase_orders';
 
 @Injectable()
 export class PurchaseOrdersService {
-  private readonly resend: Resend | null;
-
   constructor(
     private readonly db: PrismaService,
     private readonly templates: DocumentTemplatesService,
-    private readonly config: ConfigService,
-  ) {
-    const apiKey = this.config.get<string>('RESEND_API_KEY');
-    this.resend = apiKey ? new Resend(apiKey) : null;
-  }
+    private readonly email: EmailService,
+  ) {}
 
   list(user: CurrentUserPayload) {
     return this.db.purchaseOrder.findMany({
@@ -210,8 +204,6 @@ export class PurchaseOrdersService {
   }
 
   async sendDocument(user: CurrentUserPayload, id: string, dto: SendPurchaseOrderDocumentDto) {
-    if (!this.resend) throw new BadRequestException('RESEND_API_KEY is not configured on the API server');
-
     const order = await this.get(user, id);
     const template = await this.resolvePurchaseOrderTemplate(user.organizationId, dto.templateId);
     if (!template) throw new BadRequestException('No active purchase order template found. Create one in Settings > Templates.');
@@ -224,6 +216,7 @@ export class PurchaseOrdersService {
     const emailText = this.optionalText(dto.message) ?? this.templates.render(template.emailTemplate || 'Please find purchase order {{purchaseOrder.poNumber}} below.', context);
     const documentHtml = this.templates.render(template.htmlTemplate, context);
     const bodyHtml = `<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">${this.escapeHtml(emailText).replace(/\n/g, '<br>')}<hr style="margin:24px 0;border:0;border-top:1px solid #ddd;" />${documentHtml}</div>`;
+    const bodyText = `${emailText}\n\n${this.stripHtml(documentHtml)}`.trim();
 
     const generatedDocument = await this.db.generatedDocument.create({
       data: {
@@ -237,7 +230,6 @@ export class PurchaseOrdersService {
       },
     });
 
-    const from = this.config.get<string>('RESEND_FROM_EMAIL') || 'NexStock <onboarding@resend.dev>';
     const log = await this.db.emailLog.create({
       data: {
         organizationId: user.organizationId,
@@ -250,16 +242,25 @@ export class PurchaseOrdersService {
       },
     });
 
-    try {
-      const response = await this.resend.emails.send({ from, to, subject, html: bodyHtml });
-      const providerMessageId = response.data?.id || null;
-      await this.db.emailLog.update({ where: { id: log.id }, data: { status: 'sent', sentAt: new Date(), providerMessageId, metadata: response as any } });
-      return { ok: true, message: `Email sent to ${to}`, to, subject, providerMessageId, generatedDocumentId: generatedDocument.id };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Resend failed to send email';
+    const response = await this.email.sendCustomEmail({
+      to,
+      subject,
+      html: bodyHtml,
+      text: bodyText,
+    });
+
+    if (!response?.id) {
+      const message = 'Email provider did not confirm delivery. Check RESEND_API_KEY, EMAIL_FROM, and Resend logs.';
       await this.db.emailLog.update({ where: { id: log.id }, data: { status: 'failed', error: message } });
       throw new BadRequestException(message);
     }
+
+    await this.db.emailLog.update({
+      where: { id: log.id },
+      data: { status: 'sent', sentAt: new Date(), providerMessageId: response.id, metadata: response as any },
+    });
+
+    return { ok: true, message: `Email sent to ${to}`, to, subject, providerMessageId: response.id, generatedDocumentId: generatedDocument.id };
   }
 
   async cancel(user: CurrentUserPayload, id: string) {
@@ -399,7 +400,11 @@ export class PurchaseOrdersService {
     return text || null;
   }
 
+  private stripHtml(value: string) {
+    return value.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
   private escapeHtml(value: string) {
-    return value.replace(/[&<>'\"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '\"': '&quot;' }[char] || char));
+    return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char] || char));
   }
 }
