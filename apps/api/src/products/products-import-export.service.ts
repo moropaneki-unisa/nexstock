@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CustomField, CustomFieldType, Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,6 +27,13 @@ type CurrencySettings = {
   exchangeRates: Array<{ code: string; rateToBase: number }>;
 };
 
+type LayoutField = {
+  key: string;
+  label: string;
+  type: string;
+  layoutName: string;
+};
+
 const XLSX_CELL_TEXT_LIMIT = 32_767;
 const XLSX_TRUNCATION_SUFFIX = '\n\n[Truncated for XLSX export. Export CSV for the full value.]';
 
@@ -45,6 +52,9 @@ const CORE_EXPORT_HEADERS = [
   'category',
   'status',
   'images',
+  'layout',
+  'kind',
+  'trackInventory',
 ];
 
 @Injectable()
@@ -59,17 +69,15 @@ export class ProductsImportExportService {
       this.prisma.product.findMany({
         where: { organizationId, deletedAt: null },
         orderBy: { createdAt: 'desc' },
-        include: { customFieldValues: { include: { field: true } } },
       }),
-      this.prisma.customField.findMany({
-        where: { organizationId, isActive: true },
-        orderBy: { order: 'asc' },
-      }),
+      this.layoutFields(organizationId),
     ]);
 
     const customHeaders = fields.map((field) => this.customHeader(field));
     const headers = [...CORE_EXPORT_HEADERS, ...customHeaders];
     const rows = products.map((product) => {
+      const metadata = this.recordObject(product.metadata);
+      const customFields = this.recordObject(metadata.customFields);
       const row: Record<string, unknown> = {
         name: product.name,
         sku: product.sku,
@@ -85,10 +93,14 @@ export class ProductsImportExportService {
         category: product.category ?? '',
         status: product.status,
         images: product.images.join('|'),
+        layout: metadata.productTypeName ?? '',
+        kind: metadata.kind ?? '',
+        trackInventory: metadata.trackInventory ?? '',
       };
 
-      for (const value of product.customFieldValues) {
-        row[this.customHeader(value.field)] = this.stringifyCellValue(value.value);
+      for (const field of fields) {
+        const value = customFields[field.key];
+        if (value !== undefined) row[this.customHeader(field)] = this.stringifyCellValue(value);
       }
 
       return row;
@@ -124,7 +136,7 @@ export class ProductsImportExportService {
 
     const [organization, activeFields, existingProductCount] = await Promise.all([
       this.prisma.organization.findUnique({ where: { id: organizationId } }),
-      this.prisma.customField.findMany({ where: { organizationId, isActive: true } }),
+      this.layoutFields(organizationId),
       this.prisma.product.count({ where: { organizationId, deletedAt: null } }),
     ]);
 
@@ -168,14 +180,6 @@ export class ProductsImportExportService {
             },
           });
 
-          for (const customValue of mapped.customFieldValues) {
-            await this.prisma.productCustomFieldValue.upsert({
-              where: { productId_fieldId: { productId: existing.id, fieldId: customValue.fieldId } },
-              create: { productId: existing.id, fieldId: customValue.fieldId, value: customValue.value },
-              update: { value: customValue.value },
-            });
-          }
-
           if (existing.quantity !== mapped.quantity) {
             await this.prisma.inventoryLog.create({
               data: {
@@ -211,7 +215,6 @@ export class ProductsImportExportService {
               status: mapped.status,
               images: mapped.images,
               metadata: mapped.metadata,
-              customFieldValues: { create: mapped.customFieldValues },
             },
           });
 
@@ -239,10 +242,7 @@ export class ProductsImportExportService {
     }
 
     if (result.created > 0) {
-      await this.prisma.organization.update({
-        where: { id: organizationId },
-        data: { nextSkuNumber: { increment: result.created } },
-      });
+      await this.prisma.organization.update({ where: { id: organizationId }, data: { nextSkuNumber: { increment: result.created } } });
     }
 
     return result;
@@ -258,14 +258,11 @@ export class ProductsImportExportService {
       return XLSX.utils.sheet_to_json<ProductImportRow>(workbook.Sheets[sheetName], { defval: '' });
     }
 
-    if (name.endsWith('.csv') || file.mimetype.includes('csv')) {
-      return this.parseCsv(file.buffer.toString('utf8'));
-    }
-
+    if (name.endsWith('.csv') || file.mimetype.includes('csv')) return this.parseCsv(file.buffer.toString('utf8'));
     throw new BadRequestException('Only CSV, XLS, and XLSX files are supported');
   }
 
-  private mapImportRow(row: ProductImportRow, fields: CustomField[], currencySettings: CurrencySettings) {
+  private mapImportRow(row: ProductImportRow, fields: LayoutField[], currencySettings: CurrencySettings) {
     const normalized = new Map<string, unknown>();
     for (const [key, value] of Object.entries(row)) normalized.set(this.normalizeHeader(key), value);
 
@@ -277,13 +274,11 @@ export class ProductsImportExportService {
       return undefined;
     };
 
-    const customFieldValues = fields
-      .map((field) => {
-        const value = get(this.customHeader(field), field.label, field.key, `custom:${field.key}`, `custom:${field.label}`);
-        if (value === undefined) return null;
-        return { fieldId: field.id, value: this.convertCustomValue(field, value) };
-      })
-      .filter(Boolean) as Array<{ fieldId: string; value: Prisma.InputJsonValue }>;
+    const customFields: Record<string, unknown> = {};
+    for (const field of fields) {
+      const value = get(this.customHeader(field), field.label, field.key, `custom:${field.key}`, `custom:${field.label}`);
+      if (value !== undefined) customFields[field.key] = this.convertLayoutValue(field, value);
+    }
 
     const price = new Prisma.Decimal(this.numberValue(get('price', 'rate', 'sales rate')));
     const costInput = get('cost', 'purchase_rate', 'purchase rate', 'vendor cost', 'buying price');
@@ -291,21 +286,16 @@ export class ProductsImportExportService {
     const priceCurrency = this.currencyValue(get('priceCurrency', 'price currency', 'selling currency', 'currency'), currencySettings.baseCurrency);
     const costCurrency = cost === undefined ? undefined : this.currencyValue(get('costCurrency', 'cost currency', 'vendor currency', 'buying currency'), priceCurrency);
     const exchangeRateInput = get('exchangeRateToBase', 'exchange rate to base', 'exchangeRate', 'exchange rate', 'fx rate');
-    const exchangeRateToBase = cost === undefined || !costCurrency
-      ? undefined
-      : new Prisma.Decimal(exchangeRateInput === undefined ? this.rateFor(costCurrency, currencySettings) : this.numberValue(exchangeRateInput));
-    const convertedCost = cost === undefined || exchangeRateToBase === undefined
-      ? undefined
-      : cost.mul(exchangeRateToBase).toDecimalPlaces(2);
+    const exchangeRateToBase = cost === undefined || !costCurrency ? undefined : new Prisma.Decimal(exchangeRateInput === undefined ? this.rateFor(costCurrency, currencySettings) : this.numberValue(exchangeRateInput));
+    const convertedCost = cost === undefined || exchangeRateToBase === undefined ? undefined : cost.mul(exchangeRateToBase).toDecimalPlaces(2);
 
-    if (priceCurrency !== currencySettings.baseCurrency) {
-      throw new BadRequestException(`Selling currency ${priceCurrency} must match base currency ${currencySettings.baseCurrency}`);
-    }
+    if (priceCurrency !== currencySettings.baseCurrency) throw new BadRequestException(`Selling currency ${priceCurrency} must match base currency ${currencySettings.baseCurrency}`);
     for (const code of [priceCurrency, costCurrency].filter(Boolean) as string[]) {
-      if (!currencySettings.enabledCurrencies.includes(code)) {
-        throw new BadRequestException(`${code} is not enabled in organization currency settings`);
-      }
+      if (!currencySettings.enabledCurrencies.includes(code)) throw new BadRequestException(`${code} is not enabled in organization currency settings`);
     }
+
+    const metadata: Record<string, unknown> = { source: 'file_import' };
+    if (Object.keys(customFields).length) metadata.customFields = customFields;
 
     return {
       name: this.cleanString(get('name', 'product name', 'title')),
@@ -322,8 +312,7 @@ export class ProductsImportExportService {
       category: this.cleanString(get('category', 'category_name', 'category name')),
       status: this.statusValue(get('status')),
       images: this.imagesValue(get('images', 'image', 'image url', 'image_url')),
-      metadata: { source: 'file_import' } as Prisma.InputJsonValue,
-      customFieldValues,
+      metadata: metadata as Prisma.InputJsonValue,
     };
   }
 
@@ -336,24 +325,9 @@ export class ProductsImportExportService {
     for (let index = 0; index < content.length; index++) {
       const char = content[index];
       const next = content[index + 1];
-
-      if (char === '"' && quoted && next === '"') {
-        current += '"';
-        index++;
-        continue;
-      }
-
-      if (char === '"') {
-        quoted = !quoted;
-        continue;
-      }
-
-      if (char === ',' && !quoted) {
-        row.push(current);
-        current = '';
-        continue;
-      }
-
+      if (char === '"' && quoted && next === '"') { current += '"'; index++; continue; }
+      if (char === '"') { quoted = !quoted; continue; }
+      if (char === ',' && !quoted) { row.push(current); current = ''; continue; }
       if ((char === '\n' || char === '\r') && !quoted) {
         if (char === '\r' && next === '\n') index++;
         row.push(current);
@@ -362,13 +336,11 @@ export class ProductsImportExportService {
         current = '';
         continue;
       }
-
       current += char;
     }
 
     row.push(current);
     if (row.some((cell) => cell.trim() !== '')) rows.push(row);
-
     const [headers = [], ...dataRows] = rows;
     return dataRows.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ''])));
   }
@@ -380,15 +352,12 @@ export class ProductsImportExportService {
   }
 
   private toXlsxSafeRows(headers: string[], rows: Record<string, unknown>[]) {
-    return rows.map((row) =>
-      Object.fromEntries(headers.map((header) => [header, this.xlsxSafeCellValue(row[header])])),
-    );
+    return rows.map((row) => Object.fromEntries(headers.map((header) => [header, this.xlsxSafeCellValue(row[header])])));
   }
 
   private xlsxSafeCellValue(value: unknown) {
     const text = this.stringifyCellValue(value);
     if (text.length <= XLSX_CELL_TEXT_LIMIT) return text;
-
     const maxValueLength = XLSX_CELL_TEXT_LIMIT - XLSX_TRUNCATION_SUFFIX.length;
     return `${text.slice(0, maxValueLength)}${XLSX_TRUNCATION_SUFFIX}`;
   }
@@ -401,12 +370,12 @@ export class ProductsImportExportService {
 
   private stringifyCellValue(value: unknown) {
     if (value === null || value === undefined) return '';
-    if (Array.isArray(value)) return value.join('|');
+    if (Array.isArray(value)) return value.map((item) => typeof item === 'object' ? JSON.stringify(item) : String(item)).join('|');
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   }
 
-  private customHeader(field: CustomField) {
+  private customHeader(field: LayoutField) {
     return `custom:${field.key || field.label}`;
   }
 
@@ -432,11 +401,7 @@ export class ProductsImportExportService {
     return code;
   }
 
-  private organizationCurrencySettings(organization: {
-    baseCurrency?: string | null;
-    enabledCurrencies?: string[] | null;
-    exchangeRates?: Prisma.JsonValue | null;
-  }): CurrencySettings {
+  private organizationCurrencySettings(organization: { baseCurrency?: string | null; enabledCurrencies?: string[] | null; exchangeRates?: Prisma.JsonValue | null }): CurrencySettings {
     const baseCurrency = this.currencyValue(organization.baseCurrency, 'ZAR');
     const enabledCurrencies = Array.from(new Set([baseCurrency, ...(organization.enabledCurrencies ?? []).map((code) => this.currencyValue(code, baseCurrency))]));
     const exchangeRates = this.normalizeExchangeRates(organization.exchangeRates);
@@ -446,17 +411,13 @@ export class ProductsImportExportService {
   private normalizeExchangeRates(value: Prisma.JsonValue | null | undefined): Array<{ code: string; rateToBase: number }> {
     if (!value) return [];
     if (Array.isArray(value)) {
-      return value
-        .map((item) => {
-          if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
-          const record = item as Record<string, unknown>;
-          return { code: this.currencyValue(record.code, ''), rateToBase: Number(record.rateToBase ?? 1) };
-        })
-        .filter((item): item is { code: string; rateToBase: number } => Boolean(item?.code));
+      return value.map((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        const record = item as Record<string, unknown>;
+        return { code: this.currencyValue(record.code, ''), rateToBase: Number(record.rateToBase ?? 1) };
+      }).filter((item): item is { code: string; rateToBase: number } => Boolean(item?.code));
     }
-    if (typeof value === 'object') {
-      return Object.entries(value).map(([code, rate]) => ({ code: this.currencyValue(code, ''), rateToBase: Number(rate || 1) }));
-    }
+    if (typeof value === 'object') return Object.entries(value).map(([code, rate]) => ({ code: this.currencyValue(code, ''), rateToBase: Number(rate || 1) }));
     return [];
   }
 
@@ -474,23 +435,43 @@ export class ProductsImportExportService {
 
   private imagesValue(value: unknown) {
     if (value === undefined || value === null || value === '') return [];
-    return String(value)
-      .split(/[|,]/)
-      .map((item) => item.trim())
-      .filter(Boolean);
+    return String(value).split(/[|,]/).map((item) => item.trim()).filter(Boolean);
   }
 
-  private convertCustomValue(field: CustomField, value: unknown): Prisma.InputJsonValue {
-    if (field.type === CustomFieldType.number) return this.numberValue(value);
-    if (field.type === CustomFieldType.boolean) return ['true', '1', 'yes', 'y'].includes(String(value).toLowerCase());
-    if (field.type === CustomFieldType.json) {
-      try {
-        return JSON.parse(String(value));
-      } catch {
-        return String(value);
-      }
+  private convertLayoutValue(field: LayoutField, value: unknown): Prisma.InputJsonValue {
+    const type = String(field.type || 'text').toLowerCase();
+    if (type === 'number') return Math.trunc(this.numberValue(value));
+    if (type === 'decimal') return this.numberValue(value);
+    if (type === 'currency') return { amount: this.numberValue(value), currency: 'ZAR' };
+    if (type === 'boolean') return ['true', '1', 'yes', 'y'].includes(String(value).toLowerCase());
+    if (type === 'images') return this.imagesValue(value) as Prisma.InputJsonArray;
+    if (type === 'attachment') {
+      return String(value).split('|').map((item) => item.trim()).filter(Boolean).map((url) => ({ name: this.fileNameFromUrl(url), url })) as Prisma.InputJsonArray;
     }
-    return String(value);
+    if (type === 'lookup') {
+      const text = String(value).trim();
+      return { id: text, name: text };
+    }
+    return String(value).trim();
+  }
+
+  private fileNameFromUrl(value: string) {
+    const clean = value.split('/').pop() || value;
+    return clean.replace(/\.[^/.]+$/, '') || 'attachment';
+  }
+
+  private recordObject(value: unknown): Record<string, any> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
+  }
+
+  private async layoutFields(organizationId: string) {
+    return this.prisma.$queryRaw<LayoutField[]>`
+      SELECT f.key, f.label, f.type, t.name AS "layoutName"
+      FROM "ProductTypeField" f
+      JOIN "ProductType" t ON t.id = f."productTypeId"
+      WHERE f."organizationId" = ${organizationId} AND f."isActive" = true AND t."isActive" = true
+      ORDER BY t.name ASC, f."order" ASC, f.label ASC
+    `;
   }
 
   private generateSkuPrefix(companyName: string) {
