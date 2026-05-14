@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { BoxesIcon, DatabaseZapIcon, EditIcon, Loader2Icon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
+import { BoxesIcon, EditIcon, Loader2Icon, PlusIcon, RefreshCwIcon, Settings2Icon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -78,11 +78,10 @@ export function ProductsSettingsContent() {
         <div>
           <p className="text-sm text-muted-foreground">Settings</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">Product Settings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Configure product layouts and reusable product attributes from one place.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Configure product layouts. Each layout has its own fields.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm"><Link href="/settings">Back to settings</Link></Button>
-          <Button asChild variant="outline" size="sm"><Link href="/products/fields"><DatabaseZapIcon className="size-4" />Product attributes</Link></Button>
           <Button variant="outline" size="sm" onClick={() => void loadLayouts()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button>
           <Button asChild size="sm"><Link href="/settings/products/layouts/new"><PlusIcon className="size-4" />New layout</Link></Button>
         </div>
@@ -101,7 +100,7 @@ export function ProductsSettingsContent() {
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2"><BoxesIcon className="size-4" />Layout actions</CardTitle>
-            <CardDescription>Layouts are settings that define which product attributes apply to a product type like cars, smartphones, clothing, or services.</CardDescription>
+            <CardDescription>Layouts define their own fields for product categories like cars, smartphones, clothing, or services.</CardDescription>
           </div>
           <Button asChild variant="outline" size="sm"><Link href="/settings/products/layouts/new"><PlusIcon className="size-4" />Create layout</Link></Button>
         </CardHeader>
@@ -121,7 +120,7 @@ export function ProductsSettingsContent() {
                     </div>
                   </CardHeader>
                   <CardContent className="grid gap-3 text-sm">
-                    <div className="flex flex-wrap gap-2"><Badge variant="outline">{kindLabel(layout.kind)}</Badge><Badge variant={layout.trackInventory === false ? "secondary" : "default"}>{layout.trackInventory === false ? "No stock" : "Stock"}</Badge><Badge variant="secondary">{fields.length} attributes</Badge></div>
+                    <div className="flex flex-wrap gap-2"><Badge variant="outline">{kindLabel(layout.kind)}</Badge><Badge variant={layout.trackInventory === false ? "secondary" : "default"}>{layout.trackInventory === false ? "No stock" : "Stock"}</Badge><Badge variant="secondary">{fields.length} fields</Badge></div>
                     <div className="flex min-h-8 flex-wrap gap-1">{fields.slice(0, 5).map((field) => <Badge key={field.key} variant="outline" className="text-xs">{field.label || field.key}</Badge>)}{fields.length > 5 ? <Badge variant="secondary" className="text-xs">+{fields.length - 5}</Badge> : null}</div>
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t bg-muted/20 p-3">
@@ -139,7 +138,7 @@ export function ProductsSettingsContent() {
       <Card className="border-dashed bg-muted/10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Settings2Icon className="size-4" />Product settings workflow</CardTitle>
-          <CardDescription>First create Product Attributes, then group them into Layouts. Products can then select a layout while keeping the main product form clean.</CardDescription>
+          <CardDescription>Create layouts with their own fields. Products can then select a layout while keeping the main product form clean.</CardDescription>
         </CardHeader>
       </Card>
     </div>
