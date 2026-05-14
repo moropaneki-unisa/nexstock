@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DatabaseZapIcon, EditIcon, FileTextIcon, HistoryIcon, ImageIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon, WarehouseIcon } from "lucide-react"
+import { ArchiveIcon, ArrowLeftIcon, BoxesIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DatabaseZapIcon, EditIcon, FileTextIcon, HistoryIcon, ImageIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon, WarehouseIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { ProductSuppliersSection } from "@/components/products/product-suppliers-section"
@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils"
 
 type InventoryLog = { id: string; type: string; quantityBefore: number; quantityAfter: number; delta: number; reason?: string | null; source?: string | null; createdAt: string }
 type CustomFieldValue = { fieldId: string; value: unknown; field?: { key?: string | null; label?: string | null; type?: string | null } | null }
-type Product = { id: string; name: string; sku?: string | null; category?: string | null; description?: string | null; status?: string | null; quantity?: number | string | null; lowStockLevel?: number | string | null; price?: number | string | null; priceCurrency?: string | null; cost?: number | string | null; costPrice?: number | string | null; costCurrency?: string | null; convertedCost?: number | string | null; currency?: string | null; images?: string[] | null; customFieldValues?: CustomFieldValue[] | null; inventoryLogs?: InventoryLog[] | null; createdAt?: string | null; updatedAt?: string | null }
+type ProductMetadata = { productTypeId?: string | null; productTypeName?: string | null; kind?: string | null; trackInventory?: boolean | null; customFields?: Record<string, unknown> | null }
+type Product = { id: string; name: string; sku?: string | null; category?: string | null; description?: string | null; status?: string | null; quantity?: number | string | null; lowStockLevel?: number | string | null; price?: number | string | null; priceCurrency?: string | null; cost?: number | string | null; costPrice?: number | string | null; costCurrency?: string | null; convertedCost?: number | string | null; currency?: string | null; images?: string[] | null; customFieldValues?: CustomFieldValue[] | null; inventoryLogs?: InventoryLog[] | null; productTypeId?: string | null; kind?: string | null; trackInventory?: boolean | null; customFields?: Record<string, unknown> | null; metadata?: ProductMetadata | null; createdAt?: string | null; updatedAt?: string | null }
 type OrganizationSummary = { baseCurrency?: string | null }
 type ProductDataField = { id: string; label: string; value: string; type?: string | null; mono?: boolean; multiline?: boolean }
 
@@ -34,6 +35,7 @@ function cleanText(value?: string | null) { if (!value) return ""; return value.
 function truncateText(value: string, maxLength: number) { return value.length <= maxLength ? value : `${value.slice(0, maxLength).trim()}...` }
 function formatCustomValue(value: unknown) { if (value === null || value === undefined || value === "") return "-"; if (typeof value === "object") return truncateText(JSON.stringify(value, null, 2), 400); return truncateText(cleanText(String(value)) || String(value), 400) }
 function productState(product: Product) { const quantity = numberValue(product.quantity); const lowStockLevel = numberValue(product.lowStockLevel); if (product.status === "archived") return "archived"; if (product.status === "draft") return "draft"; if (quantity <= 0) return "out"; if (lowStockLevel > 0 && quantity <= lowStockLevel) return "low"; return "active" }
+function productKindLabel(value?: string | null) { return cleanText(value || "physical").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
 function ProductBadge({ product }: { product: Product }) { const state = productState(product); if (state === "archived") return <Badge variant="outline">Archived</Badge>; if (state === "draft") return <Badge variant="secondary">Draft</Badge>; if (state === "out") return <Badge variant="destructive">Out of stock</Badge>; if (state === "low") return <Badge variant="destructive">Low stock</Badge>; return <Badge>Active</Badge> }
 
 export function ProductDetailContent({ productId }: { productId: string }) {
@@ -44,6 +46,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const [running, setRunning] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [selectedImage, setSelectedImage] = React.useState<string | null>(null)
+  const [layoutOpen, setLayoutOpen] = React.useState(true)
   const [attributesOpen, setAttributesOpen] = React.useState(true)
   const [logsOpen, setLogsOpen] = React.useState(true)
   const [adjustOpen, setAdjustOpen] = React.useState(false)
@@ -96,6 +99,12 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const primaryImage = selectedImage || images[0]
   const currentImageIndex = Math.max(0, images.findIndex((image) => image === primaryImage))
   const cleanDescription = cleanText(product.description)
+  const productMetadata = product.metadata || {}
+  const layoutName = productMetadata.productTypeName || "General product"
+  const layoutKind = productMetadata.kind || product.kind || "physical"
+  const layoutTrackInventory = productMetadata.trackInventory ?? product.trackInventory ?? true
+  const layoutCustomFields = product.customFields || productMetadata.customFields || {}
+  const layoutCustomFieldEntries = Object.entries(layoutCustomFields)
 
   function showPreviousImage() {
     if (images.length < 2) return
@@ -124,6 +133,13 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     { id: "createdAt", label: "Created", value: formatDate(product.createdAt) },
     { id: "updatedAt", label: "Updated", value: formatDate(product.updatedAt) },
   ]
+  const layoutFields: ProductDataField[] = [
+    { id: "layout-name", label: "Product layout", value: layoutName },
+    { id: "layout-kind", label: "Item kind", value: productKindLabel(layoutKind) },
+    { id: "layout-inventory", label: "Inventory tracking", value: layoutTrackInventory ? "Tracked" : "Not tracked" },
+    { id: "layout-type-id", label: "Product type ID", value: productMetadata.productTypeId || product.productTypeId || "Not assigned", mono: true },
+  ]
+  const layoutAttributeFields: ProductDataField[] = layoutCustomFieldEntries.map(([key, value]) => ({ id: `layout-${key}`, label: productKindLabel(key), value: formatCustomValue(value), multiline: typeof value === "object" }))
   const customAttributes: ProductDataField[] = (product.customFieldValues ?? []).map((item) => ({ id: item.fieldId, label: item.field?.label ?? item.field?.key ?? item.fieldId, value: formatCustomValue(item.value), type: item.field?.type, multiline: item.field?.type === "json" }))
 
   return (
@@ -131,15 +147,15 @@ export function ProductDetailContent({ productId }: { productId: string }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/products"><ArrowLeftIcon className="size-4" />Products</Link></Button>
-          <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1><ProductBadge product={product} /></div>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Review identity, images, pricing, inventory, attributes, suppliers, and stock movement from one profile.</p>
+          <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1><ProductBadge product={product} /><Badge variant="outline">{layoutName}</Badge></div>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Review identity, images, pricing, inventory, layout, attributes, suppliers, and stock movement from one profile.</p>
         </div>
         <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={archiveProduct} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard title="SKU" value={product.sku || "No SKU"} detail="Product code" mono />
-        <SummaryCard title="Stock on hand" value={numberValue(product.quantity).toLocaleString()} detail={`Alert: ${numberValue(product.lowStockLevel).toLocaleString()} units`} />
+        <SummaryCard title="Product layout" value={layoutName} detail={`${productKindLabel(layoutKind)} · ${layoutTrackInventory ? "Stock tracked" : "No stock tracking"}`} />
         <SummaryCard title={`Selling price (${priceCurrency})`} value={formatMoney(product.price, priceCurrency)} detail={`Base currency: ${baseCurrency}`} />
         <SummaryCard title="Status" value={productState(product).replace("out", "Out of stock")} detail={product.status || "active"} />
       </div>
@@ -154,11 +170,12 @@ export function ProductDetailContent({ productId }: { productId: string }) {
             </div>
           </Card>
 
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Quick facts</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm"><SideFact label="SKU" value={product.sku || "No SKU"} mono /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={String(images.length)} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={formatDate(product.updatedAt)} /></CardContent></Card>
+          <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Quick facts</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm"><SideFact label="SKU" value={product.sku || "No SKU"} mono /><SideFact label="Layout" value={layoutName} /><SideFact label="Kind" value={productKindLabel(layoutKind)} /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={String(images.length)} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={formatDate(product.updatedAt)} /></CardContent></Card>
         </div>
 
         <div className="grid min-w-0 gap-4 xl:col-span-3">
           <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Product details</CardTitle><CardDescription>Core fields stored on every product record.</CardDescription></CardHeader><CardContent><FieldGrid fields={defaultFields} /></CardContent></Card>
+          <Collapsible open={layoutOpen} onOpenChange={setLayoutOpen}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle className="flex items-center gap-2"><BoxesIcon className="size-4" />Product layout</CardTitle><CardDescription className="mt-1">The product type/layout assigned to this record and its layout-specific values.</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{layoutAttributeFields.length} layout values</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", layoutOpen && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="grid gap-4 pt-0"><FieldGrid fields={layoutFields} />{layoutAttributeFields.length ? <FieldGrid fields={layoutAttributeFields} /> : <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No layout-specific values have been saved for this product yet.</div>}</CardContent></CollapsibleContent></Card></Collapsible>
           <Collapsible open={attributesOpen} onOpenChange={setAttributesOpen}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle className="flex items-center gap-2"><DatabaseZapIcon className="size-4" />Attributes</CardTitle><CardDescription className="mt-1">Custom business attributes for this product.</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{customAttributes.length} custom</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", attributesOpen && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="pt-0">{customAttributes.length ? <FieldGrid fields={customAttributes} /> : <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No custom attributes have been saved for this product yet.</div>}</CardContent></CollapsibleContent></Card></Collapsible>
           <ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} />
           <Collapsible open={logsOpen} onOpenChange={setLogsOpen}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle className="flex items-center gap-2"><HistoryIcon className="size-4" />Inventory movement</CardTitle><CardDescription className="mt-1">Every stock adjustment is recorded with before/after quantity and reason.</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{product.inventoryLogs?.length ?? 0} logs</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", logsOpen && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="grid gap-3 pt-0">{product.inventoryLogs?.length ? product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />) : <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No inventory movement yet.</div>}</CardContent></CollapsibleContent></Card></Collapsible>
