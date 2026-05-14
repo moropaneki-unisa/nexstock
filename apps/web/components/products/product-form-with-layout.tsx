@@ -66,9 +66,21 @@ function normalizeKind(kind?: string | null) {
   return String(kind || "physical").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function normalizeFieldType(type?: string | null) {
+function systemFieldType(type?: string | null) {
   const value = String(type || "text").toLowerCase()
-  return ["text", "number", "boolean", "select", "date", "json"].includes(value) ? value : "text"
+  const supported = ["text", "richtext", "number", "decimal", "currency", "attachment", "images", "lookup", "boolean", "select", "date"]
+  return supported.includes(value) ? value : "text"
+}
+
+function formRenderType(type?: string | null) {
+  const value = systemFieldType(type)
+  if (value === "number") return "number"
+  if (value === "decimal") return "number"
+  if (value === "currency") return "number"
+  if (value === "boolean") return "boolean"
+  if (value === "select") return "select"
+  if (value === "date") return "date"
+  return "text"
 }
 
 function layoutFields(layout: Layout | null): ApiField[] {
@@ -80,7 +92,7 @@ function layoutFields(layout: Layout | null): ApiField[] {
       key: field.key,
       label: field.label || field.key,
       name: field.label || field.key,
-      type: normalizeFieldType(field.type),
+      type: formRenderType(field.type),
       required: Boolean(field.required),
       isActive: true,
       order: index,
@@ -92,6 +104,84 @@ function extractUrl(input: RequestInfo | URL) {
   if (typeof input === "string") return input
   if (input instanceof URL) return input.toString()
   return input.url
+}
+
+function parseMaybeJson(value: unknown) {
+  if (typeof value !== "string") return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
+function listValue(value: unknown) {
+  const parsed = parseMaybeJson(value)
+  if (Array.isArray(parsed)) return parsed
+  if (parsed == null || String(parsed).trim() === "") return []
+  return String(parsed)
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function lookupValue(value: unknown) {
+  const parsed = parseMaybeJson(value)
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const item = parsed as Record<string, unknown>
+    return { id: String(item.id ?? item.name ?? "").trim(), name: String(item.name ?? item.id ?? "").trim() }
+  }
+  const text = String(parsed ?? "").trim()
+  return text ? { id: text, name: text } : { id: "", name: "" }
+}
+
+function normalizeLayoutFieldValue(field: LayoutField, rawValue: unknown, currency: string) {
+  const type = systemFieldType(field.type)
+  if (rawValue == null || (typeof rawValue === "string" && rawValue.trim() === "")) {
+    if (type === "attachment" || type === "images") return []
+    if (type === "lookup") return { id: "", name: "" }
+    if (type === "currency") return { amount: 0, currency }
+    return rawValue
+  }
+
+  if (type === "number") {
+    const value = Number(rawValue)
+    return Number.isFinite(value) ? Math.trunc(value) : 0
+  }
+  if (type === "decimal") {
+    const value = Number(rawValue)
+    return Number.isFinite(value) ? value : 0
+  }
+  if (type === "currency") {
+    const parsed = parseMaybeJson(rawValue)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const item = parsed as Record<string, unknown>
+      const amount = Number(item.amount ?? item.value ?? 0)
+      return { amount: Number.isFinite(amount) ? amount : 0, currency: String(item.currency ?? currency).toUpperCase() }
+    }
+    const amount = Number(rawValue)
+    return { amount: Number.isFinite(amount) ? amount : 0, currency }
+  }
+  if (type === "attachment" || type === "images") return listValue(rawValue)
+  if (type === "lookup") return lookupValue(rawValue)
+  if (type === "boolean") return rawValue === true || rawValue === "true"
+  return String(rawValue)
+}
+
+function stringifyForForm(value: unknown, type?: string | null) {
+  if (value == null) return ""
+  const fieldType = systemFieldType(type)
+  if (fieldType === "currency" && typeof value === "object" && !Array.isArray(value)) {
+    const item = value as Record<string, unknown>
+    return String(item.amount ?? item.value ?? "")
+  }
+  if (fieldType === "lookup" && typeof value === "object" && !Array.isArray(value)) {
+    const item = value as Record<string, unknown>
+    return String(item.name ?? item.id ?? "")
+  }
+  if (fieldType === "attachment" || fieldType === "images") return Array.isArray(value) ? value.join(", ") : String(value)
+  if (typeof value === "object") return JSON.stringify(value, null, 2)
+  return String(value)
 }
 
 let restoreFetch: (() => void) | null = null
@@ -119,6 +209,21 @@ function installProductFormLayoutFetchPatch(layoutRef: React.MutableRefObject<La
       })
     }
 
+    const isProductRead = method === "GET" && /^\/api\/products\/[^/]+$/.test(pathname) && !pathname.includes("/suppliers")
+    if (isProductRead) {
+      const response = await originalFetch(input, init)
+      const layout = layoutRef.current
+      if (!response.ok || !layout) return response
+      const product = await response.clone().json().catch(() => null)
+      if (!product || typeof product !== "object") return response
+      const metadata = product.metadata || {}
+      const stored = metadata.customFields || {}
+      product.customFieldValues = [...(layout.fields || [])]
+        .filter((field) => field.isActive !== false)
+        .map((field) => ({ fieldId: field.key, value: stringifyForForm(stored[field.key], field.type) }))
+      return new Response(JSON.stringify(product), { status: response.status, headers: { "Content-Type": "application/json" } })
+    }
+
     const isProductSave =
       (method === "POST" || method === "PATCH") &&
       (pathname === "/api/products" || /^\/api\/products\/[^/]+$/.test(pathname)) &&
@@ -135,10 +240,13 @@ function installProductFormLayoutFetchPatch(layoutRef: React.MutableRefObject<La
       const body = typeof init.body === "string" ? JSON.parse(init.body) : null
       if (!layout || !body || typeof body !== "object") return originalFetch(input, init)
 
-      const layoutFieldKeys = new Set(layoutFields(layout).map((field) => field.id))
+      const fields = [...(layout.fields || [])].filter((field) => field.isActive !== false)
+      const fieldsByKey = new Map(fields.map((field) => [field.key, field]))
+      const currency = String(body.priceCurrency || "ZAR").toUpperCase()
       const customFields: Record<string, unknown> = {}
       for (const item of body.customFieldValues || []) {
-        if (item?.fieldId && layoutFieldKeys.has(item.fieldId)) customFields[item.fieldId] = item.value
+        const field = fieldsByKey.get(item?.fieldId)
+        if (field) customFields[field.key] = normalizeLayoutFieldValue(field, item.value, currency)
       }
 
       const patchedBody = {
