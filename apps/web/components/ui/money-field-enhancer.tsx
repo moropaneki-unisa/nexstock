@@ -19,7 +19,7 @@ const MONEY_LABELS = [
   "converted cost",
 ]
 
-function textOf(element: Element | null) {
+function textOf(element: Element | null | undefined) {
   return element?.textContent?.replace(/\s+/g, " ").trim() || ""
 }
 
@@ -32,7 +32,7 @@ function isMoneyLabel(value: string) {
   return MONEY_LABELS.some((moneyLabel) => label === moneyLabel || label.endsWith(` ${moneyLabel}`))
 }
 
-function inputValue(wrapper: Element | null) {
+function inputValue(wrapper: Element | null | undefined) {
   const input = wrapper?.querySelector("input")
   return input?.value || input?.getAttribute("value") || textOf(wrapper)
 }
