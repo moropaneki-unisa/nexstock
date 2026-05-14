@@ -39,8 +39,35 @@ type WordEditorAdapterProps = {
   beforeHtml?: string
 }
 
+type ToolbarState = {
+  bold: boolean
+  italic: boolean
+  underline: boolean
+  justifyLeft: boolean
+  justifyCenter: boolean
+  justifyRight: boolean
+  unorderedList: boolean
+  orderedList: boolean
+  heading1: boolean
+  heading2: boolean
+  paragraph: boolean
+}
+
 const emptyDocument = "<p><br></p>"
 const defaultRepeatGroup = "lines"
+const inactiveToolbarState: ToolbarState = {
+  bold: false,
+  italic: false,
+  underline: false,
+  justifyLeft: false,
+  justifyCenter: false,
+  justifyRight: false,
+  unorderedList: false,
+  orderedList: false,
+  heading1: false,
+  heading2: false,
+  paragraph: true,
+}
 
 function toPositiveInt(value: string, fallback: number, max: number) {
   const parsed = Number.parseInt(value || "", 10)
@@ -83,6 +110,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
   const [tableColumns, setTableColumns] = React.useState("4")
   const [repeatTable, setRepeatTable] = React.useState(false)
   const [repeatGroup, setRepeatGroup] = React.useState(defaultRepeatGroup)
+  const [toolbarState, setToolbarState] = React.useState<ToolbarState>(inactiveToolbarState)
 
   React.useEffect(() => {
     if (!editorRef.current) return
@@ -95,12 +123,32 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     onChange(html.trim() ? html : emptyDocument)
   }
 
+  function refreshToolbarState() {
+    const block = String(document.queryCommandValue("formatBlock") || "").toLowerCase().replace(/[<>]/g, "")
+    setToolbarState({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      justifyLeft: document.queryCommandState("justifyLeft"),
+      justifyCenter: document.queryCommandState("justifyCenter"),
+      justifyRight: document.queryCommandState("justifyRight"),
+      unorderedList: document.queryCommandState("insertUnorderedList"),
+      orderedList: document.queryCommandState("insertOrderedList"),
+      heading1: block === "h1",
+      heading2: block === "h2",
+      paragraph: !block || block === "p" || block === "div",
+    })
+  }
+
   function saveSelection() {
     const editor = editorRef.current
     const selection = window.getSelection()
     if (!editor || !selection || selection.rangeCount === 0) return
     const range = selection.getRangeAt(0)
-    if (editor.contains(range.commonAncestorContainer)) savedRangeRef.current = range.cloneRange()
+    if (editor.contains(range.commonAncestorContainer)) {
+      savedRangeRef.current = range.cloneRange()
+      refreshToolbarState()
+    }
   }
 
   function restoreSelection() {
@@ -125,6 +173,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     restoreSelection()
     document.execCommand(command, false, commandValue)
     saveSelection()
+    refreshToolbarState()
     commit()
   }
 
@@ -152,6 +201,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
       savedRangeRef.current = nextRange.cloneRange()
     }
 
+    refreshToolbarState()
     commit()
   }
 
@@ -173,44 +223,56 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     event.preventDefault()
   }
 
-  const toolButtonClass = "h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+  function toolButtonClass(active = false) {
+    return cn(
+      "h-8 gap-1.5 rounded-lg px-2.5 text-xs transition",
+      active && "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground",
+    )
+  }
+
+  function iconButtonClass(active = false) {
+    return cn(
+      "rounded-lg transition",
+      active && "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground",
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-muted/60">
-      <div className="shrink-0 border-b bg-background/95 px-4 py-2 shadow-sm backdrop-blur">
+      <div className="shrink-0 border-b bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center gap-1" onMouseDown={toolbarMouseDown}>
           <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-            <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => runCommand("formatBlock", "p")}><PilcrowIcon className="size-4" />Paragraph</Button>
-            <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => runCommand("formatBlock", "h1")}><Heading1Icon className="size-4" /></Button>
-            <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => runCommand("formatBlock", "h2")}><Heading2Icon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.paragraph)} onClick={() => runCommand("formatBlock", "p")}><PilcrowIcon className="size-4" />Paragraph</Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.heading1)} onClick={() => runCommand("formatBlock", "h1")}><Heading1Icon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.heading2)} onClick={() => runCommand("formatBlock", "h2")}><Heading2Icon className="size-4" /></Button>
           </div>
 
           <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("bold")} title="Bold"><BoldIcon className="size-4" /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("italic")} title="Italic"><ItalicIcon className="size-4" /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("underline")} title="Underline"><UnderlineIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.bold)} onClick={() => runCommand("bold")} title="Bold"><BoldIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.italic)} onClick={() => runCommand("italic")} title="Italic"><ItalicIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.underline)} onClick={() => runCommand("underline")} title="Underline"><UnderlineIcon className="size-4" /></Button>
           </div>
 
           <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("justifyLeft")} title="Align left"><AlignLeftIcon className="size-4" /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("justifyCenter")} title="Align center"><AlignCenterIcon className="size-4" /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("justifyRight")} title="Align right"><AlignRightIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.justifyLeft)} onClick={() => runCommand("justifyLeft")} title="Align left"><AlignLeftIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.justifyCenter)} onClick={() => runCommand("justifyCenter")} title="Align center"><AlignCenterIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.justifyRight)} onClick={() => runCommand("justifyRight")} title="Align right"><AlignRightIcon className="size-4" /></Button>
           </div>
 
           <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("insertUnorderedList")} title="Bullets"><ListIcon className="size-4" /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => runCommand("insertOrderedList")} title="Numbered list"><ListOrderedIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.unorderedList)} onClick={() => runCommand("insertUnorderedList")} title="Bullets"><ListIcon className="size-4" /></Button>
+            <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.orderedList)} onClick={() => runCommand("insertOrderedList")} title="Numbered list"><ListOrderedIcon className="size-4" /></Button>
           </div>
 
           <div className="ml-auto flex items-center gap-1 rounded-lg bg-primary/5 p-1">
-            <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => openTableDialog(false)}><Table2Icon className="size-4" />Table</Button>
-            <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => openTableDialog(true)}><Repeat2Icon className="size-4" />Repeat table</Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(false)} onClick={() => openTableDialog(false)}><Table2Icon className="size-4" />Table</Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(false)} onClick={() => openTableDialog(true)}><Repeat2Icon className="size-4" />Repeat table</Button>
             <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => insertHtml("<hr style=\"border:0;border-top:1px solid #cbd5e1;margin:20px 0\"><p><br></p>")} title="Divider"><MinusIcon className="size-4" /></Button>
           </div>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-6 lg:p-8">
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-4 lg:px-4 lg:py-5">
         <div className="mx-auto min-h-[1123px] w-[794px] bg-white px-[68px] py-[64px] text-sm leading-6 text-slate-950 shadow-xl ring-1 ring-slate-200">
           {beforeHtml ? <div dangerouslySetInnerHTML={{ __html: beforeHtml }} /> : null}
           <div
@@ -226,13 +288,14 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
             onInput={(event) => { saveSelection(); commit(event.currentTarget.innerHTML) }}
             onKeyUp={saveSelection}
             onMouseUp={saveSelection}
-            onFocus={saveSelection}
+            onFocus={() => { saveSelection(); refreshToolbarState() }}
             onPaste={(event) => {
               event.preventDefault()
               const text = event.clipboardData.getData("text/plain")
               restoreSelection()
               document.execCommand("insertText", false, text)
               saveSelection()
+              refreshToolbarState()
               commit()
             }}
           />
