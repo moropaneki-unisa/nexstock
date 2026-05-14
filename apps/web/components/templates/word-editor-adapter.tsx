@@ -51,6 +51,7 @@ type ToolbarState = {
   heading1: boolean
   heading2: boolean
   paragraph: boolean
+  fontSize: string
 }
 
 type ResizeState = {
@@ -76,6 +77,7 @@ const inactiveToolbarState: ToolbarState = {
   heading1: false,
   heading2: false,
   paragraph: true,
+  fontSize: "3",
 }
 
 function toPositiveInt(value: string, fallback: number, max: number) {
@@ -194,6 +196,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
 
   function refreshToolbarState() {
     const block = String(document.queryCommandValue("formatBlock") || "").toLowerCase().replace(/[<>]/g, "")
+    const fontSize = String(document.queryCommandValue("fontSize") || "3")
     setToolbarState({
       bold: document.queryCommandState("bold"),
       italic: document.queryCommandState("italic"),
@@ -206,6 +209,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
       heading1: block === "h1",
       heading2: block === "h2",
       paragraph: !block || block === "p" || block === "div",
+      fontSize,
     })
   }
 
@@ -352,6 +356,13 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
           </div>
 
           <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.fontSize === "2")} onClick={() => runCommand("fontSize", "2")}>Small</Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.fontSize === "3")} onClick={() => runCommand("fontSize", "3")}>Normal</Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.fontSize === "4")} onClick={() => runCommand("fontSize", "4")}>Large</Button>
+            <Button type="button" variant="ghost" size="sm" className={toolButtonClass(toolbarState.fontSize === "5")} onClick={() => runCommand("fontSize", "5")}>Title</Button>
+          </div>
+
+          <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
             <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.bold)} onClick={() => runCommand("bold")} title="Bold"><BoldIcon className="size-4" /></Button>
             <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.italic)} onClick={() => runCommand("italic")} title="Italic"><ItalicIcon className="size-4" /></Button>
             <Button type="button" variant="ghost" size="icon-sm" className={iconButtonClass(toolbarState.underline)} onClick={() => runCommand("underline")} title="Underline"><UnderlineIcon className="size-4" /></Button>
@@ -386,7 +397,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
             role="textbox"
             aria-label="Template document editor"
             className={cn(
-              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:my-4 [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
+              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_li]:my-1 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:my-4 [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
               className,
             )}
             onInput={(event) => { saveSelection(); commit(event.currentTarget.innerHTML) }}
