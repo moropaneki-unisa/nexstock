@@ -61,6 +61,7 @@ const blankPdf = `<p><br></p>`
 const blankEmail = `Hi {{supplier.name}},\n\n`
 const headerStart = "<!-- nexstock-header:start -->"
 const headerEnd = "<!-- nexstock-header:end -->"
+const insertMergeFieldEvent = "nexstock-template-editor-insert-html"
 
 function titleCase(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
@@ -176,8 +177,17 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
 
   function insertField(path: string) {
     const token = `{{${path}}}`
-    if (templateKind === "email") setEmailBody((current) => `${current}${token}`)
-    else setBodyHtml((current) => `${current}${token}`)
+    if (templateKind === "email") {
+      setEmailBody((current) => `${current}${token}`)
+      return
+    }
+
+    if (mode === "html") {
+      setBodyHtml((current) => `${current}${token}`)
+      return
+    }
+
+    window.dispatchEvent(new CustomEvent(insertMergeFieldEvent, { detail: { html: token } }))
   }
 
   async function chooseLogoFile(event: React.ChangeEvent<HTMLInputElement>) {
