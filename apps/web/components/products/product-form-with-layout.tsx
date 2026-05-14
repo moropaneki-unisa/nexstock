@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api"
+import { getCachedLayouts, getCachedSelectedLayoutId, setCachedSelectedLayoutId } from "@/lib/cached-api"
 
 type LayoutField = {
   key: string
@@ -72,15 +73,17 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
       setLoading(true)
       try {
         const [layoutResult, productResult] = await Promise.all([
-          apiFetch<unknown>("/api/products/types").catch(() => []),
+          getCachedLayouts<unknown>().catch(() => []),
           productId ? apiFetch<Product>(`/api/products/${productId}`).catch(() => null) : Promise.resolve(null),
         ])
         if (!active) return
         const nextLayouts = normalizeList<Layout>(layoutResult)
         const existingLayoutId = productResult?.metadata?.productTypeId || productResult?.productTypeId || ""
+        const cachedLayoutId = getCachedSelectedLayoutId()
+        const cachedLayoutStillExists = cachedLayoutId && nextLayouts.some((layout) => layout.id === cachedLayoutId)
         const defaultLayoutId = nextLayouts.find((layout) => layout.isDefault)?.id || nextLayouts[0]?.id || ""
         setLayouts(nextLayouts)
-        setSelectedLayoutId(existingLayoutId || defaultLayoutId)
+        setSelectedLayoutId(existingLayoutId || (cachedLayoutStillExists ? cachedLayoutId : defaultLayoutId))
       } finally {
         if (active) setLoading(false)
       }
@@ -95,6 +98,7 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
 
   function changeLayout(value: string) {
     setSelectedLayoutId(value)
+    setCachedSelectedLayoutId(value)
   }
 
   if (loading) return <div className="px-4 pt-4 md:px-6"><Skeleton className="h-28 rounded-xl" /></div>
