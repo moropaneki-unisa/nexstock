@@ -13,6 +13,8 @@ type OrganizationCurrencyRules = {
   nextPurchaseOrderNumber: number;
 };
 
+const PURCHASE_ORDER_TEMPLATE_TYPE = 'purchase_orders';
+
 @Injectable()
 export class PurchaseOrdersService {
   private readonly resend: Resend | null;
@@ -211,11 +213,7 @@ export class PurchaseOrdersService {
     if (!this.resend) throw new BadRequestException('RESEND_API_KEY is not configured on the API server');
 
     const order = await this.get(user, id);
-    const template = dto.templateId
-      ? await this.db.documentTemplate.findFirst({ where: { id: dto.templateId, organizationId: user.organizationId, isActive: true } })
-      : await this.db.documentTemplate.findFirst({ where: { organizationId: user.organizationId, type: 'purchase_order', isDefault: true, isActive: true } })
-        ?? await this.db.documentTemplate.findFirst({ where: { organizationId: user.organizationId, type: 'purchase_order', isActive: true }, orderBy: { createdAt: 'desc' } });
-
+    const template = await this.resolvePurchaseOrderTemplate(user.organizationId, dto.templateId);
     if (!template) throw new BadRequestException('No active purchase order template found. Create one in Settings > Templates.');
 
     const context = this.templateContext(order);
@@ -267,6 +265,21 @@ export class PurchaseOrdersService {
   async cancel(user: CurrentUserPayload, id: string) {
     await this.get(user, id);
     return this.db.purchaseOrder.update({ where: { id }, data: { status: PurchaseOrderStatus.cancelled }, include: { supplier: true, lines: true } });
+  }
+
+  private resolvePurchaseOrderTemplate(organizationId: string, templateId?: string) {
+    if (templateId) {
+      return this.db.documentTemplate.findFirst({
+        where: { id: templateId, organizationId, type: PURCHASE_ORDER_TEMPLATE_TYPE, isActive: true },
+      });
+    }
+
+    return this.db.documentTemplate.findFirst({
+      where: { organizationId, type: PURCHASE_ORDER_TEMPLATE_TYPE, isDefault: true, isActive: true },
+    }).then((template) => template ?? this.db.documentTemplate.findFirst({
+      where: { organizationId, type: PURCHASE_ORDER_TEMPLATE_TYPE, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    }));
   }
 
   private templateContext(order: any) {
@@ -387,6 +400,6 @@ export class PurchaseOrdersService {
   }
 
   private escapeHtml(value: string) {
-    return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char] || char));
+    return value.replace(/[&<>'\"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '\"': '&quot;' }[char] || char));
   }
 }
