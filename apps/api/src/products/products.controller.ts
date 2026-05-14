@@ -27,6 +27,8 @@ import {
   UpdateProductDto,
 } from './dto';
 import { ProductFieldsService } from './product-fields.service';
+import { CreateProductTypeDto, UpdateProductTypeDto } from './product-types.dto';
+import { ProductTypesService } from './product-types.service';
 import { ProductsImportExportService } from './products-import-export.service';
 import { ProductsService } from './products.service';
 
@@ -37,6 +39,7 @@ export class ProductsController {
     private readonly products: ProductsService,
     private readonly importExport: ProductsImportExportService,
     private readonly fields: ProductFieldsService,
+    private readonly productTypes: ProductTypesService,
   ) {}
 
   // ✅ NEW: upload + attach to product
@@ -70,6 +73,35 @@ export class ProductsController {
   @Get('fields')
   listFields(@CurrentUser() user: CurrentUserPayload) {
     return this.fields.list(user.organizationId);
+  }
+
+  @Get('types')
+  listTypes(@CurrentUser() user: CurrentUserPayload) {
+    return this.productTypes.list(user.organizationId);
+  }
+
+  @Post('types')
+  createType(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateProductTypeDto) {
+    return this.productTypes.create(user.organizationId, dto);
+  }
+
+  @Get('types/:typeId')
+  getType(@CurrentUser() user: CurrentUserPayload, @Param('typeId') typeId: string) {
+    return this.productTypes.get(user.organizationId, typeId);
+  }
+
+  @Patch('types/:typeId')
+  updateType(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('typeId') typeId: string,
+    @Body() dto: UpdateProductTypeDto,
+  ) {
+    return this.productTypes.update(user.organizationId, typeId, dto);
+  }
+
+  @Delete('types/:typeId')
+  deleteType(@CurrentUser() user: CurrentUserPayload, @Param('typeId') typeId: string) {
+    return this.productTypes.delete(user.organizationId, typeId);
   }
 
   @Get(':id')
