@@ -20,7 +20,17 @@ export class EmailService {
     return `${base.replace(/\/$/, '')}${path}`;
   }
 
-  private async sendEmail(payload: { to: string; subject: string; html: string; text: string }) {
+  async sendCustomEmail(payload: { to: string; subject: string; html: string; text?: string; replyTo?: string }) {
+    return this.sendEmail({
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+      text: payload.text || payload.subject,
+      replyTo: payload.replyTo,
+    });
+  }
+
+  private async sendEmail(payload: { to: string; subject: string; html: string; text: string; replyTo?: string }) {
     const resend = this.resendClient();
 
     if (!resend) {
@@ -35,7 +45,7 @@ export class EmailService {
         subject: payload.subject,
         html: payload.html,
         text: payload.text,
-        replyTo: process.env.EMAIL_REPLY_TO || 'support@nexstock.co.za',
+        replyTo: payload.replyTo || process.env.EMAIL_REPLY_TO || 'support@nexstock.co.za',
       });
 
       if (response.error) {
