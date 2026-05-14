@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
-import { getCachedOrganization } from "@/lib/cached-api"
+import { getCachedOrganization, getCachedSuppliers } from "@/lib/cached-api"
 
 type LayoutField = { key: string; label: string; type?: string | null; required?: boolean | null; options?: string[] | null; isActive?: boolean | null; order?: number | null }
 type Layout = { id: string; name: string; kind?: string | null; trackInventory?: boolean | null; fields?: LayoutField[] | null }
@@ -24,6 +24,8 @@ type ProductMetadata = { productTypeId?: string | null; productTypeName?: string
 type Product = { id: string; name: string; sku?: string | null; category?: string | null; description?: string | null; status?: string | null; quantity?: number | string | null; lowStockLevel?: number | string | null; price?: number | string | null; priceCurrency?: string | null; images?: string[] | null; metadata?: ProductMetadata | null }
 type Organization = { baseCurrency?: string | null }
 type AssetResponse = { url: string; name?: string }
+type LookupValue = { id: string; name: string }
+type LookupOption = { id: string; name: string; subtitle?: string }
 type FormState = { name: string; sku: string; category: string; description: string; status: string; price: string; quantity: string; lowStockLevel: string }
 
 const emptyForm: FormState = { name: "", sku: "", category: "", description: "", status: "active", price: "0", quantity: "0", lowStockLevel: "5" }
@@ -36,16 +38,28 @@ function isRecord(value: unknown): value is Record<string, unknown> { return Boo
 function fieldType(field: LayoutField) { const type = String(field.type || "text").toLowerCase(); return SYSTEM_TYPES.includes(type) ? type : "text" }
 function activeFields(layout: Layout | null) { return [...(layout?.fields || [])].filter((field) => field.isActive !== false).sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0)) }
 function productToForm(product: Product): FormState { return { name: product.name || "", sku: product.sku || "", category: product.category || "", description: product.description || "", status: product.status || "active", price: String(product.price ?? 0), quantity: String(product.quantity ?? 0), lowStockLevel: String(product.lowStockLevel ?? 5) } }
-function stringifyFieldValue(field: LayoutField, value: unknown) { const type = fieldType(field); if (value == null) return ""; if (type === "currency" && isRecord(value)) return String(value.amount ?? value.value ?? ""); if (type === "lookup" && isRecord(value)) return String(value.name ?? value.id ?? ""); if (type === "date") return String(value).slice(0, 10); if (typeof value === "object") return JSON.stringify(value); return String(value) }
+function normalizeList<T>(value: unknown): T[] { if (Array.isArray(value)) return value as T[]; if (isRecord(value)) return ((value.items || value.data || []) as T[]); return [] }
+function lookupSource(field: LayoutField) { return String(field.options?.[0] || "suppliers").trim().toLowerCase() }
+function lookupLabel(source: string) { if (source.startsWith("product")) return "product"; if (source.startsWith("customer")) return "customer"; return "supplier" }
+function stringifyFieldValue(field: LayoutField, value: unknown): unknown { const type = fieldType(field); if (value == null) return type === "lookup" ? null : ""; if (type === "lookup") return isRecord(value) ? { id: String(value.id || ""), name: String(value.name || value.id || "") } : null; if (type === "currency" && isRecord(value)) return String(value.amount ?? value.value ?? ""); if (type === "date") return String(value).slice(0, 10); if (typeof value === "object") return JSON.stringify(value); return String(value) }
 function normalizeFieldValue(field: LayoutField, value: unknown, currency: string) {
   const type = fieldType(field)
   if (type === "images") return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : []
   if (type === "attachment") return Array.isArray(value) ? value.filter(isRecord).map((item) => ({ name: cleanFileName(String(item.name || ""), String(item.url || "attachment")), url: String(item.url || "").trim() })).filter((item) => item.url) : []
+  if (type === "lookup") {
+    if (!value) return undefined
+    if (isRecord(value)) {
+      const id = String(value.id || "").trim()
+      const name = String(value.name || value.id || "").trim()
+      return id && name ? { id, name } : undefined
+    }
+    const text = String(value).trim()
+    return text ? { id: text, name: text } : undefined
+  }
   if (value == null || (typeof value === "string" && value.trim() === "")) return undefined
   if (type === "number") return Math.trunc(numberValue(value))
   if (type === "decimal") return numberValue(value)
   if (type === "currency") return { amount: numberValue(value), currency }
-  if (type === "lookup") { const text = String(value).trim(); return text ? { id: text, name: text } : undefined }
   if (type === "boolean") return value === true || value === "true"
   return String(value).trim()
 }
@@ -54,6 +68,21 @@ async function uploadAsset(file: File, type: "images" | "attachment") {
   const body = new FormData()
   body.append("file", file)
   return apiFetch<AssetResponse>(type === "images" ? "/api/products/asset-image" : "/api/products/asset-attachment", { method: "POST", body })
+}
+
+async function fetchLookupOptions(source: string): Promise<LookupOption[]> {
+  if (source.startsWith("product")) {
+    const result = await apiFetch<unknown>("/api/products?limit=100")
+    return normalizeList<Record<string, unknown>>(result).map((item) => ({ id: String(item.id), name: String(item.name || item.sku || item.id), subtitle: item.sku ? String(item.sku) : undefined })).filter((item) => item.id && item.name)
+  }
+
+  if (source.startsWith("customer")) {
+    const result = await apiFetch<unknown>("/api/customers?limit=100").catch(() => [])
+    return normalizeList<Record<string, unknown>>(result).map((item) => ({ id: String(item.id), name: String(item.name || item.email || item.id), subtitle: item.email ? String(item.email) : undefined })).filter((item) => item.id && item.name)
+  }
+
+  const result = await getCachedSuppliers<unknown>().catch(() => [])
+  return normalizeList<Record<string, unknown>>(result).map((item) => ({ id: String(item.id), name: String(item.name || item.supplierCode || item.id), subtitle: item.supplierCode ? String(item.supplierCode) : undefined })).filter((item) => item.id && item.name)
 }
 
 export function ProductLayoutForm({ productId, layout }: { productId?: string; layout: Layout | null }) {
@@ -92,7 +121,7 @@ export function ProductLayoutForm({ productId, layout }: { productId?: string; l
           setCustomValues(nextValues)
         } else {
           const nextValues: Record<string, unknown> = {}
-          for (const field of fields) nextValues[field.key] = fieldType(field) === "images" || fieldType(field) === "attachment" ? [] : ""
+          for (const field of fields) nextValues[field.key] = fieldType(field) === "images" || fieldType(field) === "attachment" ? [] : fieldType(field) === "lookup" ? null : ""
           setCustomValues(nextValues)
         }
       } catch (err) {
@@ -224,9 +253,53 @@ function LayoutFieldInput({ field, value, currency, uploading, onChange, onUploa
   if (type === "boolean") return <Field label={label} required={Boolean(field.required)}><div className="flex h-9 items-center gap-3 rounded-md border px-3"><Switch checked={value === true || value === "true"} onCheckedChange={(checked) => onChange(checked ? "true" : "false")} /><span className="text-sm text-muted-foreground">{value === true || value === "true" ? "Yes" : "No"}</span></div></Field>
   if (type === "select") return <Field label={label} required={Boolean(field.required)}><Select value={String(value || "")} onValueChange={onChange}><SelectTrigger><SelectValue placeholder="Choose option" /></SelectTrigger><SelectContent>{(field.options || []).map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent></Select></Field>
   if (type === "date") return <Field label={label} required={Boolean(field.required)}><Input type="date" value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} /></Field>
-  if (type === "lookup") return <Field label={label} required={Boolean(field.required)}><Input value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} placeholder="Search/select will be added next" /></Field>
+  if (type === "lookup") return <LookupField field={field} value={isRecord(value) ? value as LookupValue : null} onChange={onChange} />
   if (type === "images" || type === "attachment") return <div className="md:col-span-2"><AssetField label={label} required={Boolean(field.required)} type={type} value={Array.isArray(value) ? value : []} uploading={uploading} onUpload={onUpload} onRemove={onRemove} /></div>
   return <Field label={label} required={Boolean(field.required)}><Input value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} /></Field>
+}
+
+function LookupField({ field, value, onChange }: { field: LayoutField; value: LookupValue | null; onChange: (value: unknown) => void }) {
+  const source = lookupSource(field)
+  const sourceLabel = lookupLabel(source)
+  const [options, setOptions] = React.useState<LookupOption[]>([])
+  const [loading, setLoading] = React.useState(false)
+
+  React.useEffect(() => {
+    let active = true
+    async function load() {
+      setLoading(true)
+      try {
+        const next = await fetchLookupOptions(source)
+        if (active) setOptions(next)
+      } catch {
+        if (active) setOptions([])
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+    void load()
+    return () => { active = false }
+  }, [source])
+
+  return (
+    <Field label={field.label || field.key} required={Boolean(field.required)}>
+      <Select value={value?.id || ""} onValueChange={(id) => {
+        const selected = options.find((option) => option.id === id)
+        onChange(selected ? { id: selected.id, name: selected.name } : null)
+      }}>
+        <SelectTrigger>
+          <SelectValue placeholder={loading ? `Loading ${sourceLabel}s...` : `Choose ${sourceLabel}`} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.length ? options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              {option.subtitle ? `${option.subtitle} · ${option.name}` : option.name}
+            </SelectItem>
+          )) : <SelectItem value="__empty" disabled>{loading ? "Loading..." : `No ${sourceLabel}s found`}</SelectItem>}
+        </SelectContent>
+      </Select>
+    </Field>
+  )
 }
 
 function AssetField({ label, required, type, value, uploading, onUpload, onRemove }: { label: string; required?: boolean; type: "images" | "attachment"; value: unknown[]; uploading: boolean; onUpload: (files: FileList | null) => void; onRemove: (index: number) => void }) {
