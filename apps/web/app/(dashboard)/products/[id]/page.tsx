@@ -150,6 +150,7 @@ export default function ProductDetailPage() {
   const productImages = product.images ?? [];
   const primaryImage = selectedImage || productImages[0];
   const imageCount = productImages.length;
+  const selectedImageIndex = Math.max(productImages.findIndex((image) => image === primaryImage), 0);
 
   return (
     <PageShell className="space-y-6 pb-10">
@@ -161,26 +162,36 @@ export default function ProductDetailPage() {
             <div className="relative aspect-square overflow-hidden bg-muted">
               {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="h-10 w-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}
               <div className="absolute left-3 top-3"><ProductStatusBadge product={product} lowStock={lowStock} /></div>
-              {imageCount > 1 && <Badge variant="secondary" className="absolute bottom-3 right-3 bg-background/90">{productImages.findIndex((image) => image === primaryImage) + 1} / {imageCount}</Badge>}
+              {imageCount > 1 && <Badge variant="secondary" className="absolute bottom-3 right-3 bg-background/90">{selectedImageIndex + 1} / {imageCount}</Badge>}
             </div>
-            {imageCount > 0 && (
+            {imageCount > 1 && (
               <div className="border-t p-3">
                 <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>Click an image to preview it</span>
+                  <span>Switch product image</span>
                   <span>{imageCount} total</span>
                 </div>
-                <div className="grid max-h-56 grid-cols-4 gap-2 overflow-y-auto pr-1">
+                <div className="inline-flex max-w-full flex-wrap items-center rounded-xl border bg-background p-1 shadow-xs">
                   {productImages.map((image, index) => {
                     const active = image === primaryImage;
                     return (
-                      <button key={`${image}-${index}`} type="button" onClick={() => setSelectedImage(image)} className={cn("group relative h-14 overflow-hidden border bg-muted transition hover:border-primary", active ? "border-primary ring-2 ring-primary/30" : "border-border")} aria-label={`View product image ${index + 1}`} aria-pressed={active}>
-                        <img src={image} alt={`Product image ${index + 1}`} className="h-full w-full object-cover transition group-hover:scale-105" />
-                        {active && <span className="absolute inset-x-0 bottom-0 bg-primary px-1 py-0.5 text-[0.6rem] font-semibold text-primary-foreground">Viewing</span>}
-                      </button>
+                      <Button
+                        key={`${image}-${index}`}
+                        type="button"
+                        size="sm"
+                        variant={active ? "default" : "ghost"}
+                        className={cn("h-8 rounded-lg px-3 text-xs", !active && "text-muted-foreground")}
+                        onClick={() => setSelectedImage(image)}
+                        aria-pressed={active}
+                      >
+                        Image {index + 1}
+                      </Button>
                     );
                   })}
                 </div>
               </div>
+            )}
+            {imageCount === 1 && (
+              <div className="border-t px-3 py-2 text-xs text-muted-foreground">1 image</div>
             )}
           </section>
           <section className="border bg-card/95"><SectionHeader icon={FileText} title="Quick facts" /><div className="divide-y border-t"><SideFact label="SKU" value={product.sku} mono /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={`${imageCount}`} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={product.updatedAt ? formatDate(product.updatedAt) : "Not updated"} /></div></section>
