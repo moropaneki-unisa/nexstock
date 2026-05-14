@@ -17,14 +17,26 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 
 type ProductKind = "physical" | "service" | "digital" | "bundle"
-type FieldType = "text" | "number" | "boolean" | "select" | "date" | "json"
+type FieldType = "text" | "richtext" | "number" | "decimal" | "currency" | "attachment" | "images" | "lookup" | "boolean" | "select" | "date"
 type LayoutField = { key: string; label: string; type: FieldType | string; required?: boolean; options?: string[]; defaultValue?: unknown; order?: number; isActive?: boolean }
 type Layout = { id: string; name: string; description?: string | null; kind: ProductKind | string; trackInventory: boolean; isDefault?: boolean | null; fields?: LayoutField[] | null }
 type Draft = { name: string; description: string; kind: ProductKind; trackInventory: boolean; isDefault: boolean; fields: LayoutField[] }
 
 const LAYOUTS_API = "/api/products/types"
 const emptyDraft: Draft = { name: "", description: "", kind: "physical", trackInventory: true, isDefault: false, fields: [] }
-const fieldTypes: FieldType[] = ["text", "number", "boolean", "select", "date", "json"]
+const fieldTypes: Array<{ value: FieldType; label: string; description: string }> = [
+  { value: "text", label: "Text", description: "Single-line plain text" },
+  { value: "richtext", label: "Rich text", description: "Formatted long text" },
+  { value: "number", label: "Number", description: "Whole number" },
+  { value: "decimal", label: "Decimal", description: "Number with decimals" },
+  { value: "currency", label: "Currency", description: "Amount with currency" },
+  { value: "attachment", label: "Attachment", description: "Array of files" },
+  { value: "images", label: "Images", description: "Array of images" },
+  { value: "lookup", label: "Lookup", description: "Object with id and name" },
+  { value: "boolean", label: "Boolean", description: "True or false" },
+  { value: "select", label: "Select", description: "Option list" },
+  { value: "date", label: "Date", description: "Date value" },
+]
 
 function numberValue(value: unknown) {
   const next = Number(value ?? 0)
@@ -42,6 +54,18 @@ function uniqueKey(label: string, fields: LayoutField[], currentIndex: number) {
   let index = 2
   while (existing.has(key)) key = `${base}_${index++}`
   return key
+}
+
+function usesOptions(type?: string) {
+  return type === "select" || type === "lookup"
+}
+
+function optionsLabel(type?: string) {
+  return type === "lookup" ? "Lookup source/options" : "Options"
+}
+
+function optionsPlaceholder(type?: string) {
+  return type === "lookup" ? "suppliers, customers, products" : "Small, Medium, Large"
 }
 
 function draftFromLayout(layout: Layout): Draft {
@@ -75,7 +99,7 @@ function normalizeFields(fields: LayoutField[]) {
       key: field.key || keyFromLabel(field.label),
       label: field.label.trim(),
       type: field.type || "text",
-      options: field.type === "select" ? (field.options || []).map((option) => String(option).trim()).filter(Boolean) : [],
+      options: usesOptions(String(field.type)) ? (field.options || []).map((option) => String(option).trim()).filter(Boolean) : [],
       order: index,
       isActive: true,
     }))
@@ -121,6 +145,7 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
         if (fieldIndex !== index) return field
         const next = { ...field, ...patch }
         if (patch.label !== undefined && (!field.key || field.key === keyFromLabel(field.label))) next.key = uniqueKey(patch.label, current.fields, index)
+        if (patch.type !== undefined && !usesOptions(String(patch.type))) next.options = []
         return next
       })
       return { ...current, fields }
@@ -189,11 +214,11 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
 
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div><CardTitle>Layout fields</CardTitle><CardDescription>Add the fields that belong to this layout. Example: IMEI for phones, VIN for cars, size for clothing.</CardDescription></div>
+              <div><CardTitle>Layout fields</CardTitle><CardDescription>Add fields for this layout. Attachment and Images are saved as arrays. Lookup is saved as an object with id and name.</CardDescription></div>
               <Button type="button" variant="outline" size="sm" onClick={addField}><PlusIcon className="size-4" />Add field</Button>
             </CardHeader>
             <CardContent className="grid gap-3">
-              {draft.fields.length ? draft.fields.map((field, index) => <div key={index} className="rounded-xl border p-4"><div className="grid gap-3 md:grid-cols-[1fr_0.7fr_0.6fr_auto]"><Field label="Field label"><Input value={field.label} onChange={(event) => updateField(index, { label: event.target.value })} placeholder="VIN, IMEI, Size..." /></Field><Field label="Type"><Select value={String(field.type || "text")} onValueChange={(value: FieldType) => updateField(index, { type: value, options: value === "select" ? field.options || [] : [] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{fieldTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select></Field><label className="mt-6 flex items-center gap-3 rounded-xl border p-3 text-sm"><Checkbox checked={Boolean(field.required)} onCheckedChange={(checked) => updateField(index, { required: Boolean(checked) })} /><span>Required</span></label><Button type="button" variant="ghost" size="icon" className="mt-6 text-muted-foreground hover:text-destructive" onClick={() => removeField(index)}><Trash2Icon className="size-4" /></Button></div>{field.type === "select" ? <div className="mt-3"><Field label="Options"><Input value={(field.options || []).join(", ")} onChange={(event) => updateField(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} placeholder="Petrol, Diesel, Electric" /></Field></div> : null}<p className="mt-3 font-mono text-xs text-muted-foreground">{`{{product.customFields.${field.key || keyFromLabel(field.label)}}}`}</p></div>) : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No fields yet</p><p className="mt-1 text-sm text-muted-foreground">Add fields that only apply to products using this layout.</p><Button type="button" className="mt-4" size="sm" onClick={addField}><PlusIcon className="size-4" />Add first field</Button></div>}
+              {draft.fields.length ? draft.fields.map((field, index) => <div key={index} className="rounded-xl border p-4"><div className="grid gap-3 md:grid-cols-[1fr_0.85fr_0.6fr_auto]"><Field label="Field label"><Input value={field.label} onChange={(event) => updateField(index, { label: event.target.value })} placeholder="VIN, IMEI, Warranty docs..." /></Field><Field label="Type"><Select value={String(field.type || "text")} onValueChange={(value: FieldType) => updateField(index, { type: value, options: usesOptions(value) ? field.options || [] : [] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{fieldTypes.map((type) => <SelectItem key={type.value} value={type.value}><span className="flex flex-col"><span>{type.label}</span><span className="text-xs text-muted-foreground">{type.description}</span></span></SelectItem>)}</SelectContent></Select></Field><label className="mt-6 flex items-center gap-3 rounded-xl border p-3 text-sm"><Checkbox checked={Boolean(field.required)} onCheckedChange={(checked) => updateField(index, { required: Boolean(checked) })} /><span>Required</span></label><Button type="button" variant="ghost" size="icon" className="mt-6 text-muted-foreground hover:text-destructive" onClick={() => removeField(index)}><Trash2Icon className="size-4" /></Button></div>{usesOptions(String(field.type)) ? <div className="mt-3"><Field label={optionsLabel(String(field.type))}><Input value={(field.options || []).join(", ")} onChange={(event) => updateField(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} placeholder={optionsPlaceholder(String(field.type))} /></Field><p className="mt-1 text-xs text-muted-foreground">{field.type === "lookup" ? "Use this to define allowed lookup modules/sources for now." : "Separate options with commas."}</p></div> : null}<p className="mt-3 font-mono text-xs text-muted-foreground">{`{{product.customFields.${field.key || keyFromLabel(field.label)}}}`}</p></div>) : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No fields yet</p><p className="mt-1 text-sm text-muted-foreground">Add fields that only apply to products using this layout.</p><Button type="button" className="mt-4" size="sm" onClick={addField}><PlusIcon className="size-4" />Add first field</Button></div>}
             </CardContent>
           </Card>
         </main>
