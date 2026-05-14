@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 
+export type EmailSendResult = {
+  id?: string;
+  error?: string;
+  raw?: unknown;
+};
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -30,12 +36,13 @@ export class EmailService {
     });
   }
 
-  private async sendEmail(payload: { to: string; subject: string; html: string; text: string; replyTo?: string }) {
+  private async sendEmail(payload: { to: string; subject: string; html: string; text: string; replyTo?: string }): Promise<EmailSendResult | null> {
     const resend = this.resendClient();
 
     if (!resend) {
-      this.logger.error(`RESEND_API_KEY missing. Skipping email to ${payload.to}.`);
-      return null;
+      const error = 'RESEND_API_KEY missing';
+      this.logger.error(`${error}. Skipping email to ${payload.to}.`);
+      return { error };
     }
 
     try {
@@ -49,17 +56,19 @@ export class EmailService {
       });
 
       if (response.error) {
+        const error = this.providerErrorMessage(response.error);
         this.logger.error(`Email provider rejected message to ${payload.to}: ${payload.subject}`);
         this.logger.error(JSON.stringify(response.error));
-        return null;
+        return { error, raw: response.error };
       }
 
       this.logger.log(`Email sent to ${payload.to}: ${payload.subject} (${response.data?.id ?? 'no-id'})`);
-      return response.data;
+      return { id: response.data?.id, raw: response.data };
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Email send failed for ${payload.to}: ${payload.subject}`);
-      this.logger.error(error instanceof Error ? error.message : String(error));
-      return null;
+      this.logger.error(message);
+      return { error: message };
     }
   }
 
@@ -154,5 +163,13 @@ export class EmailService {
       text: `${greeting}, this is a reminder for your NexStock task: ${params.title}. Workspace: ${params.organizationName}. Priority: ${params.priority}. Due: ${dueLabel}. ${params.description || ''} Open tasks: ${params.taskUrl}`,
       html: `<div><h1>Task reminder</h1><p>${greeting}, this is a reminder for your NexStock task.</p><h2>${params.title}</h2><p><strong>Workspace:</strong> ${params.organizationName}</p><p><strong>Priority:</strong> ${params.priority}</p><p><strong>Due:</strong> ${dueLabel}</p>${params.description ? `<p>${params.description}</p>` : ''}<p><a href="${params.taskUrl}">Open My Tasks</a></p><p>${params.taskUrl}</p></div>`,
     });
+  }
+
+  private providerErrorMessage(error: unknown) {
+    if (error && typeof error === 'object') {
+      const record = error as Record<string, unknown>;
+      return String(record.message || record.name || record.error || JSON.stringify(record));
+    }
+    return String(error || 'Email provider rejected the message');
   }
 }
