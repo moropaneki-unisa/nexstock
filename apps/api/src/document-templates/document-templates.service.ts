@@ -215,7 +215,7 @@ export class DocumentTemplatesService {
 
     try {
       const page = await browser.newPage();
-      await page.setContent(this.pdfDocument(rendered.html), { waitUntil: 'networkidle0' });
+      await page.setContent(this.pdfDocument(rendered.html), { waitUntil: 'load' });
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
