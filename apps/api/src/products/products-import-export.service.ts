@@ -535,7 +535,9 @@ export class ProductsImportExportService {
       .map((item) => item.trim())
       .filter(Boolean)
       .map((item) => {
-        const [namePart, urlPart] = item.includes('=') ? item.split(/=(.*)/s) : ['', item];
+        const separatorIndex = item.indexOf('=');
+        const namePart = separatorIndex >= 0 ? item.slice(0, separatorIndex) : '';
+        const urlPart = separatorIndex >= 0 ? item.slice(separatorIndex + 1) : item;
         const url = String(urlPart || item).trim();
         return { name: String(namePart || this.fileNameFromUrl(url)).trim(), url };
       })
