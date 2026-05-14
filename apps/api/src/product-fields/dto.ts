@@ -1,20 +1,34 @@
 import {
+  Allow,
   IsArray,
   IsBoolean,
-  IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
-import { CustomFieldType } from '@prisma/client';
+
+export const legacyProductFieldTypes = [
+  'text',
+  'richtext',
+  'number',
+  'decimal',
+  'currency',
+  'attachment',
+  'images',
+  'lookup',
+  'boolean',
+  'select',
+  'date',
+] as const;
 
 export class CreateProductFieldDto {
   @IsString()
   label!: string;
 
-  @IsEnum(CustomFieldType)
-  type!: CustomFieldType;
+  @IsIn(legacyProductFieldTypes)
+  type!: string;
 
   @IsOptional()
   @IsBoolean()
@@ -26,6 +40,7 @@ export class CreateProductFieldDto {
   options?: string[];
 
   @IsOptional()
+  @Allow()
   defaultValue?: unknown;
 
   @IsOptional()
@@ -44,8 +59,8 @@ export class UpdateProductFieldDto {
   label?: string;
 
   @IsOptional()
-  @IsEnum(CustomFieldType)
-  type?: CustomFieldType;
+  @IsIn(legacyProductFieldTypes)
+  type?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -57,6 +72,7 @@ export class UpdateProductFieldDto {
   options?: string[];
 
   @IsOptional()
+  @Allow()
   defaultValue?: unknown;
 
   @IsOptional()
