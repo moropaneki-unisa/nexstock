@@ -66,6 +66,7 @@ const defaultRepeatGroup = "lines"
 const resizeHotspotPx = 8
 const minColumnWidth = 48
 const cellWrapStyle = `word-break:break-word;overflow-wrap:anywhere;white-space:normal;vertical-align:top;max-width:0`
+const insertMergeFieldEvent = "nexstock-template-editor-insert-html"
 const inactiveToolbarState: ToolbarState = {
   bold: false,
   italic: false,
@@ -182,6 +183,17 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     if (editorRef.current.innerHTML !== nextValue) editorRef.current.innerHTML = nextValue
     normalizeTables(editorRef.current)
   }, [value])
+
+  React.useEffect(() => {
+    function handleInsertHtml(event: Event) {
+      const detail = (event as CustomEvent<{ html?: string }>).detail
+      if (!detail?.html) return
+      insertHtml(detail.html)
+    }
+
+    window.addEventListener(insertMergeFieldEvent, handleInsertHtml)
+    return () => window.removeEventListener(insertMergeFieldEvent, handleInsertHtml)
+  })
 
   React.useEffect(() => {
     function handleResizeMove(event: MouseEvent) {
