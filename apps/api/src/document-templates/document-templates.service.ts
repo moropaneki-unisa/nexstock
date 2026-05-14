@@ -36,51 +36,30 @@ const commonFields: TemplateField[] = [
   { group: 'Organization', label: 'Organization name', path: 'organization.name' },
   { group: 'Organization', label: 'Organization email', path: 'organization.email' },
   { group: 'Organization', label: 'Organization phone', path: 'organization.phone' },
+  { group: 'Organization', label: 'Organization address', path: 'organization.address' },
 ];
 
 const moduleFields: Record<string, TemplateField[]> = {
   purchase_orders: [
-    { group: 'Supplier', label: 'Supplier name', path: 'supplier.name' },
-    { group: 'Supplier', label: 'Supplier email', path: 'supplier.email' },
-    { group: 'Supplier', label: 'Supplier code', path: 'supplier.supplierCode' },
     { group: 'Purchase order', label: 'PO number', path: 'purchaseOrder.poNumber' },
     { group: 'Purchase order', label: 'Currency', path: 'purchaseOrder.currency' },
     { group: 'Purchase order', label: 'Subtotal', path: 'purchaseOrder.subtotal' },
     { group: 'Purchase order', label: 'Expected date', path: 'purchaseOrder.expectedAt' },
     { group: 'Purchase order', label: 'Notes', path: 'purchaseOrder.notes' },
-    { group: 'Line item', label: 'Line product name', path: 'product.name', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Line product SKU', path: 'product.sku', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Quantity ordered', path: 'quantityOrdered', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Unit cost', path: 'unitCost', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
   ],
   quotes: [
-    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
-    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
     { group: 'Quote', label: 'Quote number', path: 'quote.quoteNumber' },
     { group: 'Quote', label: 'Currency', path: 'quote.currency' },
     { group: 'Quote', label: 'Total', path: 'quote.total' },
     { group: 'Quote', label: 'Valid until', path: 'quote.validUntil' },
-    { group: 'Line item', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Quantity', path: 'quantity', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Unit price', path: 'unitPrice', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
   ],
   invoices: [
-    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
-    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
     { group: 'Invoice', label: 'Invoice number', path: 'invoice.invoiceNumber' },
     { group: 'Invoice', label: 'Currency', path: 'invoice.currency' },
     { group: 'Invoice', label: 'Total', path: 'invoice.total' },
     { group: 'Invoice', label: 'Due date', path: 'invoice.dueDate' },
-    { group: 'Line item', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Quantity', path: 'quantity', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Unit price', path: 'unitPrice', description: 'Use inside a lines block' },
-    { group: 'Line item', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
   ],
   statements: [
-    { group: 'Customer', label: 'Customer name', path: 'customer.name' },
-    { group: 'Customer', label: 'Customer email', path: 'customer.email' },
     { group: 'Statement', label: 'Statement number', path: 'statement.statementNumber' },
     { group: 'Statement', label: 'Period', path: 'statement.period' },
     { group: 'Statement', label: 'Currency', path: 'statement.currency' },
@@ -107,6 +86,44 @@ const moduleFields: Record<string, TemplateField[]> = {
   ],
 };
 
+const lookupFields: Record<string, TemplateField[]> = {
+  purchase_orders: [
+    { group: 'Supplier lookup', label: 'Supplier name', path: 'supplier.name' },
+    { group: 'Supplier lookup', label: 'Supplier email', path: 'supplier.email' },
+    { group: 'Supplier lookup', label: 'Supplier code', path: 'supplier.supplierCode' },
+    { group: 'Supplier lookup', label: 'Supplier phone', path: 'supplier.phone' },
+    { group: 'Line item / product lookup', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Product SKU', path: 'product.sku', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Quantity ordered', path: 'quantityOrdered', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Quantity received', path: 'quantityReceived', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Unit cost', path: 'unitCost', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
+  ],
+  quotes: [
+    { group: 'Customer lookup', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer lookup', label: 'Customer email', path: 'customer.email' },
+    { group: 'Line item / product lookup', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Quantity', path: 'quantity', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Unit price', path: 'unitPrice', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
+  ],
+  invoices: [
+    { group: 'Customer lookup', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer lookup', label: 'Customer email', path: 'customer.email' },
+    { group: 'Line item / product lookup', label: 'Product name', path: 'product.name', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Quantity', path: 'quantity', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Unit price', path: 'unitPrice', description: 'Use inside a lines block' },
+    { group: 'Line item / product lookup', label: 'Line total', path: 'lineTotal', description: 'Use inside a lines block' },
+  ],
+  statements: [
+    { group: 'Customer lookup', label: 'Customer name', path: 'customer.name' },
+    { group: 'Customer lookup', label: 'Customer email', path: 'customer.email' },
+    { group: 'Customer lookup', label: 'Customer phone', path: 'customer.phone' },
+  ],
+};
+
+const modulesWithProductLookups = new Set(['products', 'purchase_orders', 'quotes', 'invoices']);
+
 @Injectable()
 export class DocumentTemplatesService {
   constructor(private readonly db: PrismaService) {}
@@ -120,15 +137,18 @@ export class DocumentTemplatesService {
   }
 
   async fields(user: CurrentUserPayload, module = 'purchase_orders') {
-    const layoutFields = await this.layoutFields(user.organizationId);
-    const layoutTokens = layoutFields.map((field) => ({
-      group: `Layout: ${field.layoutName}`,
-      label: field.label,
-      path: `product.metadata.customFields.${field.key}`,
-      description: `${field.type} layout field`,
-    }));
+    const normalizedModule = this.templateType(module);
+    const fields = [
+      ...commonFields,
+      ...(moduleFields[normalizedModule] || []),
+      ...(lookupFields[normalizedModule] || []),
+    ];
 
-    return [...commonFields, ...(moduleFields[module] || []), ...layoutTokens];
+    if (modulesWithProductLookups.has(normalizedModule)) {
+      fields.push(...await this.productLayoutTokens(user.organizationId, normalizedModule === 'products' ? 'Product layout' : 'Line item / product layout'));
+    }
+
+    return fields;
   }
 
   async testRecords(user: CurrentUserPayload, module = 'purchase_orders'): Promise<TestRecord[]> {
@@ -388,6 +408,16 @@ export class DocumentTemplatesService {
     };
   }
 
+  private async productLayoutTokens(organizationId: string, group: string) {
+    const layoutFields = await this.layoutFields(organizationId);
+    return layoutFields.map((field) => ({
+      group,
+      label: field.label,
+      path: `product.metadata.customFields.${field.key}`,
+      description: `${field.type} product layout field`,
+    }));
+  }
+
   private async clearDefault(organizationId: string, type: string, kind: string, exceptId?: string) {
     if (exceptId) {
       await this.db.$executeRaw`
@@ -444,7 +474,8 @@ export class DocumentTemplatesService {
   }
 
   private async sampleContext(user: CurrentUserPayload, module?: string): Promise<TemplateContext> {
-    const layoutFields = await this.layoutFields(user.organizationId);
+    const includeProductLayoutFields = modulesWithProductLookups.has(this.templateType(module));
+    const layoutFields = includeProductLayoutFields ? await this.layoutFields(user.organizationId) : [];
     const customValues = Object.fromEntries(layoutFields.map((field) => [field.key, `Sample ${field.label}`]));
 
     const shared = {
