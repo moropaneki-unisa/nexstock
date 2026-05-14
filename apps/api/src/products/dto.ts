@@ -2,7 +2,9 @@ import { Type } from 'class-transformer';
 import {
   Allow,
   IsArray,
+  IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -12,6 +14,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ProductStatus } from '@prisma/client';
+
+export const productKinds = ['physical', 'service', 'digital', 'bundle'] as const;
 
 export class ProductCustomFieldValueDto {
   @IsString()
@@ -29,6 +33,19 @@ export class ListProductsDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @IsOptional()
+  @IsString()
+  productTypeId?: string;
+
+  @IsOptional()
+  @IsIn(productKinds)
+  kind?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  trackInventory?: boolean;
 
   @IsOptional()
   @IsEnum(ProductStatus)
@@ -51,6 +68,23 @@ export class ListProductsDto {
 export class CreateProductDto {
   @IsString()
   name!: string;
+
+  @IsOptional()
+  @IsString()
+  productTypeId?: string;
+
+  @IsOptional()
+  @IsIn(productKinds)
+  kind?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  trackInventory?: boolean;
+
+  @IsOptional()
+  @Allow()
+  customFields?: unknown;
 
   @IsOptional()
   @IsString()
@@ -123,6 +157,23 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  productTypeId?: string;
+
+  @IsOptional()
+  @IsIn(productKinds)
+  kind?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  trackInventory?: boolean;
+
+  @IsOptional()
+  @Allow()
+  customFields?: unknown;
 
   @IsOptional()
   @IsString()
