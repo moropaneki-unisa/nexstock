@@ -73,6 +73,8 @@ type DraftType = {
   selectedKeys: string[]
 }
 
+const PRODUCT_TYPES_API = "/api/products/types"
+const PRODUCT_FIELDS_API = "/api/product-fields"
 const blankDraft: DraftType = { name: "", description: "", kind: "physical", trackInventory: true, isDefault: false, selectedKeys: [] }
 const kindLabels: Record<string, string> = { physical: "Physical product", service: "Service", digital: "Digital product", bundle: "Bundle" }
 
@@ -141,17 +143,19 @@ export function ProductTypesContent() {
     setError(null)
     try {
       const [typeResult, attributeResult] = await Promise.all([
-        apiFetch<ProductType[]>("/api/product-types"),
-        apiFetch<unknown>("/api/product-fields"),
+        apiFetch<ProductType[]>(PRODUCT_TYPES_API),
+        apiFetch<unknown>(PRODUCT_FIELDS_API),
       ])
       const nextTypes = normalizeList<ProductType>(typeResult)
       const nextAttributes = normalizeList<ProductAttribute>(attributeResult).filter((field) => field.isActive !== false && field.visible !== false)
       setTypes(nextTypes)
       setAttributes(nextAttributes)
-      if (!selectedId && nextTypes[0]) {
-        setSelectedId(nextTypes[0].id)
-        setDraft(typeToDraft(nextTypes[0]))
-      }
+      setSelectedId((currentSelectedId) => {
+        if (currentSelectedId && nextTypes.some((type) => type.id === currentSelectedId)) return currentSelectedId
+        const firstType = nextTypes[0]
+        setDraft(firstType ? typeToDraft(firstType) : { ...blankDraft, selectedKeys: [] })
+        return firstType?.id || null
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load product types"
       setError(message)
@@ -201,8 +205,8 @@ export function ProductTypesContent() {
         fields,
       }
       const saved = draft.id
-        ? await apiFetch<ProductType>(`/api/product-types/${draft.id}`, { method: "PATCH", body: JSON.stringify(payload) })
-        : await apiFetch<ProductType>("/api/product-types", { method: "POST", body: JSON.stringify(payload) })
+        ? await apiFetch<ProductType>(`${PRODUCT_TYPES_API}/${draft.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+        : await apiFetch<ProductType>(PRODUCT_TYPES_API, { method: "POST", body: JSON.stringify(payload) })
       toast.success(draft.id ? "Product type updated" : "Product type created", { description: saved.name })
       setSelectedId(saved.id)
       setDraft(typeToDraft(saved))
@@ -221,7 +225,7 @@ export function ProductTypesContent() {
     if (!window.confirm(`Delete "${draft.name}"? Existing products keep their saved attribute values.`)) return
     setSaving(true)
     try {
-      await apiFetch(`/api/product-types/${draft.id}`, { method: "DELETE" })
+      await apiFetch(`${PRODUCT_TYPES_API}/${draft.id}`, { method: "DELETE" })
       toast.success("Product type deleted")
       setSelectedId(null)
       setDraft({ ...blankDraft, selectedKeys: [] })
