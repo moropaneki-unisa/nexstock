@@ -236,8 +236,57 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
           width: 100% !important;
         }
 
+        .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] {
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+          gap: 1rem !important;
+          align-items: start !important;
+        }
+
+        .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] > div {
+          display: grid !important;
+          gap: 1rem !important;
+          align-content: start !important;
+          min-width: 0 !important;
+        }
+
+        .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] input,
+        .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] button[role="combobox"] {
+          width: 100% !important;
+        }
+
+        .product-form-layout-scope form main > div:nth-of-type(3) div[class*="h-10"][class*="bg-muted/20"] {
+          display: grid !important;
+          height: auto !important;
+          min-height: 2.5rem !important;
+          gap: 0.5rem !important;
+          align-content: center !important;
+          padding-top: 0.625rem !important;
+          padding-bottom: 0.625rem !important;
+        }
+
+        .product-form-layout-scope form main > div:nth-of-type(3) div[class*="h-10"][class*="bg-muted/20"] > span.sr-only {
+          position: static !important;
+          width: auto !important;
+          height: auto !important;
+          margin: 0 !important;
+          overflow: visible !important;
+          clip: auto !important;
+          white-space: normal !important;
+          font-size: 0.75rem !important;
+          line-height: 1rem !important;
+          font-weight: 500 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.025em !important;
+          color: hsl(var(--muted-foreground)) !important;
+        }
+
         @media (min-width: 768px) {
           .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+
+          .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           }
         }
