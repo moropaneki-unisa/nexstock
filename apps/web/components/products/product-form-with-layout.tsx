@@ -218,6 +218,37 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
 
   return (
     <>
+      <style>{`
+        .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] {
+          display: grid !important;
+          grid-template-columns: 1fr !important;
+          gap: 1rem !important;
+          align-items: start !important;
+          padding: 1rem !important;
+        }
+
+        .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] > * {
+          min-width: 0 !important;
+        }
+
+        .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] input,
+        .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] button[role="combobox"] {
+          width: 100% !important;
+        }
+
+        @media (min-width: 768px) {
+          .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (min-width: 1280px) {
+          .product-form-layout-scope form main > div:nth-of-type(2) [data-slot="card-content"] > [data-slot="card"] > [data-slot="card-content"] {
+            grid-template-columns: minmax(14rem, 1.6fr) minmax(8rem, 1fr) minmax(7rem, 0.8fr) minmax(6rem, 0.7fr) minmax(6rem, 0.7fr) minmax(11rem, 1.15fr) auto !important;
+            align-items: end !important;
+          }
+        }
+      `}</style>
       <div className="px-4 pt-4 md:px-6">
         <Card>
           <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -239,7 +270,9 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
           </CardContent>
         </Card>
       </div>
-      <ProductFormContentFixed key={`${selectedLayoutId}-${reloadKey}`} productId={productId} />
+      <div className="product-form-layout-scope">
+        <ProductFormContentFixed key={`${selectedLayoutId}-${reloadKey}`} productId={productId} />
+      </div>
     </>
   )
 }
