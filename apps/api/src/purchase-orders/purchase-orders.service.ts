@@ -12,7 +12,7 @@ type OrganizationCurrencyRules = {
   nextPurchaseOrderNumber: number;
 };
 
-const PURCHASE_ORDER_TEMPLATE_TYPE = 'purchase_orders';
+const PURCHASE_ORDER_TEMPLATE_TYPES = ['purchase_orders', 'purchase_order'];
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -250,7 +250,7 @@ export class PurchaseOrdersService {
     });
 
     if (!response?.id) {
-      const message = 'Email provider did not confirm delivery. Check RESEND_API_KEY, EMAIL_FROM, and Resend logs.';
+      const message = response?.error || 'Email provider did not confirm delivery. Check RESEND_API_KEY, EMAIL_FROM, and Resend logs.';
       await this.db.emailLog.update({ where: { id: log.id }, data: { status: 'failed', error: message } });
       throw new BadRequestException(message);
     }
@@ -271,14 +271,14 @@ export class PurchaseOrdersService {
   private resolvePurchaseOrderTemplate(organizationId: string, templateId?: string) {
     if (templateId) {
       return this.db.documentTemplate.findFirst({
-        where: { id: templateId, organizationId, type: PURCHASE_ORDER_TEMPLATE_TYPE, isActive: true },
+        where: { id: templateId, organizationId, type: { in: PURCHASE_ORDER_TEMPLATE_TYPES }, isActive: true },
       });
     }
 
     return this.db.documentTemplate.findFirst({
-      where: { organizationId, type: PURCHASE_ORDER_TEMPLATE_TYPE, isDefault: true, isActive: true },
+      where: { organizationId, type: { in: PURCHASE_ORDER_TEMPLATE_TYPES }, isDefault: true, isActive: true },
     }).then((template) => template ?? this.db.documentTemplate.findFirst({
-      where: { organizationId, type: PURCHASE_ORDER_TEMPLATE_TYPE, isActive: true },
+      where: { organizationId, type: { in: PURCHASE_ORDER_TEMPLATE_TYPES }, isActive: true },
       orderBy: { createdAt: 'desc' },
     }));
   }
