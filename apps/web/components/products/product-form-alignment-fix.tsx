@@ -2,10 +2,26 @@
 
 import * as React from "react"
 
+const MONEY_READ_ONLY_LABELS = new Set(["preferred converted cost", "converted cost"])
+
+function textOf(element: Element | null) {
+  return element?.textContent?.replace(/\s+/g, " ").trim() || ""
+}
+
+function normalizeLabel(value: string) {
+  return value.replace("*", "").replace(/required/i, "").trim().toLowerCase()
+}
+
+function numericMoneyValue(value: string) {
+  const cleaned = value.replace(/[^0-9.-]+/g, "")
+  const next = Number(cleaned)
+  return Number.isFinite(next) ? String(next) : "0"
+}
+
 function enhanceReadOnlyFields() {
   if (typeof document === "undefined") return
 
-  const nodes = document.querySelectorAll<HTMLDivElement>(
+  const nodes = document.querySelectorAll<HTMLSpanElement>(
     ".product-form-layout-scope form div > span.sr-only",
   )
 
@@ -14,11 +30,13 @@ function enhanceReadOnlyFields() {
     if (!wrapper || wrapper.dataset.readonlyInputEnhanced === "true") return
 
     const label = labelNode.textContent?.trim() || "Read-only value"
-    const value = Array.from(wrapper.childNodes)
+    const normalizedLabel = normalizeLabel(label)
+    const rawValue = Array.from(wrapper.childNodes)
       .filter((node) => node !== labelNode)
       .map((node) => node.textContent || "")
       .join("")
       .trim()
+    const isMoneyValue = MONEY_READ_ONLY_LABELS.has(normalizedLabel)
 
     wrapper.dataset.readonlyInputEnhanced = "true"
     wrapper.className = "grid gap-2"
@@ -29,84 +47,26 @@ function enhanceReadOnlyFields() {
     labelElement.textContent = label
 
     const inputElement = document.createElement("input")
-    inputElement.value = value
+    inputElement.value = isMoneyValue ? numericMoneyValue(rawValue) : rawValue
     inputElement.disabled = true
     inputElement.readOnly = true
+    if (isMoneyValue) {
+      inputElement.type = "number"
+      inputElement.step = "0.01"
+      inputElement.min = "0"
+      inputElement.dataset.moneyReadonly = "true"
+    }
     inputElement.className = "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex h-9 w-full min-w-0 rounded-md border bg-muted/20 px-3 py-1 text-base font-medium shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-100 md:text-sm"
 
     wrapper.append(labelElement, inputElement)
   })
 }
 
-function textOf(element: Element | null) {
-  return element?.textContent?.replace(/\s+/g, " ").trim() || ""
-}
-
-function baseCurrency() {
-  const sellingCurrencyLabel = Array.from(document.querySelectorAll("label"))
-    .find((label) => textOf(label).toLowerCase() === "selling currency")
-  const wrapper = sellingCurrencyLabel?.parentElement
-  const value = wrapper?.querySelector("input")?.getAttribute("value") || wrapper?.querySelector("input")?.value || textOf(wrapper)
-  const match = value.match(/[A-Z]{3}/)
-  return match?.[0] || "ZAR"
-}
-
-function costCurrency(fieldWrapper: HTMLElement) {
-  const card = fieldWrapper.closest('[data-slot="card"]') || fieldWrapper.closest(".rounded-xl") || fieldWrapper.parentElement
-  const labels = Array.from(card?.querySelectorAll("label") || [])
-  const currencyLabel = labels.find((label) => textOf(label).toLowerCase() === "currency")
-  const currencyInput = currencyLabel?.parentElement?.querySelector("input")
-  const value = currencyInput?.value || currencyInput?.getAttribute("value") || textOf(currencyLabel?.parentElement)
-  const match = value.match(/[A-Z]{3}/)
-  return match?.[0] || baseCurrency()
-}
-
-function enhanceMoneyFields() {
-  if (typeof document === "undefined") return
-
-  const labels = Array.from(document.querySelectorAll<HTMLLabelElement>(".product-form-layout-scope form label"))
-
-  labels.forEach((label) => {
-    const labelText = textOf(label).replace("*", "").trim().toLowerCase()
-    if (labelText !== "selling price" && labelText !== "cost") return
-
-    const fieldWrapper = label.parentElement as HTMLElement | null
-    if (!fieldWrapper || fieldWrapper.dataset.moneyButtonGroupEnhanced === "true") return
-
-    const input = fieldWrapper.querySelector<HTMLInputElement>('input[type="number"]')
-    if (!input) return
-
-    const currency = labelText === "selling price" ? baseCurrency() : costCurrency(fieldWrapper)
-    const group = document.createElement("div")
-    group.dataset.slot = "button-group"
-    group.className = "inline-flex w-full items-stretch rounded-md shadow-xs"
-
-    const currencyButton = document.createElement("button")
-    currencyButton.type = "button"
-    currencyButton.disabled = true
-    currencyButton.tabIndex = -1
-    currencyButton.className = "border-input bg-muted text-muted-foreground inline-flex h-9 shrink-0 items-center justify-center rounded-l-md border px-3 text-sm font-medium disabled:opacity-100"
-    currencyButton.textContent = currency
-
-    input.classList.remove("rounded-md")
-    input.classList.add("rounded-l-none", "rounded-r-md")
-
-    input.parentElement?.insertBefore(group, input)
-    group.append(currencyButton, input)
-    fieldWrapper.dataset.moneyButtonGroupEnhanced = "true"
-  })
-}
-
-function enhanceProductForm() {
-  enhanceReadOnlyFields()
-  enhanceMoneyFields()
-}
-
 export function ProductFormAlignmentFix() {
   React.useEffect(() => {
-    enhanceProductForm()
+    enhanceReadOnlyFields()
 
-    const observer = new MutationObserver(() => enhanceProductForm())
+    const observer = new MutationObserver(() => enhanceReadOnlyFields())
     observer.observe(document.body, { childList: true, subtree: true })
 
     return () => observer.disconnect()
