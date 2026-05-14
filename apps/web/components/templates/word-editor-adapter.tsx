@@ -196,6 +196,15 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
   })
 
   React.useEffect(() => {
+    function handleSelectionChange() {
+      saveSelection()
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange)
+    return () => document.removeEventListener("selectionchange", handleSelectionChange)
+  }, [])
+
+  React.useEffect(() => {
     function handleResizeMove(event: MouseEvent) {
       const state = resizeStateRef.current
       if (!state) return
@@ -246,12 +255,18 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     })
   }
 
+  function rangeBelongsToEditor(range: Range | null) {
+    const editor = editorRef.current
+    if (!editor || !range) return false
+    return editor.contains(range.commonAncestorContainer) || range.commonAncestorContainer === editor
+  }
+
   function saveSelection() {
     const editor = editorRef.current
     const selection = window.getSelection()
     if (!editor || !selection || selection.rangeCount === 0) return
     const range = selection.getRangeAt(0)
-    if (editor.contains(range.commonAncestorContainer)) {
+    if (rangeBelongsToEditor(range)) {
       savedRangeRef.current = range.cloneRange()
       refreshToolbarState()
     }
@@ -263,9 +278,9 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     if (!editor || !selection) return
     editor.focus()
     const range = savedRangeRef.current
-    if (range) {
+    if (rangeBelongsToEditor(range)) {
       selection.removeAllRanges()
-      selection.addRange(range)
+      selection.addRange(range as Range)
       return
     }
     const fallbackRange = document.createRange()
@@ -273,6 +288,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     fallbackRange.collapse(false)
     selection.removeAllRanges()
     selection.addRange(fallbackRange)
+    savedRangeRef.current = fallbackRange.cloneRange()
   }
 
   function runCommand(command: string, commandValue?: string) {
@@ -293,10 +309,21 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     }
 
     const range = selection.getRangeAt(0)
-    range.deleteContents()
-    const fragment = range.createContextualFragment(html)
+    if (!rangeBelongsToEditor(range)) {
+      const editor = editorRef.current
+      if (!editor) return
+      const fallbackRange = document.createRange()
+      fallbackRange.selectNodeContents(editor)
+      fallbackRange.collapse(false)
+      selection.removeAllRanges()
+      selection.addRange(fallbackRange)
+    }
+
+    const activeRange = selection.getRangeAt(0)
+    activeRange.deleteContents()
+    const fragment = activeRange.createContextualFragment(html)
     const lastNode = fragment.lastChild
-    range.insertNode(fragment)
+    activeRange.insertNode(fragment)
 
     if (lastNode) {
       const nextRange = document.createRange()
