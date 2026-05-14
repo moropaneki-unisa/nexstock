@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 import { getCachedSuppliers } from "@/lib/cached-api"
+import { formatMoney, normalizeCurrencyCode, numberValue } from "@/lib/money"
 
 type Supplier = { id: string; supplierCode: string; name: string; currency?: string | null; status?: string | null }
 type Product = { id: string; name: string; sku?: string | null; cost?: string | number | null; costPrice?: string | number | null; price?: string | number | null }
@@ -33,9 +34,7 @@ const emptyForm: FormState = { supplierId: "", status: "draft", expectedAt: "", 
 const statuses: PurchaseOrderStatus[] = ["draft", "ordered", "partially_received", "received", "cancelled"]
 
 function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) { if (!value) return []; return Array.isArray(value) ? value : value.items ?? value.data ?? [] }
-function numberValue(value: unknown) { const next = Number(value ?? 0); return Number.isFinite(next) ? next : 0 }
-function normalizeCurrency(value?: string | null) { const code = String(value || "USD").trim().toUpperCase(); return /^[A-Z]{3}$/.test(code) ? code : "USD" }
-function formatMoney(value: unknown, currency = "USD") { return new Intl.NumberFormat("en", { style: "currency", currency: normalizeCurrency(currency), maximumFractionDigits: 2 }).format(numberValue(value)) }
+function normalizeCurrency(value?: string | null) { return normalizeCurrencyCode(value, "ZAR") }
 function toDateInput(value?: string | null) { if (!value) return ""; const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10) }
 function clean(value: string) { const next = value.trim(); return next || undefined }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
