@@ -40,16 +40,14 @@ export class ProductsService {
     private readonly planLimits: PlanLimitsService,
   ) {}
 
-  async uploadImage(file: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
+  async uploadAsset(file: Express.Multer.File, resourceType: 'auto' | 'image' = 'auto') {
+    if (!file) throw new BadRequestException('No file uploaded');
 
-    return new Promise((resolve, reject) => {
+    const uploadResult: any = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
-          folder: 'products',
-          resource_type: 'image',
+          folder: resourceType === 'image' ? 'products/images' : 'products/attachments',
+          resource_type: resourceType,
         },
         (error, result) => {
           if (error) return reject(error);
@@ -59,6 +57,23 @@ export class ProductsService {
 
       streamifier.createReadStream(file.buffer).pipe(stream);
     });
+
+    return {
+      url: uploadResult.secure_url,
+      name: file.originalname,
+      size: file.size,
+      mimeType: file.mimetype,
+      publicId: uploadResult.public_id,
+      resourceType: uploadResult.resource_type,
+    };
+  }
+
+  async uploadImage(file: Express.Multer.File) {
+    return this.uploadAsset(file, 'image');
+  }
+
+  async uploadAttachment(file: Express.Multer.File) {
+    return this.uploadAsset(file, 'auto');
   }
 
   async uploadAndAttachImage(
@@ -66,32 +81,13 @@ export class ProductsService {
     productId: string,
     file: Express.Multer.File,
   ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
-    }
-
-    const uploadResult: any = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'products',
-          resource_type: 'image',
-        },
-        (error, result) => {
-          if (error) return reject(error);
-          resolve(result);
-        },
-      );
-
-      streamifier.createReadStream(file.buffer).pipe(stream);
-    });
-
-    const imageUrl = uploadResult.secure_url;
+    const uploaded = await this.uploadImage(file);
     const product = await this.get(organizationId, productId);
 
     return this.prisma.product.update({
       where: { id: productId },
       data: {
-        images: [...(product.images || []), imageUrl],
+        images: [...(product.images || []), uploaded.url],
       },
     });
   }
