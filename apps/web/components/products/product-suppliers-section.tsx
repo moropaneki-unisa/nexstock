@@ -35,6 +35,12 @@ function formatMoney(value: unknown, currency = DEFAULT_CURRENCY) {
   }).format(numberValue(value));
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleDateString();
+}
+
 type OrganizationSummary = { baseCurrency?: string | null; enabledCurrencies?: string[] | null };
 type ProductSummary = { id: string; price: string | number; priceCurrency?: string | null; cost?: string | number | null; costCurrency?: string | null; convertedCost?: string | number | null };
 
@@ -81,7 +87,7 @@ const emptyForm = {
 };
 
 export function ProductSuppliersSection({ productId, baseCurrency }: ProductSuppliersSectionProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [links, setLinks] = useState<ProductSupplierLink[]>([]);
   const [product, setProduct] = useState<ProductSummary | null>(null);
@@ -102,6 +108,10 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
   }, [baseCurrency, form.currency, organization, selectedSupplier?.currency]);
 
   const preferred = links.find((link) => link.isPreferred) ?? links[0];
+  const latestPurchase = links
+    .map((link) => link.lastPurchaseAt)
+    .filter(Boolean)
+    .sort((a, b) => new Date(String(b)).getTime() - new Date(String(a)).getTime())[0];
 
   async function loadData() {
     setLoading(true);
@@ -227,11 +237,12 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
             <Truck className="size-4" />
             Suppliers & costing
           </CardTitle>
-          <CardDescription className="mt-1">Preferred supplier drives product cost. Alternative suppliers stay available for comparison and purchase orders.</CardDescription>
-          {preferred ? <p className="mt-2 text-xs text-muted-foreground">Preferred source: <span className="font-medium text-foreground">{preferred.supplier.name}</span> <span className="font-mono">({preferred.supplier.supplierCode})</span></p> : null}
+          <CardDescription className="mt-1">Preferred supplier drives product cost. Purchase Orders update latest supplier cost and last purchase date when stock is received.</CardDescription>
+          {preferred ? <p className="mt-2 text-xs text-muted-foreground">Preferred source: <span className="font-medium text-foreground">{preferred.supplier.name}</span> <span className="font-mono">({preferred.supplier.supplierCode})</span>{latestPurchase ? <span> · Last purchase {formatDate(String(latestPurchase))}</span> : null}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="secondary">{links.length} linked</Badge>
+          {preferred ? <Badge variant="outline">{preferred.currency}</Badge> : null}
           <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
         </div>
       </button>
@@ -243,7 +254,7 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium">Linked suppliers</p>
-              <p className="text-xs text-muted-foreground">Supplier SKU, cost, MOQ, lead time, and preferred source.</p>
+              <p className="text-xs text-muted-foreground">These links power Purchase Orders, supplier SKUs, received-cost updates, and preferred cost.</p>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={openCreate} disabled={loading || availableSuppliers.length === 0}>
               <Plus className="size-4" />
@@ -318,8 +329,7 @@ function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: 
             <TableHead className="pl-4">Supplier</TableHead>
             <TableHead>Supplier SKU</TableHead>
             <TableHead>Cost</TableHead>
-            <TableHead className="text-center">MOQ</TableHead>
-            <TableHead>Lead time</TableHead>
+            <TableHead>Purchase rules</TableHead>
             <TableHead>Last purchase</TableHead>
             <TableHead className="pr-4 text-right">Actions</TableHead>
           </TableRow>
@@ -328,6 +338,10 @@ function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: 
           {links.map((link) => {
             const currency = normalizeCurrencyCode(link.currency || link.supplier.currency || baseCurrency);
             const costNumber = link.cost == null ? null : Number(link.cost);
+            const purchaseRules = [
+              link.minimumOrderQty == null ? null : `MOQ ${link.minimumOrderQty}`,
+              link.leadTimeDays == null ? null : `${link.leadTimeDays} day lead`,
+            ].filter(Boolean).join(" · ") || "No rules";
             return (
               <TableRow key={link.id} className={cn("h-16", link.isPreferred && "bg-primary/5 hover:bg-primary/10")}>
                 <TableCell className="min-w-56 pl-4 align-middle">
@@ -335,16 +349,15 @@ function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: 
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium leading-none">{link.supplier.name}</span>
                       <Badge variant="outline" className="font-mono">{link.supplier.supplierCode}</Badge>
-                      {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : null}
+                      {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : <Badge variant="secondary">Alternative</Badge>}
                     </div>
                     <span className="text-xs leading-none text-muted-foreground">{[link.supplier.city, link.supplier.country].filter(Boolean).join(", ") || titleCase(link.supplier.supplierType || "vendor")}</span>
                   </div>
                 </TableCell>
                 <TableCell className="align-middle font-mono text-xs">{link.supplierSku || "-"}</TableCell>
-                <TableCell className="align-middle font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</TableCell>
-                <TableCell className="text-center align-middle">{link.minimumOrderQty == null ? "-" : link.minimumOrderQty}</TableCell>
-                <TableCell className="align-middle">{link.leadTimeDays == null ? "-" : `${link.leadTimeDays} days`}</TableCell>
-                <TableCell className="align-middle">{link.lastPurchaseAt ? new Date(link.lastPurchaseAt).toLocaleDateString() : "-"}</TableCell>
+                <TableCell className="align-middle"><div className="grid gap-1"><span className="font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</span><span className="text-xs text-muted-foreground">{currency}</span></div></TableCell>
+                <TableCell className="align-middle text-sm text-muted-foreground">{purchaseRules}</TableCell>
+                <TableCell className="align-middle">{formatDate(link.lastPurchaseAt)}</TableCell>
                 <TableCell className="pr-4 text-right align-middle">
                   <div className="flex justify-end gap-1">
                     <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(link)} className="size-8"><Pencil className="size-4" /></Button>
