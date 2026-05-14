@@ -89,7 +89,13 @@ enum DeliveryStatus {
 
 enum CustomFieldType {
   text
+  richtext
   number
+  decimal
+  currency
+  attachment
+  images
+  lookup
   boolean
   select
   date
