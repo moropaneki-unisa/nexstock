@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
+import { formatMoney, normalizeCurrencyCode, numberValue } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 type InventoryLog = { id: string; type: string; quantityBefore: number; quantityAfter: number; delta: number; reason?: string | null; source?: string | null; createdAt: string }
@@ -29,9 +30,7 @@ type ProductLayout = { id: string; name: string; kind?: string | null; trackInve
 type ProductDataField = { id: string; label: string; value: string; type?: string | null; mono?: boolean; multiline?: boolean; kind?: "text" | "images" | "attachments" | "lookup" | "boolean" | "currency"; raw?: unknown }
 type AttachmentValue = { name: string; url: string }
 
-function numberValue(value: unknown) { const next = Number(value ?? 0); return Number.isFinite(next) ? next : 0 }
-function normalizeCurrency(value?: string | null, fallback = "USD") { const next = String(value || fallback).trim().toUpperCase(); return next || fallback }
-function formatMoney(value: unknown, currency = "USD") { return new Intl.NumberFormat("en", { style: "currency", currency: normalizeCurrency(currency), maximumFractionDigits: 2 }).format(numberValue(value)) }
+function normalizeCurrency(value?: string | null, fallback = "ZAR") { return normalizeCurrencyCode(value, fallback) }
 function formatDate(value?: string | null) { if (!value) return "Not set"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleString() }
 function cleanText(value?: string | null) { if (!value) return ""; return value.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#39;/gi, "'").replace(/[ \t]+/g, " ").replace(/\n\s+/g, "\n").replace(/\n{3,}/g, "\n\n").trim() }
 function truncateText(value: string, maxLength: number) { return value.length <= maxLength ? value : `${value.slice(0, maxLength).trim()}...` }
@@ -133,7 +132,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[680px] rounded-xl" /></div>
   if (!product || error) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button><Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><TriangleAlertIcon className="size-4" />Product not available</CardTitle><CardDescription>{error || "The product could not be found."}</CardDescription></CardHeader></Card></div>
 
-  const baseCurrency = normalizeCurrency(organization?.baseCurrency || product.currency || product.priceCurrency || "USD")
+  const baseCurrency = normalizeCurrency(organization?.baseCurrency || product.currency || product.priceCurrency || "ZAR")
   const priceCurrency = normalizeCurrency(product.priceCurrency || product.currency || baseCurrency)
   const costCurrency = normalizeCurrency(product.costCurrency || product.currency || priceCurrency)
   const costValue = product.cost ?? product.costPrice
