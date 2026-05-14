@@ -7,7 +7,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 
 const settingsLinks = [
   { title: "Templates", description: "Manage reusable PDF and email templates in one directory.", href: "/settings/templates", icon: FileTextIcon },
-  { title: "Product Settings", description: "Configure product layouts and product-specific fields.", href: "/settings/products", icon: Settings2Icon },
+  { title: "Layout Settings", description: "Configure product layouts and layout-specific fields.", href: "/settings/layout", icon: Settings2Icon },
   { title: "Organization", description: "Company profile, currency, and workspace details.", href: "/organization", icon: Building2Icon },
   { title: "API Keys", description: "Manage API keys for external systems.", href: "/api-keys", icon: KeyRoundIcon },
   { title: "Webhooks", description: "Configure outbound events for integrations.", href: "/webhooks", icon: WebhookIcon },
@@ -19,7 +19,7 @@ export function SettingsContent() {
       <div>
         <p className="text-sm text-muted-foreground">Workspace configuration</p>
         <h1 className="font-heading text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage workspace defaults, templates, product settings, integrations, and developer settings.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Manage workspace defaults, templates, layout settings, integrations, and developer settings.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -45,7 +45,7 @@ export function SettingsContent() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Settings2Icon className="size-4" />Settings workflow</CardTitle>
           <CardDescription>
-            Templates control customer-facing documents and messages. Product Settings control product layouts and fields.
+            Templates control customer-facing documents and messages. Layout Settings control product layouts and fields.
           </CardDescription>
         </CardHeader>
       </Card>
