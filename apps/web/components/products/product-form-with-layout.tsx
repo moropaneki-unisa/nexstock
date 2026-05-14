@@ -5,6 +5,7 @@ import Link from "next/link"
 import { BoxesIcon, Settings2Icon } from "lucide-react"
 
 import { ProductFormContentFixed } from "@/components/products/product-form-content-fixed"
+import { ProductLayoutAssetFields } from "@/components/products/product-layout-asset-fields"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -118,11 +119,7 @@ function parseMaybeJson(value: unknown) {
 function listValue(value: unknown) {
   const parsed = parseMaybeJson(value)
   if (Array.isArray(parsed)) return parsed
-  if (parsed == null || String(parsed).trim() === "") return []
-  return String(parsed)
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
+  return []
 }
 
 function lookupValue(value: unknown) {
@@ -179,7 +176,7 @@ function stringifyForForm(value: unknown, type?: string | null) {
     const item = value as Record<string, unknown>
     return String(item.name ?? item.id ?? "")
   }
-  if (fieldType === "attachment" || fieldType === "images") return Array.isArray(value) ? value.join(", ") : String(value)
+  if (fieldType === "attachment" || fieldType === "images") return Array.isArray(value) ? JSON.stringify(value) : "[]"
   if (typeof value === "object") return JSON.stringify(value, null, 2)
   return String(value)
 }
@@ -323,6 +320,7 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
   if (loading) return <div className="px-4 pt-4 md:px-6"><Skeleton className="h-28 rounded-xl" /></div>
 
   const fields = layoutFields(selectedLayout)
+  const activeLayoutFields = [...(selectedLayout?.fields || [])].filter((field) => field.isActive !== false)
 
   return (
     <>
@@ -361,32 +359,6 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
         .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] input,
         .product-form-layout-scope form main > div:nth-of-type(3) > [data-slot="card-content"] button[role="combobox"] {
           width: 100% !important;
-        }
-
-        .product-form-layout-scope form main > div:nth-of-type(3) div[class*="h-10"][class*="bg-muted/20"] {
-          display: grid !important;
-          height: auto !important;
-          min-height: 2.5rem !important;
-          gap: 0.5rem !important;
-          align-content: center !important;
-          padding-top: 0.625rem !important;
-          padding-bottom: 0.625rem !important;
-        }
-
-        .product-form-layout-scope form main > div:nth-of-type(3) div[class*="h-10"][class*="bg-muted/20"] > span.sr-only {
-          position: static !important;
-          width: auto !important;
-          height: auto !important;
-          margin: 0 !important;
-          overflow: visible !important;
-          clip: auto !important;
-          white-space: normal !important;
-          font-size: 0.75rem !important;
-          line-height: 1rem !important;
-          font-weight: 500 !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.025em !important;
-          color: hsl(var(--muted-foreground)) !important;
         }
 
         @media (min-width: 768px) {
@@ -428,6 +400,7 @@ export function ProductFormWithLayout({ productId }: { productId?: string }) {
         </Card>
       </div>
       <div className="product-form-layout-scope">
+        <ProductLayoutAssetFields fields={activeLayoutFields} />
         <ProductFormContentFixed key={`${selectedLayoutId}-${reloadKey}`} productId={productId} />
       </div>
     </>
