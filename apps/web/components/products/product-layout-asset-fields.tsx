@@ -18,6 +18,11 @@ type Asset = {
   resourceType?: string
 }
 
+type AttachmentValue = {
+  name: string
+  url: string
+}
+
 type LayoutField = {
   key: string
   label: string
@@ -25,33 +30,44 @@ type LayoutField = {
   isActive?: boolean | null
 }
 
-type AssetValue = string
+type AssetValue = string | AttachmentValue
 
-function safeParseAssetValues(value: string): AssetValue[] {
+function isAttachmentValue(value: unknown): value is AttachmentValue {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && typeof (value as AttachmentValue).url === "string")
+}
+
+function safeParseAssetValues(value: string, type: "images" | "attachment"): AssetValue[] {
   if (!value.trim()) return []
   try {
     const parsed = JSON.parse(value)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((item) => typeof item === "string")
+    if (type === "images") return parsed.filter((item) => typeof item === "string")
+    return parsed
+      .filter(isAttachmentValue)
+      .map((item) => ({ name: item.name || item.url, url: item.url }))
   } catch {
     return []
   }
 }
 
 function assetUrl(asset: AssetValue) {
-  return asset
+  return typeof asset === "string" ? asset : asset.url
 }
 
 function assetName(asset: AssetValue) {
-  return asset
+  return typeof asset === "string" ? asset : asset.name || asset.url
 }
 
 function assetMeta(type: "images" | "attachment") {
-  return type === "images" ? "Image URL" : "Attachment URL"
+  return type === "images" ? "Image URL" : "Attachment file"
 }
 
-function writeValue(input: HTMLInputElement, assets: AssetValue[]) {
-  input.value = JSON.stringify(assets.map(assetUrl).filter(Boolean))
+function writeValue(input: HTMLInputElement, assets: AssetValue[], type: "images" | "attachment") {
+  const nextValue = type === "images"
+    ? assets.map(assetUrl).filter(Boolean)
+    : assets.filter(isAttachmentValue).map((asset) => ({ name: asset.name || asset.url, url: asset.url }))
+
+  input.value = JSON.stringify(nextValue)
   input.dispatchEvent(new Event("input", { bubbles: true }))
   input.dispatchEvent(new Event("change", { bubbles: true }))
 }
@@ -66,12 +82,12 @@ async function uploadAsset(file: File, type: "images" | "attachment") {
 }
 
 function AssetField({ input, type, label }: { input: HTMLInputElement; type: "images" | "attachment"; label: string }) {
-  const [assets, setAssets] = React.useState<AssetValue[]>(() => safeParseAssetValues(input.value))
+  const [assets, setAssets] = React.useState<AssetValue[]>(() => safeParseAssetValues(input.value, type))
   const [uploading, setUploading] = React.useState(false)
 
   React.useEffect(() => {
-    writeValue(input, assets)
-  }, [assets, input])
+    writeValue(input, assets, type)
+  }, [assets, input, type])
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
@@ -80,7 +96,8 @@ function AssetField({ input, type, label }: { input: HTMLInputElement; type: "im
       const uploaded: AssetValue[] = []
       for (const file of Array.from(files)) {
         const asset = await uploadAsset(file, type)
-        if (asset.url) uploaded.push(asset.url)
+        if (!asset.url) continue
+        uploaded.push(type === "images" ? asset.url : { name: asset.name || file.name, url: asset.url })
       }
       setAssets((current) => [...current, ...uploaded])
       toast.success(type === "images" ? "Images uploaded" : "Files uploaded", {
@@ -103,7 +120,7 @@ function AssetField({ input, type, label }: { input: HTMLInputElement; type: "im
         <UploadCloudIcon className="mb-2 size-6 text-muted-foreground" />
         <span className="text-sm font-medium">{uploading ? "Uploading..." : type === "images" ? "Upload images" : "Upload attachments"}</span>
         <span className="mt-1 text-xs text-muted-foreground">
-          {type === "images" ? "Uploaded images are saved as [imageUrls]." : "Uploaded files are saved as [attachmentUrls]."}
+          {type === "images" ? "Uploaded images are saved as [imageUrls]." : "Uploaded files are saved as [{ name, url }]."}
         </span>
         <Input type="file" className="hidden" accept={type === "images" ? "image/*" : undefined} multiple disabled={uploading} onChange={(event) => void onFiles(event.target.files)} />
       </label>
