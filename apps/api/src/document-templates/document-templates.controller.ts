@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTemplateDto } from './dto';
@@ -27,6 +28,15 @@ export class DocumentTemplatesController {
   @Post('preview/render')
   previewLegacy(@CurrentUser() user: CurrentUserPayload, @Body() dto: PreviewDocumentTemplateDto) {
     return this.templates.preview(user, dto);
+  }
+
+  @Post('preview/pdf')
+  async previewPdf(@CurrentUser() user: CurrentUserPayload, @Body() dto: PreviewDocumentTemplateDto, @Res() response: Response) {
+    const pdf = await this.templates.previewPdf(user, dto);
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Disposition', 'inline; filename="template-preview.pdf"');
+    response.setHeader('Content-Length', pdf.length);
+    response.end(pdf);
   }
 
   @Get(':id')
