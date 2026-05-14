@@ -1,5 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CustomField, CustomFieldType, Prisma } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhookEventsService } from '../webhooks/webhook-events.service';
@@ -10,7 +10,6 @@ import {
   AdjustInventoryDto,
   CreateProductDto,
   ListProductsDto,
-  ProductCustomFieldValueDto,
   UpdateProductDto,
 } from './dto';
 
@@ -21,15 +20,40 @@ const PRODUCT_TRANSACTION_OPTIONS = {
 
 type PrismaTransaction = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
-type NormalizedCustomFieldValue = {
-  fieldId: string;
-  value: Prisma.InputJsonValue;
-};
-
 type CurrencySettings = {
   baseCurrency: string;
   enabledCurrencies: string[];
   exchangeRates: Array<{ code: string; rateToBase: number }>;
+};
+
+type ProductTypeRow = {
+  id: string;
+  name: string;
+  kind: string;
+  trackInventory: boolean;
+  isDefault: boolean;
+};
+
+type ProductTypeFieldRow = {
+  id: string;
+  productTypeId: string;
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  options: string[];
+  defaultValue: Prisma.JsonValue | null;
+  order: number;
+  isActive: boolean;
+};
+
+type ProductMetadata = {
+  productTypeId?: string;
+  productTypeName?: string;
+  kind?: string;
+  trackInventory?: boolean;
+  customFields?: Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 @Injectable()
@@ -101,6 +125,9 @@ export class ProductsService {
       deletedAt: null,
       ...(query.category ? { category: query.category } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.productTypeId ? { metadata: { path: ['productTypeId'], equals: query.productTypeId } } : {}),
+      ...(query.kind ? { metadata: { path: ['kind'], equals: query.kind } } : {}),
+      ...(query.trackInventory !== undefined ? { metadata: { path: ['trackInventory'], equals: query.trackInventory } } : {}),
       ...(query.search
         ? {
             OR: [
@@ -118,13 +145,7 @@ export class ProductsService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          variants: true,
-          customFieldValues: {
-            include: { field: true },
-            orderBy: { field: { order: 'asc' } },
-          },
-        },
+        include: { variants: true },
       }),
       this.prisma.product.count({ where }),
     ]);
@@ -149,10 +170,6 @@ export class ProductsService {
           orderBy: { createdAt: 'desc' },
           take: 20,
         },
-        customFieldValues: {
-          include: { field: true },
-          orderBy: { field: { order: 'asc' } },
-        },
       },
     });
 
@@ -166,25 +183,15 @@ export class ProductsService {
 
     const product = await this.prisma.$transaction(async (tx) => {
       const db = tx as PrismaTransaction;
-      const organization = await db.organization.findUnique({
-        where: { id: organizationId },
-      });
+      const organization = await db.organization.findUnique({ where: { id: organizationId } });
 
-      if (!organization) {
-        throw new NotFoundException('Organization not found');
-      }
+      if (!organization) throw new NotFoundException('Organization not found');
 
       const currencySettings = this.organizationCurrencySettings(organization);
       const currencyData = this.productCurrencyData(dto, currencySettings);
       const skuPrefix = organization.skuPrefix ?? this.generateSkuPrefix(organization.name);
       const sku = this.generateSku(skuPrefix, organization.nextSkuNumber);
-
-      const activeFields = await db.customField.findMany({
-        where: { organizationId, isActive: true },
-        orderBy: { order: 'asc' },
-      });
-
-      const customFieldValues = this.normalizeCustomFieldValues(activeFields, dto.customFieldValues ?? []);
+      const metadata = await this.productMetadata(db, organizationId, dto, dto.metadata);
 
       const created = await db.product.create({
         data: {
@@ -202,20 +209,9 @@ export class ProductsService {
           lowStockLevel: dto.lowStockLevel ?? 5,
           category: dto.category?.trim(),
           images: dto.images ?? [],
-          metadata: dto.metadata === undefined ? undefined : (dto.metadata as Prisma.InputJsonValue),
-          customFieldValues: {
-            create: customFieldValues.map((item) => ({
-              fieldId: item.fieldId,
-              value: item.value,
-            })),
-          },
+          metadata: metadata as Prisma.InputJsonValue,
         },
-        include: {
-          customFieldValues: {
-            include: { field: true },
-            orderBy: { field: { order: 'asc' } },
-          },
-        },
+        include: { variants: true },
       });
 
       await db.organization.update({
@@ -286,46 +282,15 @@ export class ProductsService {
       if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
       if (dto.category !== undefined) data.category = dto.category?.trim();
       if (dto.images !== undefined) data.images = dto.images;
-      if (dto.metadata !== undefined) {
-        data.metadata = dto.metadata as Prisma.InputJsonValue;
-      }
 
-      if (dto.customFieldValues !== undefined) {
-        const activeFields = await tx.customField.findMany({
-          where: { organizationId, isActive: true },
-          orderBy: { order: 'asc' },
-        });
-        const customFieldValues = this.normalizeCustomFieldValues(activeFields, dto.customFieldValues);
-        const activeFieldIds = activeFields.map((field) => field.id);
-
-        await tx.productCustomFieldValue.deleteMany({
-          where: {
-            productId: id,
-            fieldId: { in: activeFieldIds },
-          },
-        });
-
-        if (customFieldValues.length > 0) {
-          await tx.productCustomFieldValue.createMany({
-            data: customFieldValues.map((item) => ({
-              productId: id,
-              fieldId: item.fieldId,
-              value: item.value,
-            })),
-          });
-        }
+      if (dto.metadata !== undefined || dto.customFields !== undefined || dto.productTypeId !== undefined || dto.kind !== undefined || dto.trackInventory !== undefined) {
+        data.metadata = await this.productMetadata(tx as PrismaTransaction, organizationId, dto, dto.metadata, this.metadataObject(existing.metadata));
       }
 
       return tx.product.update({
         where: { id },
         data,
-        include: {
-          variants: true,
-          customFieldValues: {
-            include: { field: true },
-            orderBy: { field: { order: 'asc' } },
-          },
-        },
+        include: { variants: true },
       });
     }, PRODUCT_TRANSACTION_OPTIONS);
 
@@ -345,20 +310,13 @@ export class ProductsService {
   ) {
     const product = await this.get(organizationId, id);
     const delta = Number(dto.delta ?? 0);
-    if (!Number.isFinite(delta) || delta === 0) {
-      throw new BadRequestException('Inventory delta must be a non-zero integer');
-    }
+    if (!Number.isFinite(delta) || delta === 0) throw new BadRequestException('Inventory delta must be a non-zero integer');
     const before = product.quantity;
     const after = before + delta;
-    if (after < 0) {
-      throw new BadRequestException('Inventory cannot go below zero');
-    }
+    if (after < 0) throw new BadRequestException('Inventory cannot go below zero');
 
     const updated = await this.prisma.$transaction(async (tx) => {
-      const next = await tx.product.update({
-        where: { id },
-        data: { quantity: after },
-      });
+      const next = await tx.product.update({ where: { id }, data: { quantity: after } });
       await tx.inventoryLog.create({
         data: {
           organizationId,
@@ -387,70 +345,167 @@ export class ProductsService {
 
   async softDelete(organizationId: string, id: string) {
     await this.get(organizationId, id);
-    await this.prisma.product.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await this.prisma.product.update({ where: { id }, data: { deletedAt: new Date() } });
     return { ok: true, id };
   }
 
-  private organizationCurrencySettings(organization: {
-    baseCurrency?: string | null;
-    enabledCurrencies?: string[] | null;
-    exchangeRates?: Prisma.JsonValue | null;
-  }): CurrencySettings {
+  private async productMetadata(
+    db: PrismaTransaction,
+    organizationId: string,
+    dto: { productTypeId?: string; kind?: string; trackInventory?: boolean; customFields?: unknown },
+    incomingMetadata?: unknown,
+    existing: ProductMetadata = {},
+  ): Promise<ProductMetadata> {
+    const incoming = this.metadataObject(incomingMetadata);
+    const productTypeId = dto.productTypeId || incoming.productTypeId || existing.productTypeId;
+    const layout = productTypeId ? await this.layoutWithFields(db, organizationId, productTypeId) : null;
+    const customFieldsInput = this.recordObject(dto.customFields) ?? this.recordObject(incoming.customFields) ?? this.recordObject(existing.customFields) ?? {};
+    const normalizedCustomFields = layout ? this.normalizeLayoutValues(layout.fields, customFieldsInput) : customFieldsInput;
+
+    return {
+      ...existing,
+      ...incoming,
+      productTypeId: layout?.type.id ?? productTypeId,
+      productTypeName: layout?.type.name ?? incoming.productTypeName ?? existing.productTypeName,
+      kind: dto.kind || layout?.type.kind || incoming.kind || existing.kind || 'physical',
+      trackInventory: dto.trackInventory ?? layout?.type.trackInventory ?? incoming.trackInventory ?? existing.trackInventory ?? true,
+      customFields: normalizedCustomFields,
+    };
+  }
+
+  private async layoutWithFields(db: PrismaTransaction, organizationId: string, productTypeId: string) {
+    const types = await db.$queryRaw<ProductTypeRow[]>`
+      SELECT id, name, kind, "trackInventory", "isDefault"
+      FROM "ProductType"
+      WHERE id = ${productTypeId} AND "organizationId" = ${organizationId} AND "isActive" = true
+      LIMIT 1
+    `;
+    const type = types[0];
+    if (!type) throw new BadRequestException('Selected layout does not exist');
+
+    const fields = await db.$queryRaw<ProductTypeFieldRow[]>`
+      SELECT id, "productTypeId", key, label, type, required, options, "defaultValue", "order", "isActive"
+      FROM "ProductTypeField"
+      WHERE "productTypeId" = ${productTypeId} AND "organizationId" = ${organizationId} AND "isActive" = true
+      ORDER BY "order" ASC, label ASC
+    `;
+    return { type, fields };
+  }
+
+  private normalizeLayoutValues(fields: ProductTypeFieldRow[], values: Record<string, unknown>) {
+    const output: Record<string, unknown> = {};
+    for (const field of fields) {
+      const rawValue = values[field.key] ?? field.defaultValue;
+      const hasValue = !this.isEmptyLayoutValue(rawValue);
+      if (field.required && !hasValue) throw new BadRequestException(`Layout field "${field.label}" is required`);
+      if (!hasValue) continue;
+      output[field.key] = this.normalizeLayoutValue(field, rawValue);
+    }
+    return output;
+  }
+
+  private normalizeLayoutValue(field: ProductTypeFieldRow, rawValue: unknown): Prisma.InputJsonValue {
+    switch (field.type) {
+      case 'number': {
+        const value = Number(rawValue);
+        if (!Number.isInteger(value)) throw new BadRequestException(`Layout field "${field.label}" must be a whole number`);
+        return value;
+      }
+      case 'decimal': {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) throw new BadRequestException(`Layout field "${field.label}" must be a valid decimal`);
+        return value;
+      }
+      case 'currency': {
+        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be a currency object`);
+        const value = rawValue as Record<string, unknown>;
+        const amount = Number(value.amount ?? value.value ?? 0);
+        const currency = this.normalizeCurrencyCode(String(value.currency ?? 'ZAR'));
+        if (!Number.isFinite(amount)) throw new BadRequestException(`Layout field "${field.label}" must have a valid currency amount`);
+        return { amount, currency };
+      }
+      case 'attachment': {
+        if (!Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be an array`);
+        return rawValue.map((item) => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) throw new BadRequestException(`Layout field "${field.label}" attachments must be { name, url } objects`);
+          const value = item as Record<string, unknown>;
+          const name = String(value.name ?? '').trim();
+          const url = String(value.url ?? '').trim();
+          if (!name || !url) throw new BadRequestException(`Layout field "${field.label}" attachments must include name and url`);
+          return { name, url };
+        }) as Prisma.InputJsonArray;
+      }
+      case 'images': {
+        if (!Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be an array`);
+        return rawValue.map((item) => String(item).trim()).filter(Boolean) as Prisma.InputJsonArray;
+      }
+      case 'lookup': {
+        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be a lookup object`);
+        const value = rawValue as Record<string, unknown>;
+        const id = String(value.id ?? '').trim();
+        const name = String(value.name ?? '').trim();
+        if (!id || !name) throw new BadRequestException(`Layout field "${field.label}" lookup must include id and name`);
+        return { id, name };
+      }
+      case 'boolean': {
+        if (typeof rawValue === 'boolean') return rawValue;
+        if (rawValue === 'true') return true;
+        if (rawValue === 'false') return false;
+        throw new BadRequestException(`Layout field "${field.label}" must be true or false`);
+      }
+      case 'select': {
+        const value = String(rawValue).trim();
+        if (field.options.length > 0 && !field.options.includes(value)) throw new BadRequestException(`Layout field "${field.label}" must match one of its options`);
+        return value;
+      }
+      case 'date': {
+        const value = String(rawValue).trim();
+        if (Number.isNaN(Date.parse(value))) throw new BadRequestException(`Layout field "${field.label}" must be a valid date`);
+        return value;
+      }
+      case 'richtext':
+      case 'text':
+      default:
+        return String(rawValue).trim();
+    }
+  }
+
+  private metadataObject(value: unknown): ProductMetadata {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value as ProductMetadata;
+    return {};
+  }
+
+  private recordObject(value: unknown): Record<string, unknown> | null {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+    return null;
+  }
+
+  private isEmptyLayoutValue(value: unknown) {
+    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0);
+  }
+
+  private organizationCurrencySettings(organization: { baseCurrency?: string | null; enabledCurrencies?: string[] | null; exchangeRates?: Prisma.JsonValue | null }): CurrencySettings {
     const baseCurrency = this.normalizeCurrencyCode(organization.baseCurrency || 'ZAR');
     const enabledCurrencies = Array.from(new Set([baseCurrency, ...(organization.enabledCurrencies ?? []).map((code) => this.normalizeCurrencyCode(code))]));
     const exchangeRates = this.normalizeExchangeRates(organization.exchangeRates);
     return { baseCurrency, enabledCurrencies, exchangeRates };
   }
 
-  private productCurrencyData(
-    dto: {
-      price: number;
-      priceCurrency?: string | null;
-      cost?: number | null;
-      costCurrency?: string | null;
-      exchangeRateToBase?: number | null;
-      convertedCost?: number | null;
-    },
-    settings: CurrencySettings,
-  ) {
+  private productCurrencyData(dto: { price: number; priceCurrency?: string | null; cost?: number | null; costCurrency?: string | null; exchangeRateToBase?: number | null; convertedCost?: number | null }, settings: CurrencySettings) {
     const priceCurrency = this.normalizeCurrencyCode(dto.priceCurrency || settings.baseCurrency);
-    if (priceCurrency !== settings.baseCurrency) {
-      throw new BadRequestException('Selling price currency must match organization base currency for now');
-    }
-    if (!settings.enabledCurrencies.includes(priceCurrency)) {
-      throw new BadRequestException(`${priceCurrency} is not enabled for this organization`);
-    }
+    if (priceCurrency !== settings.baseCurrency) throw new BadRequestException('Selling price currency must match organization base currency for now');
+    if (!settings.enabledCurrencies.includes(priceCurrency)) throw new BadRequestException(`${priceCurrency} is not enabled for this organization`);
 
-    if (dto.cost === undefined || dto.cost === null) {
-      return {
-        priceCurrency,
-        costCurrency: undefined,
-        exchangeRateToBase: undefined,
-        convertedCost: undefined,
-      };
-    }
+    if (dto.cost === undefined || dto.cost === null) return { priceCurrency, costCurrency: undefined, exchangeRateToBase: undefined, convertedCost: undefined };
 
     const costCurrency = this.normalizeCurrencyCode(dto.costCurrency || priceCurrency);
-    if (!settings.enabledCurrencies.includes(costCurrency)) {
-      throw new BadRequestException(`${costCurrency} is not enabled for this organization`);
-    }
+    if (!settings.enabledCurrencies.includes(costCurrency)) throw new BadRequestException(`${costCurrency} is not enabled for this organization`);
 
     const exchangeRateToBase = Number(dto.exchangeRateToBase ?? this.rateFor(costCurrency, settings));
-    if (!Number.isFinite(exchangeRateToBase) || exchangeRateToBase <= 0) {
-      throw new BadRequestException('Exchange rate must be greater than zero');
-    }
+    if (!Number.isFinite(exchangeRateToBase) || exchangeRateToBase <= 0) throw new BadRequestException('Exchange rate must be greater than zero');
 
     const convertedCost = Number(dto.convertedCost ?? Number((Number(dto.cost) * exchangeRateToBase).toFixed(2)));
-
-    return {
-      priceCurrency,
-      costCurrency,
-      exchangeRateToBase,
-      convertedCost,
-    };
+    return { priceCurrency, costCurrency, exchangeRateToBase, convertedCost };
   }
 
   private normalizeCurrencyCode(value: string) {
@@ -468,9 +523,7 @@ export class ProductsService {
         })
         .filter((item): item is { code: string; rateToBase: number } => Boolean(item?.code));
     }
-    if (typeof value === 'object') {
-      return Object.entries(value).map(([code, rate]) => ({ code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) }));
-    }
+    if (typeof value === 'object') return Object.entries(value).map(([code, rate]) => ({ code: this.normalizeCurrencyCode(code), rateToBase: Number(rate || 1) }));
     return [];
   }
 
@@ -485,134 +538,5 @@ export class ProductsService {
 
   private generateSku(prefix: string, num: number) {
     return `${prefix}-${String(num ?? 1).padStart(5, '0')}`;
-  }
-
-  private normalizeCustomFieldValues(fields: CustomField[], values: ProductCustomFieldValueDto[]): NormalizedCustomFieldValue[] {
-    const fieldsById = new Map(fields.map((field) => [field.id, field]));
-    const inputByFieldId = new Map<string, ProductCustomFieldValueDto>();
-
-    for (const item of values ?? []) {
-      if (!item?.fieldId) continue;
-      if (!fieldsById.has(item.fieldId)) {
-        throw new BadRequestException('One or more product attributes are invalid or inactive');
-      }
-      if (inputByFieldId.has(item.fieldId)) {
-        throw new BadRequestException('Duplicate product attribute values are not allowed');
-      }
-      inputByFieldId.set(item.fieldId, item);
-    }
-
-    const normalized: NormalizedCustomFieldValue[] = [];
-
-    for (const field of fields) {
-      const input = inputByFieldId.get(field.id);
-      const rawValue = input?.value ?? field.defaultValue;
-      const hasValue = !this.isEmptyCustomValue(rawValue);
-
-      if (field.required && !hasValue) {
-        throw new BadRequestException(`Product attribute "${field.label}" is required`);
-      }
-
-      if (!hasValue) continue;
-
-      normalized.push({
-        fieldId: field.id,
-        value: this.normalizeCustomFieldValue(field, rawValue),
-      });
-    }
-
-    return normalized;
-  }
-
-  private normalizeCustomFieldValue(field: CustomField, rawValue: unknown): Prisma.InputJsonValue {
-    switch (field.type) {
-      case CustomFieldType.number: {
-        const value = Number(rawValue);
-        if (!Number.isInteger(value)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be a whole number`);
-        }
-        return value;
-      }
-      case CustomFieldType.decimal: {
-        const value = Number(rawValue);
-        if (!Number.isFinite(value)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be a valid decimal`);
-        }
-        return value;
-      }
-      case CustomFieldType.currency: {
-        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be a currency object`);
-        }
-        const value = rawValue as Record<string, unknown>;
-        const amount = Number(value.amount ?? value.value ?? 0);
-        const currency = this.normalizeCurrencyCode(String(value.currency ?? 'ZAR'));
-        if (!Number.isFinite(amount)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must have a valid currency amount`);
-        }
-        return { amount, currency };
-      }
-      case CustomFieldType.boolean: {
-        if (typeof rawValue === 'boolean') return rawValue;
-        if (rawValue === 'true') return true;
-        if (rawValue === 'false') return false;
-        throw new BadRequestException(`Product attribute "${field.label}" must be true or false`);
-      }
-      case CustomFieldType.select: {
-        const value = String(rawValue).trim();
-        if (field.options.length > 0 && !field.options.includes(value)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must match one of its configured options`);
-        }
-        return value;
-      }
-      case CustomFieldType.date: {
-        const value = String(rawValue).trim();
-        if (Number.isNaN(Date.parse(value))) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be a valid date`);
-        }
-        return value;
-      }
-      case CustomFieldType.attachment:
-      case CustomFieldType.images: {
-        if (!Array.isArray(rawValue)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be an array`);
-        }
-        return rawValue.map((item) => {
-          if (typeof item === 'string') return item;
-          if (item && typeof item === 'object' && !Array.isArray(item)) return item as Prisma.InputJsonObject;
-          throw new BadRequestException(`Product attribute "${field.label}" contains an invalid file entry`);
-        }) as Prisma.InputJsonArray;
-      }
-      case CustomFieldType.lookup: {
-        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be a lookup object`);
-        }
-        const value = rawValue as Record<string, unknown>;
-        const id = String(value.id ?? '').trim();
-        const name = String(value.name ?? '').trim();
-        if (!id || !name) {
-          throw new BadRequestException(`Product attribute "${field.label}" lookup must include id and name`);
-        }
-        return { id, name };
-      }
-      case CustomFieldType.json: {
-        if (typeof rawValue === 'string') {
-          try {
-            return JSON.parse(rawValue) as Prisma.InputJsonValue;
-          } catch {
-            throw new BadRequestException(`Product attribute "${field.label}" must be valid JSON`);
-          }
-        }
-        return rawValue as Prisma.InputJsonValue;
-      }
-      case CustomFieldType.richtext:
-      case CustomFieldType.text:
-      default:
-        return String(rawValue).trim();
-    }
-  }
-
-  private isEmptyCustomValue(value: unknown) {
-    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0);
   }
 }
