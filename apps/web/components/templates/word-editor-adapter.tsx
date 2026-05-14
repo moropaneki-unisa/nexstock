@@ -36,6 +36,7 @@ type WordEditorAdapterProps = {
   value: string
   onChange: (value: string) => void
   className?: string
+  beforeHtml?: string
 }
 
 const emptyDocument = "<p><br></p>"
@@ -74,7 +75,7 @@ function buildTableHtml({ rows, columns, repeat, repeatGroup }: { rows: number; 
   return `<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><p><br></p>`
 }
 
-export function WordEditorAdapter({ value, onChange, className }: WordEditorAdapterProps) {
+export function WordEditorAdapter({ value, onChange, className, beforeHtml }: WordEditorAdapterProps) {
   const editorRef = React.useRef<HTMLDivElement>(null)
   const [tableDialogOpen, setTableDialogOpen] = React.useState(false)
   const [tableRows, setTableRows] = React.useState("3")
@@ -125,9 +126,9 @@ export function WordEditorAdapter({ value, onChange, className }: WordEditorAdap
   const toolButtonClass = "h-8 gap-1.5 rounded-lg px-2.5 text-xs"
 
   return (
-    <div className="flex min-h-full w-full flex-col gap-3">
-      <div className="rounded-xl border bg-background shadow-sm">
-        <div className="flex flex-wrap items-center gap-1 border-b px-3 py-2" onMouseDown={toolbarMouseDown}>
+    <div className="flex min-h-0 flex-1 flex-col bg-muted/60">
+      <div className="shrink-0 border-b bg-background/95 px-4 py-2 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center gap-1" onMouseDown={toolbarMouseDown}>
           <div className="mr-2 flex items-center gap-1 rounded-lg bg-muted/60 p-1">
             <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => runCommand("formatBlock", "p")}><PilcrowIcon className="size-4" />Paragraph</Button>
             <Button type="button" variant="ghost" size="sm" className={toolButtonClass} onClick={() => runCommand("formatBlock", "h1")}><Heading1Icon className="size-4" /></Button>
@@ -157,27 +158,31 @@ export function WordEditorAdapter({ value, onChange, className }: WordEditorAdap
             <Button type="button" variant="ghost" size="icon-sm" className="rounded-lg" onClick={() => insertHtml("<hr style=\"border:0;border-top:1px solid #cbd5e1;margin:20px 0\"><p><br></p>")} title="Divider"><MinusIcon className="size-4" /></Button>
           </div>
         </div>
-        <div className="px-3 py-2 text-xs text-muted-foreground">Design your template like a document. Use repeat tables for product lines, purchase-order lines, invoice rows, or quote items.</div>
       </div>
 
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-label="Template document editor"
-        className={cn(
-          "prose prose-slate max-w-none min-h-[760px] w-full flex-1 cursor-text overflow-auto rounded-xl border border-dashed border-slate-200 bg-white px-5 py-4 outline-none transition focus:border-primary/50 focus:ring-4 focus:ring-primary/10 [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2",
-          className,
-        )}
-        onInput={(event) => commit(event.currentTarget.innerHTML)}
-        onPaste={(event) => {
-          event.preventDefault()
-          const text = event.clipboardData.getData("text/plain")
-          document.execCommand("insertText", false, text)
-          commit()
-        }}
-      />
+      <div className="min-h-0 flex-1 overflow-auto p-6 lg:p-8">
+        <div className="mx-auto min-h-[1123px] w-[794px] bg-white px-[68px] py-[64px] text-sm leading-6 text-slate-950 shadow-xl ring-1 ring-slate-200">
+          {beforeHtml ? <div dangerouslySetInnerHTML={{ __html: beforeHtml }} /> : null}
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            aria-label="Template document editor"
+            className={cn(
+              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2",
+              className,
+            )}
+            onInput={(event) => commit(event.currentTarget.innerHTML)}
+            onPaste={(event) => {
+              event.preventDefault()
+              const text = event.clipboardData.getData("text/plain")
+              document.execCommand("insertText", false, text)
+              commit()
+            }}
+          />
+        </div>
+      </div>
 
       <Dialog open={tableDialogOpen} onOpenChange={setTableDialogOpen}>
         <DialogContent className="sm:max-w-lg">
