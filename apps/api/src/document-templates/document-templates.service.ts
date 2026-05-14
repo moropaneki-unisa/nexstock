@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTemplateDto } from './dto';
 
 type TemplateField = { group: string; label: string; path: string; description?: string };
+type TestRecord = { id: string; label: string; description?: string | null };
 
 type DocumentTemplateRow = {
   id: string;
@@ -129,6 +130,42 @@ export class DocumentTemplatesService {
     return [...commonFields, ...(moduleFields[module] || []), ...layoutTokens];
   }
 
+  async testRecords(user: CurrentUserPayload, module = 'purchase_orders'): Promise<TestRecord[]> {
+    if (module === 'purchase_orders') {
+      const rows = await this.db.purchaseOrder.findMany({
+        where: { organizationId: user.organizationId },
+        include: { supplier: { select: { name: true, supplierCode: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      });
+      return rows.map((row) => ({
+        id: row.id,
+        label: row.poNumber,
+        description: `${row.supplier?.supplierCode || 'No supplier'} · ${row.supplier?.name || 'No supplier'} · ${row.currency} ${row.subtotal}`,
+      }));
+    }
+
+    if (module === 'products') {
+      const rows = await this.db.product.findMany({
+        where: { organizationId: user.organizationId, deletedAt: null },
+        orderBy: { updatedAt: 'desc' },
+        take: 30,
+      });
+      return rows.map((row) => ({ id: row.id, label: row.name, description: `${row.sku || 'No SKU'} · ${row.category || 'Uncategorized'}` }));
+    }
+
+    if (module === 'suppliers') {
+      const rows = await this.db.supplier.findMany({
+        where: { organizationId: user.organizationId },
+        orderBy: { updatedAt: 'desc' },
+        take: 30,
+      });
+      return rows.map((row) => ({ id: row.id, label: row.name, description: `${row.supplierCode} · ${row.email || 'No email'}` }));
+    }
+
+    return [];
+  }
+
   async get(user: CurrentUserPayload, id: string) {
     const rows = await this.db.$queryRaw<DocumentTemplateRow[]>`
       SELECT * FROM "DocumentTemplate"
@@ -202,12 +239,12 @@ export class DocumentTemplatesService {
   }
 
   async preview(user: CurrentUserPayload, dto: PreviewDocumentTemplateDto) {
-    const sample = await this.sampleContext(user, dto.type);
+    const context = dto.recordId ? await this.realContext(user, dto.type, dto.recordId) : await this.sampleContext(user, dto.type);
     return {
-      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, sample) : sample.supplier?.email ?? sample.customer?.email ?? 'recipient@example.com',
-      subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, sample) : 'Document preview',
-      html: this.render(dto.htmlTemplate, sample),
-      email: dto.emailTemplate ? this.render(dto.emailTemplate, sample) : null,
+      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, context) : context.supplier?.email ?? context.customer?.email ?? 'recipient@example.com',
+      subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, context) : 'Document preview',
+      html: this.render(dto.htmlTemplate, context),
+      email: dto.emailTemplate ? this.render(dto.emailTemplate, context) : null,
     };
   }
 
@@ -271,6 +308,84 @@ export class DocumentTemplatesService {
 </html>`;
   }
 
+  private async realContext(user: CurrentUserPayload, module = 'purchase_orders', recordId: string) {
+    if (module === 'purchase_orders') {
+      const order = await this.db.purchaseOrder.findFirst({
+        where: { id: recordId, organizationId: user.organizationId },
+        include: {
+          supplier: true,
+          organization: true,
+          lines: { include: { product: true }, orderBy: { createdAt: 'asc' } },
+        },
+      });
+      if (!order) throw new NotFoundException('Purchase order test record not found');
+      return this.purchaseOrderContext(order);
+    }
+
+    if (module === 'products') {
+      const product = await this.db.product.findFirst({ where: { id: recordId, organizationId: user.organizationId, deletedAt: null } });
+      if (!product) throw new NotFoundException('Product test record not found');
+      const organization = await this.db.organization.findUnique({ where: { id: user.organizationId } });
+      return {
+        organization: this.organizationContext(organization),
+        product,
+        module,
+        lines: [],
+      };
+    }
+
+    if (module === 'suppliers') {
+      const supplier = await this.db.supplier.findFirst({ where: { id: recordId, organizationId: user.organizationId } });
+      if (!supplier) throw new NotFoundException('Supplier test record not found');
+      const organization = await this.db.organization.findUnique({ where: { id: user.organizationId } });
+      return {
+        organization: this.organizationContext(organization),
+        supplier,
+        module,
+        lines: [],
+      };
+    }
+
+    return this.sampleContext(user, module);
+  }
+
+  private purchaseOrderContext(order: any) {
+    const formatMoney = (value: unknown) => Number(value || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return {
+      organization: this.organizationContext(order.organization),
+      supplier: {
+        name: order.supplier?.name || '',
+        supplierCode: order.supplier?.supplierCode || '',
+        email: order.supplier?.email || '',
+        phone: order.supplier?.phone || '',
+      },
+      purchaseOrder: {
+        poNumber: order.poNumber,
+        subtotal: formatMoney(order.subtotal),
+        currency: order.currency,
+        expectedAt: order.expectedAt ? new Date(order.expectedAt).toLocaleDateString() : '',
+        notes: order.notes || '',
+      },
+      lines: (order.lines || []).map((line: any) => ({
+        product: { name: line.product?.name || line.description || '', sku: line.product?.sku || '', metadata: line.product?.metadata || {} },
+        quantityOrdered: line.quantityOrdered,
+        quantityReceived: line.quantityReceived,
+        unitCost: formatMoney(line.unitCost),
+        lineTotal: formatMoney(line.lineTotal),
+      })),
+      module: 'purchase_orders',
+    };
+  }
+
+  private organizationContext(organization: any) {
+    return {
+      name: organization?.name || 'NexStock',
+      email: organization?.billingEmail || organization?.email || '',
+      phone: organization?.phone || '',
+      address: [organization?.address, organization?.city, organization?.country].filter(Boolean).join(', '),
+    };
+  }
+
   private async clearDefault(organizationId: string, type: string, kind: string, exceptId?: string) {
     if (exceptId) {
       await this.db.$executeRaw`
@@ -331,7 +446,7 @@ export class DocumentTemplatesService {
     const customValues = Object.fromEntries(layoutFields.map((field) => [field.key, `Sample ${field.label}`]));
 
     const shared = {
-      organization: { name: 'NexStock Demo', email: 'orders@nexstock.test', phone: '+27 00 000 0000' },
+      organization: { name: 'NexStock Demo', email: 'orders@nexstock.test', phone: '+27 00 000 0000', address: 'Demo address' },
       supplier: { name: 'ABC Supplies', supplierCode: 'SUP-0001', email: 'supplier@example.com', phone: '+27 00 111 2222' },
       customer: { name: 'Sample Customer', email: 'customer@example.com', phone: '+27 00 333 4444' },
       product: { name: 'Sample Product', sku: 'SKU-001', price: '1,250.00', quantity: 12, metadata: { productTypeName: 'General product', kind: 'physical', customFields: customValues } },
