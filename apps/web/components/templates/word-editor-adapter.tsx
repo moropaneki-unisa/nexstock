@@ -202,7 +202,7 @@ export function WordEditorAdapter({ value, onChange, className }: WordEditorAdap
               <Checkbox checked={repeatTable} onCheckedChange={(checked) => setRepeatTable(Boolean(checked))} />
               <span className="grid gap-1">
                 <span className="font-medium">Repeat rows from data</span>
-                <span className="text-muted-foreground">Wrap the body row with a template loop, for example {{#lines}}...{{/lines}}.</span>
+                <span className="text-muted-foreground">Wrap the body row with a template loop, for example {"{{#lines}}...{{/lines}}"}.</span>
               </span>
             </label>
             {repeatTable ? (
