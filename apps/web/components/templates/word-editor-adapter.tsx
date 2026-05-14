@@ -37,7 +37,6 @@ export function WordEditorAdapter({ value, onChange, className }: WordEditorAdap
         className,
       )}
       onInput={(event) => commit(event.currentTarget.innerHTML)}
-      onBlur={(event) => commit(event.currentTarget.innerHTML)}
     />
   )
 }
