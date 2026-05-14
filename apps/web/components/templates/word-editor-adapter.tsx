@@ -65,6 +65,7 @@ const emptyDocument = "<p><br></p>"
 const defaultRepeatGroup = "lines"
 const resizeHotspotPx = 8
 const minColumnWidth = 48
+const cellWrapStyle = `word-break:break-word;overflow-wrap:anywhere;white-space:normal;vertical-align:top;max-width:0`
 const inactiveToolbarState: ToolbarState = {
   bold: false,
   italic: false,
@@ -102,11 +103,11 @@ function buildColGroup(columns: number) {
 function buildTableHtml({ rows, columns, repeat, repeatGroup }: { rows: number; columns: number; repeat: boolean; repeatGroup: string }) {
   const headerCells = Array.from(
     { length: columns },
-    (_, index) => `<th style="border:1px solid #cbd5e1;padding:8px;text-align:left;background:#f8fafc;font-weight:700;min-width:${minColumnWidth}px">Column ${index + 1}</th>`,
+    (_, index) => `<th style="border:1px solid #cbd5e1;padding:8px;text-align:left;background:#f8fafc;font-weight:700;min-width:${minColumnWidth}px;${cellWrapStyle}">Column ${index + 1}</th>`,
   ).join("")
   const bodyCells = Array.from(
     { length: columns },
-    (_, index) => `<td style="border:1px solid #e2e8f0;padding:8px;min-width:${minColumnWidth}px">${repeat ? `{{field${index + 1}}}` : "&nbsp;"}</td>`,
+    (_, index) => `<td style="border:1px solid #e2e8f0;padding:8px;min-width:${minColumnWidth}px;${cellWrapStyle}">${repeat ? `{{field${index + 1}}}` : "&nbsp;"}</td>`,
   ).join("")
   const colGroup = buildColGroup(columns)
 
@@ -146,6 +147,24 @@ function ensureColGroup(table: HTMLTableElement) {
   return colgroup
 }
 
+function normalizeTables(root: HTMLElement) {
+  root.querySelectorAll("table").forEach((table) => {
+    if (!(table instanceof HTMLTableElement)) return
+    table.style.tableLayout = "fixed"
+    table.style.width = table.style.width || "100%"
+    table.style.borderCollapse = table.style.borderCollapse || "collapse"
+    ensureColGroup(table)
+    table.querySelectorAll("th,td").forEach((cell) => {
+      if (!(cell instanceof HTMLTableCellElement)) return
+      cell.style.wordBreak = "break-word"
+      cell.style.overflowWrap = "anywhere"
+      cell.style.whiteSpace = "normal"
+      cell.style.verticalAlign = "top"
+      cell.style.maxWidth = "0"
+    })
+  })
+}
+
 export function WordEditorAdapter({ value, onChange, className, beforeHtml }: WordEditorAdapterProps) {
   const editorRef = React.useRef<HTMLDivElement>(null)
   const savedRangeRef = React.useRef<Range | null>(null)
@@ -161,6 +180,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     if (!editorRef.current) return
     const nextValue = value?.trim() ? value : emptyDocument
     if (editorRef.current.innerHTML !== nextValue) editorRef.current.innerHTML = nextValue
+    normalizeTables(editorRef.current)
   }, [value])
 
   React.useEffect(() => {
@@ -190,6 +210,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
   }, [])
 
   function commit(nextValue?: string) {
+    if (editorRef.current) normalizeTables(editorRef.current)
     const html = nextValue ?? editorRef.current?.innerHTML ?? emptyDocument
     onChange(html.trim() ? html : emptyDocument)
   }
@@ -397,7 +418,7 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
             role="textbox"
             aria-label="Template document editor"
             className={cn(
-              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_li]:my-1 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:my-4 [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
+              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6 [&_li]:my-1 [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:my-4 [&_td]:max-w-0 [&_td]:whitespace-normal [&_td]:break-words [&_td]:[overflow-wrap:anywhere] [&_td]:align-top [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:max-w-0 [&_th]:whitespace-normal [&_th]:break-words [&_th]:[overflow-wrap:anywhere] [&_th]:align-top [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
               className,
             )}
             onInput={(event) => { saveSelection(); commit(event.currentTarget.innerHTML) }}
