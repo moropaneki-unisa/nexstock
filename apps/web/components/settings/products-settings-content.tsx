@@ -42,9 +42,9 @@ export function ProductsSettingsContent() {
       const result = await apiFetch<unknown>(LAYOUTS_API)
       setLayouts(normalizeList<Layout>(result))
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not load product layouts"
+      const message = err instanceof Error ? err.message : "Could not load layouts"
       setError(message)
-      toast.error("Product layouts could not load", { description: message })
+      toast.error("Layouts could not load", { description: message })
     } finally {
       setLoading(false)
     }
@@ -77,13 +77,13 @@ export function ProductsSettingsContent() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Settings</p>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">Product Settings</h1>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">Layout Settings</h1>
           <p className="mt-1 text-sm text-muted-foreground">Configure product layouts. Each layout has its own fields.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm"><Link href="/settings">Back to settings</Link></Button>
           <Button variant="outline" size="sm" onClick={() => void loadLayouts()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button>
-          <Button asChild size="sm"><Link href="/settings/products/layouts/new"><PlusIcon className="size-4" />New layout</Link></Button>
+          <Button asChild size="sm"><Link href="/settings/layout/new"><PlusIcon className="size-4" />New layout</Link></Button>
         </div>
       </div>
 
@@ -102,7 +102,7 @@ export function ProductsSettingsContent() {
             <CardTitle className="flex items-center gap-2"><BoxesIcon className="size-4" />Layout actions</CardTitle>
             <CardDescription>Layouts define their own fields for product categories like cars, smartphones, clothing, or services.</CardDescription>
           </div>
-          <Button asChild variant="outline" size="sm"><Link href="/settings/products/layouts/new"><PlusIcon className="size-4" />Create layout</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link href="/settings/layout/new"><PlusIcon className="size-4" />Create layout</Link></Button>
         </CardHeader>
         <CardContent>
           {layouts.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -124,20 +124,20 @@ export function ProductsSettingsContent() {
                     <div className="flex min-h-8 flex-wrap gap-1">{fields.slice(0, 5).map((field) => <Badge key={field.key} variant="outline" className="text-xs">{field.label || field.key}</Badge>)}{fields.length > 5 ? <Badge variant="secondary" className="text-xs">+{fields.length - 5}</Badge> : null}</div>
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t bg-muted/20 p-3">
-                    <Button asChild variant="outline" size="sm"><Link href={`/settings/products/layouts/${layout.id}`}>View</Link></Button>
-                    <Button asChild variant="outline" size="sm"><Link href={`/settings/products/layouts/${layout.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button>
+                    <Button asChild variant="outline" size="sm"><Link href={`/settings/layout/${layout.id}`}>View</Link></Button>
+                    <Button asChild variant="outline" size="sm"><Link href={`/settings/layout/${layout.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button>
                     <Button type="button" variant="outline" size="sm" className="text-destructive" disabled={running || Boolean(layout.isDefault)} onClick={() => void deleteLayout(layout)}><Trash2Icon className="size-4" />Delete</Button>
                   </CardFooter>
                 </Card>
               )
             })}
-          </div> : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No product layouts yet</p><p className="mt-1 text-sm text-muted-foreground">Create your first product layout from settings, then assign it to products.</p><Button asChild className="mt-4" size="sm"><Link href="/settings/products/layouts/new"><PlusIcon className="size-4" />Create layout</Link></Button></div>}
+          </div> : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No layouts yet</p><p className="mt-1 text-sm text-muted-foreground">Create your first layout from settings, then assign it to products.</p><Button asChild className="mt-4" size="sm"><Link href="/settings/layout/new"><PlusIcon className="size-4" />Create layout</Link></Button></div>}
         </CardContent>
       </Card>
 
       <Card className="border-dashed bg-muted/10">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Settings2Icon className="size-4" />Product settings workflow</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Settings2Icon className="size-4" />Layout settings workflow</CardTitle>
           <CardDescription>Create layouts with their own fields. Products can then select a layout while keeping the main product form clean.</CardDescription>
         </CardHeader>
       </Card>
