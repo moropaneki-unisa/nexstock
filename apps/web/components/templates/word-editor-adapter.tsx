@@ -53,8 +53,17 @@ type ToolbarState = {
   paragraph: boolean
 }
 
+type ResizeState = {
+  table: HTMLTableElement
+  col: HTMLTableColElement
+  startX: number
+  startWidth: number
+}
+
 const emptyDocument = "<p><br></p>"
 const defaultRepeatGroup = "lines"
+const resizeHotspotPx = 8
+const minColumnWidth = 48
 const inactiveToolbarState: ToolbarState = {
   bold: false,
   italic: false,
@@ -83,28 +92,62 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;")
 }
 
+function buildColGroup(columns: number) {
+  const width = `${Math.floor(100 / columns)}%`
+  return `<colgroup>${Array.from({ length: columns }, () => `<col style="width:${width}" />`).join("")}</colgroup>`
+}
+
 function buildTableHtml({ rows, columns, repeat, repeatGroup }: { rows: number; columns: number; repeat: boolean; repeatGroup: string }) {
   const headerCells = Array.from(
     { length: columns },
-    (_, index) => `<th style="border:1px solid #cbd5e1;padding:8px;text-align:left;background:#f8fafc;font-weight:700">Column ${index + 1}</th>`,
+    (_, index) => `<th style="border:1px solid #cbd5e1;padding:8px;text-align:left;background:#f8fafc;font-weight:700;min-width:${minColumnWidth}px">Column ${index + 1}</th>`,
   ).join("")
   const bodyCells = Array.from(
     { length: columns },
-    (_, index) => `<td style="border:1px solid #e2e8f0;padding:8px">${repeat ? `{{field${index + 1}}}` : "&nbsp;"}</td>`,
+    (_, index) => `<td style="border:1px solid #e2e8f0;padding:8px;min-width:${minColumnWidth}px">${repeat ? `{{field${index + 1}}}` : "&nbsp;"}</td>`,
   ).join("")
+  const colGroup = buildColGroup(columns)
 
   if (repeat) {
     const group = escapeHtml(repeatGroup.trim() || defaultRepeatGroup)
-    return `<table data-repeat-group="${group}" style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px"><thead><tr>${headerCells}</tr></thead><tbody>{{#${group}}}<tr>${bodyCells}</tr>{{/${group}}}</tbody></table><p><br></p>`
+    return `<table data-repeat-group="${group}" data-resizable-table="true" style="width:100%;table-layout:fixed;border-collapse:collapse;margin:16px 0;font-size:13px">${colGroup}<thead><tr>${headerCells}</tr></thead><tbody>{{#${group}}}<tr>${bodyCells}</tr>{{/${group}}}</tbody></table><p><br></p>`
   }
 
   const bodyRows = Array.from({ length: rows }, () => `<tr>${bodyCells}</tr>`).join("")
-  return `<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><p><br></p>`
+  return `<table data-resizable-table="true" style="width:100%;table-layout:fixed;border-collapse:collapse;margin:16px 0;font-size:13px">${colGroup}<thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table><p><br></p>`
+}
+
+function findResizableCell(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return null
+  const cell = target.closest("td,th")
+  if (!(cell instanceof HTMLTableCellElement)) return null
+  const table = cell.closest("table")
+  if (!(table instanceof HTMLTableElement)) return null
+  return { cell, table }
+}
+
+function ensureColGroup(table: HTMLTableElement) {
+  const firstRow = table.rows[0]
+  const columnCount = firstRow?.cells.length ?? 0
+  let colgroup = table.querySelector("colgroup")
+  if (!colgroup) {
+    colgroup = document.createElement("colgroup")
+    table.insertBefore(colgroup, table.firstChild)
+  }
+
+  while (colgroup.children.length < columnCount) {
+    const col = document.createElement("col")
+    col.style.width = `${Math.floor(100 / Math.max(columnCount, 1))}%`
+    colgroup.appendChild(col)
+  }
+
+  return colgroup
 }
 
 export function WordEditorAdapter({ value, onChange, className, beforeHtml }: WordEditorAdapterProps) {
   const editorRef = React.useRef<HTMLDivElement>(null)
   const savedRangeRef = React.useRef<Range | null>(null)
+  const resizeStateRef = React.useRef<ResizeState | null>(null)
   const [tableDialogOpen, setTableDialogOpen] = React.useState(false)
   const [tableRows, setTableRows] = React.useState("3")
   const [tableColumns, setTableColumns] = React.useState("4")
@@ -117,6 +160,32 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     const nextValue = value?.trim() ? value : emptyDocument
     if (editorRef.current.innerHTML !== nextValue) editorRef.current.innerHTML = nextValue
   }, [value])
+
+  React.useEffect(() => {
+    function handleResizeMove(event: MouseEvent) {
+      const state = resizeStateRef.current
+      if (!state) return
+      const nextWidth = Math.max(minColumnWidth, state.startWidth + event.clientX - state.startX)
+      state.col.style.width = `${nextWidth}px`
+      state.table.style.tableLayout = "fixed"
+      commit(state.table.closest("[contenteditable='true']")?.innerHTML)
+    }
+
+    function stopResize() {
+      if (!resizeStateRef.current) return
+      resizeStateRef.current = null
+      document.body.style.cursor = ""
+      document.body.style.userSelect = ""
+      commit()
+    }
+
+    window.addEventListener("mousemove", handleResizeMove)
+    window.addEventListener("mouseup", stopResize)
+    return () => {
+      window.removeEventListener("mousemove", handleResizeMove)
+      window.removeEventListener("mouseup", stopResize)
+    }
+  }, [])
 
   function commit(nextValue?: string) {
     const html = nextValue ?? editorRef.current?.innerHTML ?? emptyDocument
@@ -223,6 +292,41 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     event.preventDefault()
   }
 
+  function maybeStartColumnResize(event: React.MouseEvent<HTMLDivElement>) {
+    const result = findResizableCell(event.target)
+    if (!result) return
+    const { cell, table } = result
+    const rect = cell.getBoundingClientRect()
+    const nearRightEdge = rect.right - event.clientX <= resizeHotspotPx
+    if (!nearRightEdge) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    const colgroup = ensureColGroup(table)
+    const col = colgroup.children.item(cell.cellIndex)
+    if (!(col instanceof HTMLTableColElement)) return
+
+    resizeStateRef.current = {
+      table,
+      col,
+      startX: event.clientX,
+      startWidth: cell.getBoundingClientRect().width,
+    }
+    document.body.style.cursor = "col-resize"
+    document.body.style.userSelect = "none"
+  }
+
+  function maybeShowColumnResizeCursor(event: React.MouseEvent<HTMLDivElement>) {
+    const result = findResizableCell(event.target)
+    if (!result) {
+      event.currentTarget.style.cursor = "text"
+      return
+    }
+    const rect = result.cell.getBoundingClientRect()
+    event.currentTarget.style.cursor = rect.right - event.clientX <= resizeHotspotPx ? "col-resize" : "text"
+  }
+
   function toolButtonClass(active = false) {
     return cn(
       "h-8 gap-1.5 rounded-lg px-2.5 text-xs transition",
@@ -282,11 +386,13 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
             role="textbox"
             aria-label="Template document editor"
             className={cn(
-              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
+              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:table-fixed [&_table]:border-collapse [&_table]:my-4 [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
               className,
             )}
             onInput={(event) => { saveSelection(); commit(event.currentTarget.innerHTML) }}
             onKeyUp={saveSelection}
+            onMouseDown={maybeStartColumnResize}
+            onMouseMove={maybeShowColumnResizeCursor}
             onMouseUp={saveSelection}
             onFocus={() => { saveSelection(); refreshToolbarState() }}
             onPaste={(event) => {
