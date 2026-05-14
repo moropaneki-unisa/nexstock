@@ -7,9 +7,11 @@ const fieldTypes = ['text', 'number', 'boolean', 'select', 'date', 'json'] as co
 
 type ProductFieldInput = {
   key?: string;
+  name?: string;
   label?: string;
   type?: string;
   required?: boolean;
+  visible?: boolean;
   options?: string[];
   defaultValue?: unknown;
   order?: number;
@@ -34,7 +36,7 @@ export class ProductFieldsService {
   }
 
   async create(organizationId: string, input: ProductFieldInput) {
-    const label = input.label?.trim();
+    const label = (input.label || input.name)?.trim();
     if (!label) throw new BadRequestException('Attribute label is required');
 
     const key = await this.uniqueKey(organizationId, input.key || label);
@@ -48,14 +50,14 @@ export class ProductFieldsService {
         options: this.options(input.options),
         defaultValue: input.defaultValue === undefined ? undefined : (input.defaultValue as Prisma.InputJsonValue),
         order: Number(input.order ?? 0),
-        isActive: input.isActive !== false,
+        isActive: input.visible === false ? false : input.isActive !== false,
       },
     });
   }
 
   async update(organizationId: string, id: string, input: ProductFieldInput) {
     await this.get(organizationId, id);
-    const label = input.label?.trim();
+    const label = (input.label || input.name)?.trim();
     if (!label) throw new BadRequestException('Attribute label is required');
 
     return this.prisma.customField.update({
@@ -67,7 +69,7 @@ export class ProductFieldsService {
         options: this.options(input.options),
         defaultValue: input.defaultValue === undefined ? undefined : (input.defaultValue as Prisma.InputJsonValue),
         order: Number(input.order ?? 0),
-        isActive: input.isActive !== false,
+        isActive: input.visible === false ? false : input.isActive !== false,
       },
     });
   }
