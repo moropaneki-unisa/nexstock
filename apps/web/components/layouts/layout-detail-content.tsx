@@ -21,6 +21,10 @@ function kindLabel(kind?: string | null) {
   return String(kind || "physical").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
+function typeLabel(type?: string | null) {
+  return String(type || "text").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 function numberValue(value: unknown) {
   const next = Number(value ?? 0)
   return Number.isFinite(next) ? next : 0
@@ -105,7 +109,21 @@ export function LayoutDetailContent({ layoutId }: { layoutId: string }) {
           <CardDescription>Fields assigned to products using this layout.</CardDescription>
         </CardHeader>
         <CardContent>
-          {fields.length ? <div className="grid overflow-hidden rounded-xl border md:grid-cols-2 xl:grid-cols-3">{fields.map((field) => <div key={field.key} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r"><div className="flex flex-wrap items-center gap-2"><p className="font-medium">{field.label || field.key}</p>{field.required ? <Badge>Required</Badge> : <Badge variant="secondary">Optional</Badge>}</div><p className="mt-1 font-mono text-xs text-muted-foreground">{`{{product.customFields.${field.key}}}`}</p><Badge variant="outline" className="mt-3 capitalize">{field.type || "text"}</Badge></div>)}</div> : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No fields assigned</p><p className="mt-1 text-sm text-muted-foreground">Edit this layout to add fields.</p><Button asChild className="mt-4" size="sm"><Link href={`/settings/layout/${layout.id}/edit`}>Edit layout</Link></Button></div>}
+          {fields.length ? (
+            <div className="grid overflow-hidden rounded-xl border md:grid-cols-2 xl:grid-cols-3">
+              {fields.map((field) => (
+                <div key={field.key} className="flex min-h-20 items-center justify-between gap-3 border-b p-3 text-sm transition hover:bg-muted/25 md:border-r">
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="truncate font-medium">{field.label || field.key}</p>
+                      {field.required ? <Badge className="shrink-0">Required</Badge> : <Badge variant="secondary" className="shrink-0">Optional</Badge>}
+                    </div>
+                    <Badge variant="outline" className="mt-2 capitalize">{typeLabel(field.type)}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No fields assigned</p><p className="mt-1 text-sm text-muted-foreground">Edit this layout to add fields.</p><Button asChild className="mt-4" size="sm"><Link href={`/settings/layout/${layout.id}/edit`}>Edit layout</Link></Button></div>}
         </CardContent>
       </Card>
     </div>
