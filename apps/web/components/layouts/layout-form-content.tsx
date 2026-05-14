@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, DatabaseZapIcon, Loader2Icon, SaveIcon, Settings2Icon } from "lucide-react"
+import { ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon, Settings2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -18,35 +18,31 @@ import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 
 type ProductKind = "physical" | "service" | "digital" | "bundle"
-type ProductAttribute = { id: string; key: string; label?: string | null; name?: string | null; type?: string | null; required?: boolean | null; options?: string[] | null; defaultValue?: unknown; order?: number | null; isActive?: boolean | null; visible?: boolean | null }
-type LayoutField = { key: string; label: string; type: string; required?: boolean; options?: string[]; defaultValue?: unknown; order?: number; isActive?: boolean }
+type FieldType = "text" | "number" | "boolean" | "select" | "date" | "json"
+type LayoutField = { key: string; label: string; type: FieldType | string; required?: boolean; options?: string[]; defaultValue?: unknown; order?: number; isActive?: boolean }
 type Layout = { id: string; name: string; description?: string | null; kind: ProductKind | string; trackInventory: boolean; isDefault?: boolean | null; fields?: LayoutField[] | null }
-type Draft = { name: string; description: string; kind: ProductKind; trackInventory: boolean; isDefault: boolean; selectedKeys: string[] }
+type Draft = { name: string; description: string; kind: ProductKind; trackInventory: boolean; isDefault: boolean; fields: LayoutField[] }
 
 const LAYOUTS_API = "/api/products/types"
-const ATTRIBUTES_API = "/api/product-fields"
-const emptyDraft: Draft = { name: "", description: "", kind: "physical", trackInventory: true, isDefault: false, selectedKeys: [] }
-
-function normalizeList<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[]
-  if (value && typeof value === "object") {
-    const maybe = value as { items?: T[]; data?: T[] }
-    return maybe.items ?? maybe.data ?? []
-  }
-  return []
-}
+const emptyDraft: Draft = { name: "", description: "", kind: "physical", trackInventory: true, isDefault: false, fields: [] }
+const fieldTypes: FieldType[] = ["text", "number", "boolean", "select", "date", "json"]
 
 function numberValue(value: unknown) {
   const next = Number(value ?? 0)
   return Number.isFinite(next) ? next : 0
 }
 
-function attributeLabel(attribute: ProductAttribute) {
-  return attribute.label || attribute.name || attribute.key
+function keyFromLabel(label: string) {
+  return label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field"
 }
 
-function fieldFromAttribute(attribute: ProductAttribute, order: number): LayoutField {
-  return { key: attribute.key, label: attributeLabel(attribute), type: attribute.type || "text", required: Boolean(attribute.required), options: attribute.options || [], defaultValue: attribute.defaultValue, order, isActive: true }
+function uniqueKey(label: string, fields: LayoutField[], currentIndex: number) {
+  const base = keyFromLabel(label)
+  const existing = new Set(fields.filter((_, index) => index !== currentIndex).map((field) => field.key))
+  let key = base
+  let index = 2
+  while (existing.has(key)) key = `${base}_${index++}`
+  return key
 }
 
 function draftFromLayout(layout: Layout): Draft {
@@ -56,14 +52,39 @@ function draftFromLayout(layout: Layout): Draft {
     kind: (layout.kind as ProductKind) || "physical",
     trackInventory: layout.trackInventory !== false,
     isDefault: Boolean(layout.isDefault),
-    selectedKeys: (layout.fields || []).filter((field) => field.isActive !== false).sort((a, b) => numberValue(a.order) - numberValue(b.order)).map((field) => field.key),
+    fields: [...(layout.fields || [])]
+      .filter((field) => field.isActive !== false)
+      .sort((a, b) => numberValue(a.order) - numberValue(b.order))
+      .map((field, index) => ({
+        key: field.key || keyFromLabel(field.label || `Field ${index + 1}`),
+        label: field.label || field.key || `Field ${index + 1}`,
+        type: field.type || "text",
+        required: Boolean(field.required),
+        options: field.options || [],
+        defaultValue: field.defaultValue,
+        order: index,
+        isActive: true,
+      })),
   }
+}
+
+function normalizeFields(fields: LayoutField[]) {
+  return fields
+    .filter((field) => field.label.trim())
+    .map((field, index) => ({
+      ...field,
+      key: field.key || keyFromLabel(field.label),
+      label: field.label.trim(),
+      type: field.type || "text",
+      options: field.type === "select" ? (field.options || []).map((option) => String(option).trim()).filter(Boolean) : [],
+      order: index,
+      isActive: true,
+    }))
 }
 
 export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
   const router = useRouter()
   const editing = Boolean(layoutId)
-  const [attributes, setAttributes] = React.useState<ProductAttribute[]>([])
   const [draft, setDraft] = React.useState<Draft>(emptyDraft)
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
@@ -75,13 +96,10 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
       setLoading(true)
       setError(null)
       try {
-        const [attributeResult, layoutResult] = await Promise.all([
-          apiFetch<unknown>(ATTRIBUTES_API).catch(() => apiFetch<unknown>("/api/products/fields").catch(() => [])),
-          layoutId ? apiFetch<Layout>(`${LAYOUTS_API}/${layoutId}`) : Promise.resolve(null),
-        ])
-        if (!active) return
-        setAttributes(normalizeList<ProductAttribute>(attributeResult).filter((field) => field.isActive !== false && field.visible !== false).sort((a, b) => numberValue(a.order) - numberValue(b.order)))
-        if (layoutResult) setDraft(draftFromLayout(layoutResult))
+        if (layoutId) {
+          const layout = await apiFetch<Layout>(`${LAYOUTS_API}/${layoutId}`)
+          if (active) setDraft(draftFromLayout(layout))
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Could not load layout"
         setError(message)
@@ -94,13 +112,24 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
     return () => { active = false }
   }, [layoutId])
 
-  function toggleAttribute(key: string, checked: boolean) {
+  function addField() {
+    setDraft((current) => ({ ...current, fields: [...current.fields, { key: "", label: "", type: "text", required: false, options: [], order: current.fields.length, isActive: true }] }))
+  }
+
+  function updateField(index: number, patch: Partial<LayoutField>) {
     setDraft((current) => {
-      const selected = new Set(current.selectedKeys)
-      if (checked) selected.add(key)
-      else selected.delete(key)
-      return { ...current, selectedKeys: attributes.filter((attribute) => selected.has(attribute.key)).map((attribute) => attribute.key) }
+      const fields = current.fields.map((field, fieldIndex) => {
+        if (fieldIndex !== index) return field
+        const next = { ...field, ...patch }
+        if (patch.label !== undefined && (!field.key || field.key === keyFromLabel(field.label))) next.key = uniqueKey(patch.label, current.fields, index)
+        return next
+      })
+      return { ...current, fields }
     })
+  }
+
+  function removeField(index: number) {
+    setDraft((current) => ({ ...current, fields: current.fields.filter((_, fieldIndex) => fieldIndex !== index).map((field, order) => ({ ...field, order })) }))
   }
 
   async function saveLayout(event: React.FormEvent<HTMLFormElement>) {
@@ -108,15 +137,14 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
     setError(null)
     if (!draft.name.trim()) return setError("Layout name is required.")
 
-    const selected = new Set(draft.selectedKeys)
-    const fields = attributes.filter((attribute) => selected.has(attribute.key)).map((attribute, index) => fieldFromAttribute(attribute, index))
+    const fields = normalizeFields(draft.fields)
     const payload = { name: draft.name.trim(), description: draft.description.trim() || undefined, kind: draft.kind, trackInventory: draft.kind === "service" || draft.kind === "digital" ? false : draft.trackInventory, isDefault: draft.isDefault, fields }
 
     setSaving(true)
     try {
       const saved = editing ? await apiFetch<Layout>(`${LAYOUTS_API}/${layoutId}`, { method: "PATCH", body: JSON.stringify(payload) }) : await apiFetch<Layout>(LAYOUTS_API, { method: "POST", body: JSON.stringify(payload) })
       toast.success(editing ? "Layout updated" : "Layout created", { description: saved.name })
-      router.push(`/layouts/${saved.id}`)
+      router.push(`/settings/products/layouts/${saved.id}`)
       router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not save layout"
@@ -129,20 +157,17 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
 
   if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[620px] rounded-xl" /></div>
 
-  const selectedCount = draft.selectedKeys.length
+  const fieldCount = normalizeFields(draft.fields).length
 
   return (
     <form onSubmit={saveLayout} className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Layouts</p>
+          <p className="text-sm text-muted-foreground">Product Settings</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">{editing ? "Edit layout" : "Create layout"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Layouts are reusable product structures built from Product Attributes.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Create product-specific fields directly inside this layout.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm"><Link href={editing ? `/layouts/${layoutId}` : "/layouts"}><ArrowLeftIcon className="size-4" />Back</Link></Button>
-          <Button asChild variant="outline" size="sm"><Link href="/products/fields"><DatabaseZapIcon className="size-4" />Product attributes</Link></Button>
-        </div>
+        <Button asChild variant="outline" size="sm"><Link href={editing ? `/settings/products/layouts/${layoutId}` : "/settings/products"}><ArrowLeftIcon className="size-4" />Back</Link></Button>
       </div>
 
       {error ? <Card className="border-destructive/30 bg-destructive/5"><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card> : null}
@@ -165,14 +190,11 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
 
           <Card>
             <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div><CardTitle className="flex items-center gap-2"><DatabaseZapIcon className="size-4" />Layout attributes</CardTitle><CardDescription>Select which Product Attributes belong to this layout.</CardDescription></div>
-              <Badge variant="secondary">{selectedCount} selected</Badge>
+              <div><CardTitle>Layout fields</CardTitle><CardDescription>Add the fields that belong to this layout. Example: IMEI for phones, VIN for cars, size for clothing.</CardDescription></div>
+              <Button type="button" variant="outline" size="sm" onClick={addField}><PlusIcon className="size-4" />Add field</Button>
             </CardHeader>
-            <CardContent>
-              {attributes.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{attributes.map((attribute) => {
-                const checked = draft.selectedKeys.includes(attribute.key)
-                return <label key={attribute.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition hover:bg-muted/50 ${checked ? "border-primary bg-primary/5" : "bg-background"}`}><Checkbox checked={checked} onCheckedChange={(value) => toggleAttribute(attribute.key, Boolean(value))} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{attributeLabel(attribute)}</span><span className="mt-1 block truncate font-mono text-xs text-muted-foreground">{`{{product.customFields.${attribute.key}}}`}</span><span className="mt-2 flex flex-wrap gap-1"><Badge variant="outline" className="capitalize">{attribute.type || "text"}</Badge>{attribute.required ? <Badge>Required</Badge> : <Badge variant="secondary">Optional</Badge>}</span></span></label>
-              })}</div> : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No product attributes yet</p><p className="mt-1 text-sm text-muted-foreground">Create Product Attributes first, then add them to this layout.</p><Button asChild className="mt-4" size="sm"><Link href="/products/fields">Create attributes</Link></Button></div>}
+            <CardContent className="grid gap-3">
+              {draft.fields.length ? draft.fields.map((field, index) => <div key={index} className="rounded-xl border p-4"><div className="grid gap-3 md:grid-cols-[1fr_0.7fr_0.6fr_auto]"><Field label="Field label"><Input value={field.label} onChange={(event) => updateField(index, { label: event.target.value })} placeholder="VIN, IMEI, Size..." /></Field><Field label="Type"><Select value={String(field.type || "text")} onValueChange={(value: FieldType) => updateField(index, { type: value, options: value === "select" ? field.options || [] : [] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{fieldTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent></Select></Field><label className="mt-6 flex items-center gap-3 rounded-xl border p-3 text-sm"><Checkbox checked={Boolean(field.required)} onCheckedChange={(checked) => updateField(index, { required: Boolean(checked) })} /><span>Required</span></label><Button type="button" variant="ghost" size="icon" className="mt-6 text-muted-foreground hover:text-destructive" onClick={() => removeField(index)}><Trash2Icon className="size-4" /></Button></div>{field.type === "select" ? <div className="mt-3"><Field label="Options"><Input value={(field.options || []).join(", ")} onChange={(event) => updateField(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} placeholder="Petrol, Diesel, Electric" /></Field></div> : null}<p className="mt-3 font-mono text-xs text-muted-foreground">{`{{product.customFields.${field.key || keyFromLabel(field.label)}}}`}</p></div>) : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No fields yet</p><p className="mt-1 text-sm text-muted-foreground">Add fields that only apply to products using this layout.</p><Button type="button" className="mt-4" size="sm" onClick={addField}><PlusIcon className="size-4" />Add first field</Button></div>}
             </CardContent>
           </Card>
         </main>
@@ -184,7 +206,7 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
               <Side label="Name" value={draft.name || "Missing"} />
               <Side label="Kind" value={draft.kind} />
               <Side label="Inventory" value={draft.trackInventory ? "Tracked" : "Not tracked"} />
-              <Side label="Attributes" value={`${selectedCount}`} />
+              <Side label="Fields" value={`${fieldCount}`} />
             </CardContent>
             <CardFooter><Button type="submit" className="w-full" disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{saving ? "Saving..." : "Save layout"}</Button></CardFooter>
           </Card>
