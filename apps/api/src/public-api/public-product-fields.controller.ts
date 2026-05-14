@@ -1,23 +1,16 @@
 import {
-  Body,
   Controller,
   ForbiddenException,
+  GoneException,
   Get,
-  Param,
   Patch,
   Post,
-  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
 
 import { ApiKeyGuard } from '../api-keys/api-key.guard';
-import { ProductFieldsService } from '../product-fields/product-fields.service';
-import {
-  CreateProductFieldDto,
-  UpdateProductFieldDto,
-} from '../product-fields/dto';
 
 type ApiRequest = Request & {
   apiOrganizationId: string;
@@ -27,34 +20,28 @@ type ApiRequest = Request & {
 @Controller('v1/product-fields')
 @UseGuards(ApiKeyGuard)
 export class PublicProductFieldsController {
-  constructor(private readonly productFields: ProductFieldsService) {}
-
   @Get()
   list(@Req() req: ApiRequest) {
     this.assertScope(req, 'products:read');
-    return this.productFields.list(req.apiOrganizationId);
+    return [];
   }
 
   @Post()
-  create(@Req() req: ApiRequest, @Body() dto: CreateProductFieldDto) {
+  create(@Req() req: ApiRequest) {
     this.assertScope(req, 'products:write');
-    return this.productFields.create(req.apiOrganizationId, dto);
+    throw new GoneException('Legacy product fields were removed. Use product layouts instead.');
   }
 
   @Patch(':id')
-  update(
-    @Req() req: ApiRequest,
-    @Param('id') id: string,
-    @Body() dto: UpdateProductFieldDto,
-  ) {
+  update(@Req() req: ApiRequest) {
     this.assertScope(req, 'products:write');
-    return this.productFields.update(req.apiOrganizationId, id, dto);
+    throw new GoneException('Legacy product fields were removed. Use product layouts instead.');
   }
 
   @Post(':id/deactivate')
-  deactivate(@Req() req: ApiRequest, @Param('id') id: string) {
+  deactivate(@Req() req: ApiRequest) {
     this.assertScope(req, 'products:write');
-    return this.productFields.deactivate(req.apiOrganizationId, id);
+    throw new GoneException('Legacy product fields were removed. Use product layouts instead.');
   }
 
   private assertScope(req: ApiRequest, scope: string) {
