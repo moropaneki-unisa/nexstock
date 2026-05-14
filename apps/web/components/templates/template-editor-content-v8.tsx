@@ -14,7 +14,6 @@ import {
   MailIcon,
   SaveIcon,
   SearchIcon,
-  TableIcon,
   TypeIcon,
   XIcon,
 } from "lucide-react"
@@ -86,34 +85,11 @@ function extractHeader(html: string) {
   }
 }
 
-function headerHtml({
-  logoEnabled,
-  addressEnabled,
-  logoUrl,
-  logoPosition,
-}: {
-  logoEnabled: boolean
-  addressEnabled: boolean
-  logoUrl: string
-  logoPosition: LogoPosition
-}) {
+function headerHtml({ logoEnabled, addressEnabled, logoUrl, logoPosition }: { logoEnabled: boolean; addressEnabled: boolean; logoUrl: string; logoPosition: LogoPosition }) {
   if (!logoEnabled && !addressEnabled) return ""
-
-  const logo = logoEnabled
-    ? `<div data-template-logo="true" style="display:flex;justify-content:${logoPosition === "right" && !addressEnabled ? "flex-end" : "flex-start"};align-items:center;min-height:76px;">${
-        logoUrl
-          ? `<img src="${logoUrl.replace(/"/g, "&quot;")}" alt="Logo" style="max-width:170px;max-height:76px;object-fit:contain;display:block;border-radius:14px;border:1px solid #e2e8f0;background:#fff;padding:6px;box-shadow:0 8px 20px rgba(15,23,42,.08);" />`
-          : `<div style="width:170px;height:76px;border:1px dashed #cbd5e1;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#64748b;background:#f8fafc;font-size:13px;">Logo</div>`
-      }</div>`
-    : ""
-
-  const address = addressEnabled
-    ? `<div data-template-address="true" style="text-align:${logoEnabled ? "right" : logoPosition};font-size:13px;line-height:1.65;color:#475569;padding-top:4px;"><strong style="color:#0f172a;font-size:15px">{{organization.name}}</strong><br>{{organization.address}}<br>{{organization.email}}<br>{{organization.phone}}</div>`
-    : ""
-
-  return `${headerStart}<section data-template-header="true" contenteditable="false" style="display:grid;grid-template-columns:${
-    logoEnabled && addressEnabled ? "minmax(0,1fr) minmax(0,1fr)" : "1fr"
-  };align-items:start;gap:28px;margin:0 0 32px 0;padding:0 0 22px 0;border-bottom:1px solid #e5e7eb;">${logo}${address}</section>${headerEnd}`
+  const logo = logoEnabled ? `<div data-template-logo="true" style="display:flex;justify-content:${logoPosition === "right" && !addressEnabled ? "flex-end" : "flex-start"};align-items:center;min-height:76px;">${logoUrl ? `<img src="${logoUrl.replace(/"/g, "&quot;")}" alt="Logo" style="max-width:170px;max-height:76px;object-fit:contain;display:block;border-radius:14px;border:1px solid #e2e8f0;background:#fff;padding:6px;box-shadow:0 8px 20px rgba(15,23,42,.08);" />` : `<div style="width:170px;height:76px;border:1px dashed #cbd5e1;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#64748b;background:#f8fafc;font-size:13px;">Logo</div>`}</div>` : ""
+  const address = addressEnabled ? `<div data-template-address="true" style="text-align:${logoEnabled ? "right" : logoPosition};font-size:13px;line-height:1.65;color:#475569;padding-top:4px;"><strong style="color:#0f172a;font-size:15px">{{organization.name}}</strong><br>{{organization.address}}<br>{{organization.email}}<br>{{organization.phone}}</div>` : ""
+  return `${headerStart}<section data-template-header="true" contenteditable="false" style="display:grid;grid-template-columns:${logoEnabled && addressEnabled ? "minmax(0,1fr) minmax(0,1fr)" : "1fr"};align-items:start;gap:28px;margin:0 0 32px 0;padding:0 0 22px 0;border-bottom:1px solid #e5e7eb;">${logo}${address}</section>${headerEnd}`
 }
 
 function groupFields(fields: FieldToken[]) {
@@ -182,21 +158,16 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
         setLoading(false)
       }
     }
-
     void load()
   }, [templateId])
 
   React.useEffect(() => {
-    void apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`)
-      .then(setFields)
-      .catch((error) => toast.error("Could not load fields", { description: errorMessage(error, "Fields failed") }))
+    void apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`).then(setFields).catch((error) => toast.error("Could not load fields", { description: errorMessage(error, "Fields failed") }))
   }, [module])
 
   const groupedFields = React.useMemo(() => {
     const query = fieldSearch.trim().toLowerCase()
-    return groupFields(
-      fields.filter((field) => !query || [field.label, field.path, field.group, field.description].filter(Boolean).join(" ").toLowerCase().includes(query)),
-    )
+    return groupFields(fields.filter((field) => !query || [field.label, field.path, field.group, field.description].filter(Boolean).join(" ").toLowerCase().includes(query)))
   }, [fields, fieldSearch])
 
   const header = headerHtml({ logoEnabled, addressEnabled, logoUrl, logoPosition })
@@ -209,16 +180,10 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
     else setBodyHtml((current) => `${current}${token}`)
   }
 
-  function insertLineTable() {
-    const table = `<table style="width:100%;border-collapse:collapse;margin-top:24px;font-size:13px"><thead><tr><th style="text-align:left;border-bottom:1px solid #d1d5db;padding:10px 8px">Product</th><th style="text-align:right;border-bottom:1px solid #d1d5db;padding:10px 8px">Qty</th><th style="text-align:right;border-bottom:1px solid #d1d5db;padding:10px 8px">Unit</th><th style="text-align:right;border-bottom:1px solid #d1d5db;padding:10px 8px">Total</th></tr></thead><tbody>{{#lines}}<tr><td style="border-bottom:1px solid #e5e7eb;padding:10px 8px">{{product.name}}</td><td style="text-align:right;border-bottom:1px solid #e5e7eb;padding:10px 8px">{{quantityOrdered}}</td><td style="text-align:right;border-bottom:1px solid #e5e7eb;padding:10px 8px">{{unitCost}}</td><td style="text-align:right;border-bottom:1px solid #e5e7eb;padding:10px 8px">{{lineTotal}}</td></tr>{{/lines}}</tbody></table>`
-    setBodyHtml((current) => `${current}${table}`)
-  }
-
   async function chooseLogoFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
     if (!file.type.startsWith("image/")) return toast.error("Please select an image file")
-
     const form = new FormData()
     form.append("file", file)
     setUploadingLogo(true)
@@ -239,18 +204,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
     if (!name.trim()) return toast.error("Template name is required")
     setSaving(true)
     try {
-      const payload = {
-        name,
-        type: module,
-        kind: templateKind,
-        description,
-        htmlTemplate: fullHtml,
-        emailTemplate: emailBody,
-        subjectTemplate: subject,
-        recipientEmailTemplate: to,
-        isActive: true,
-      }
-
+      const payload = { name, type: module, kind: templateKind, description, htmlTemplate: fullHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to, isActive: true }
       if (template?.id) {
         const updated = await apiFetch<Template>(`/api/document-templates/${template.id}`, { method: "PATCH", body: JSON.stringify(payload) })
         setTemplate(updated)
@@ -271,17 +225,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
   async function preview() {
     setPreviewing(true)
     try {
-      const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", {
-        method: "POST",
-        body: JSON.stringify({
-          type: module,
-          kind: templateKind,
-          htmlTemplate: fullHtml,
-          emailTemplate: emailBody,
-          subjectTemplate: subject,
-          recipientEmailTemplate: to,
-        }),
-      })
+      const result = await apiFetch<PreviewResult>("/api/document-templates/preview/render", { method: "POST", body: JSON.stringify({ type: module, kind: templateKind, htmlTemplate: fullHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }) })
       const doc = templateKind === "pdf" ? pdfDocument(result.html || fullHtml) : emailDocument(result, emailBody)
       const url = URL.createObjectURL(new Blob([doc], { type: "text/html" }))
       window.open(url, "_blank", "noopener,noreferrer")
@@ -315,19 +259,13 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
       <div className="flex min-w-0 flex-col overflow-hidden">
         <header className="shrink-0 border-b bg-background">
           <div className="flex h-14 items-center justify-between gap-3 px-5"><div className="min-w-0"><p className="truncate text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template</p><h1 className="truncate font-heading text-lg font-semibold tracking-tight">{name}</h1></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={preview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div></div>
-          <div className="flex items-stretch gap-0 border-t bg-card px-4 py-1">{templateKind === "pdf" ? <Ribbon label="Mode"><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></Ribbon> : null}{templateKind === "pdf" ? <Ribbon label="Insert"><Button variant="ghost" size="sm" onClick={insertLineTable}><TableIcon className="size-4" />Line table</Button></Ribbon> : null}<Ribbon label="Fields"><Button variant="ghost" size="sm" onClick={() => insertField(templateKind === "email" ? "supplier.email" : "organization.name")}>Quick field</Button></Ribbon></div>
+          {templateKind === "pdf" ? <div className="border-t bg-card px-4 py-1"><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div> : null}
         </header>
 
-        <main className="min-h-0 flex-1 overflow-auto bg-muted/60">
-          {templateKind === "pdf" ? <div className="mx-auto min-h-[1123px] w-[794px] border bg-white px-[68px] py-[64px] text-sm leading-6 text-slate-950 shadow-xl">{header ? <div dangerouslySetInnerHTML={{ __html: header }} /> : null}{mode === "document" ? <WordEditorAdapter value={bodyHtml} onChange={setBodyHtml} className="min-h-[860px] text-slate-950" /> : <Textarea value={bodyHtml} onChange={(event) => setBodyHtml(event.target.value)} className="min-h-[860px] rounded-none border-0 font-mono text-xs" />}</div> : <div className="min-h-full bg-muted/60"><div className="mx-auto min-h-full max-w-4xl bg-background p-8 shadow-xl"><div className="grid gap-5"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[560px]" /></label></div></div></div>}
-        </main>
+        {templateKind === "pdf" ? (mode === "document" ? <WordEditorAdapter value={bodyHtml} onChange={setBodyHtml} beforeHtml={header} /> : <main className="min-h-0 flex-1 overflow-auto bg-muted/60 p-6"><Textarea value={bodyHtml} onChange={(event) => setBodyHtml(event.target.value)} className="mx-auto min-h-[1123px] w-[794px] rounded-none border bg-white p-8 font-mono text-xs shadow-xl" /></main>) : <main className="min-h-0 flex-1 overflow-auto bg-muted/60"><div className="mx-auto min-h-full max-w-4xl bg-background p-8 shadow-xl"><div className="grid gap-5"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[560px]" /></label></div></div></main>}
       </div>
 
       <aside className="flex min-w-0 flex-col border-l bg-background"><div className="border-b p-4"><h2 className="text-sm font-semibold">Fields</h2><p className="text-xs text-muted-foreground">Click a field to insert it.</p><div className="relative mt-3"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div></div><div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">{Object.entries(groupedFields).map(([group, items]) => <section key={group} className="mb-5 grid gap-2"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="border-b py-2 text-left transition hover:bg-muted/40"><span className="block text-sm font-medium">{field.label}</span><span className="block truncate font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span></button>)}</section>)}</div></aside>
     </div>
   )
-}
-
-function Ribbon({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="mr-3 flex min-h-12 flex-col justify-between border-r pr-3 last:border-r-0"><div className="flex flex-wrap items-center gap-1">{children}</div><p className="mt-0.5 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p></div>
 }
