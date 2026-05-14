@@ -15,11 +15,11 @@ type EditorComponent = React.ComponentType<Record<string, unknown>>
 function pickEditorComponent(module: Record<string, unknown>): EditorComponent | null {
   const candidates = [
     module.default,
+    module.DocxEditor,
+    module.DocumentEditor,
+    module.Editor,
     module.WordEditor,
     module.ReactWordEditor,
-    module.Editor,
-    module.DocumentEditor,
-    module.DocxEditor,
   ]
 
   for (const candidate of candidates) {
@@ -41,9 +41,11 @@ export function WordEditorAdapter({ value, onChange, className }: WordEditorAdap
 
     async function loadEditor() {
       try {
-        const module = await import("reactjs-word-editor")
+        const module = await import("@eigenpal/docx-js-editor")
         if (cancelled) return
-        setPackageEditor(() => pickEditorComponent(module as Record<string, unknown>))
+        const Editor = pickEditorComponent(module as Record<string, unknown>)
+        if (Editor) setPackageEditor(() => Editor)
+        else setPackageFailed(true)
       } catch {
         if (!cancelled) setPackageFailed(true)
       }
