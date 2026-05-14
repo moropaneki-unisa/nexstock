@@ -284,7 +284,8 @@ export class ProductsService {
       if (dto.images !== undefined) data.images = dto.images;
 
       if (dto.metadata !== undefined || dto.customFields !== undefined || dto.productTypeId !== undefined || dto.kind !== undefined || dto.trackInventory !== undefined) {
-        data.metadata = await this.productMetadata(tx as PrismaTransaction, organizationId, dto, dto.metadata, this.metadataObject(existing.metadata));
+        const metadata = await this.productMetadata(tx as PrismaTransaction, organizationId, dto, dto.metadata, this.metadataObject(existing.metadata));
+        data.metadata = metadata as Prisma.InputJsonValue;
       }
 
       return tx.product.update({
