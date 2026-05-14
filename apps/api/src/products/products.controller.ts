@@ -25,6 +25,8 @@ import {
   ListProductsDto,
   UpdateProductDto,
 } from './dto';
+import { CreateProductSupplierDto, UpdateProductSupplierDto } from './product-suppliers.dto';
+import { ProductSuppliersService } from './product-suppliers.service';
 import { CreateProductTypeDto, UpdateProductTypeDto } from './product-types.dto';
 import { ProductTypesService } from './product-types.service';
 import { ProductsImportExportService } from './products-import-export.service';
@@ -37,6 +39,7 @@ export class ProductsController {
     private readonly products: ProductsService,
     private readonly importExport: ProductsImportExportService,
     private readonly productTypes: ProductTypesService,
+    private readonly productSuppliers: ProductSuppliersService,
   ) {}
 
   @Post('asset-image')
@@ -115,6 +118,39 @@ export class ProductsController {
   @Delete('types/:typeId')
   deleteType(@CurrentUser() user: CurrentUserPayload, @Param('typeId') typeId: string) {
     return this.productTypes.delete(user.organizationId, typeId);
+  }
+
+  @Get(':id/suppliers')
+  listProductSuppliers(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.productSuppliers.list(user.organizationId, id);
+  }
+
+  @Post(':id/suppliers')
+  createProductSupplier(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateProductSupplierDto,
+  ) {
+    return this.productSuppliers.create(user.organizationId, id, dto);
+  }
+
+  @Patch(':id/suppliers/:linkId')
+  updateProductSupplier(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Param('linkId') linkId: string,
+    @Body() dto: UpdateProductSupplierDto,
+  ) {
+    return this.productSuppliers.update(user.organizationId, id, linkId, dto);
+  }
+
+  @Delete(':id/suppliers/:linkId')
+  deleteProductSupplier(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Param('linkId') linkId: string,
+  ) {
+    return this.productSuppliers.remove(user.organizationId, id, linkId);
   }
 
   @Get(':id')
