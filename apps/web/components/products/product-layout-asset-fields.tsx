@@ -25,18 +25,34 @@ type LayoutField = {
   isActive?: boolean | null
 }
 
-function safeParseAssets(value: string): Asset[] {
+type AssetValue = Asset | string
+
+function safeParseAssetValues(value: string, type: "images" | "attachment"): AssetValue[] {
   if (!value.trim()) return []
   try {
     const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object" && !Array.isArray(item)) : []
+    if (!Array.isArray(parsed)) return []
+    if (type === "images") return parsed.filter((item) => typeof item === "string")
+    return parsed.filter((item) => item && typeof item === "object" && !Array.isArray(item))
   } catch {
     return []
   }
 }
 
-function writeValue(input: HTMLInputElement, assets: Asset[]) {
-  input.value = JSON.stringify(assets)
+function assetUrl(asset: AssetValue) {
+  return typeof asset === "string" ? asset : asset.url
+}
+
+function assetName(asset: AssetValue) {
+  return typeof asset === "string" ? asset : asset.name || asset.url
+}
+
+function assetMeta(asset: AssetValue) {
+  return typeof asset === "string" ? "Image URL" : asset.mimeType || asset.resourceType || "Uploaded file"
+}
+
+function writeValue(input: HTMLInputElement, assets: AssetValue[], type: "images" | "attachment") {
+  input.value = JSON.stringify(type === "images" ? assets.map(assetUrl).filter(Boolean) : assets)
   input.dispatchEvent(new Event("input", { bubbles: true }))
   input.dispatchEvent(new Event("change", { bubbles: true }))
 }
@@ -51,19 +67,22 @@ async function uploadAsset(file: File, type: "images" | "attachment") {
 }
 
 function AssetField({ input, type, label }: { input: HTMLInputElement; type: "images" | "attachment"; label: string }) {
-  const [assets, setAssets] = React.useState<Asset[]>(() => safeParseAssets(input.value))
+  const [assets, setAssets] = React.useState<AssetValue[]>(() => safeParseAssetValues(input.value, type))
   const [uploading, setUploading] = React.useState(false)
 
   React.useEffect(() => {
-    writeValue(input, assets)
-  }, [assets, input])
+    writeValue(input, assets, type)
+  }, [assets, input, type])
 
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
     setUploading(true)
     try {
-      const uploaded: Asset[] = []
-      for (const file of Array.from(files)) uploaded.push(await uploadAsset(file, type))
+      const uploaded: AssetValue[] = []
+      for (const file of Array.from(files)) {
+        const asset = await uploadAsset(file, type)
+        uploaded.push(type === "images" ? asset.url : asset)
+      }
       setAssets((current) => [...current, ...uploaded])
       toast.success(type === "images" ? "Images uploaded" : "Files uploaded", {
         description: `${uploaded.length} item${uploaded.length === 1 ? "" : "s"} added to ${label}.`,
@@ -85,7 +104,7 @@ function AssetField({ input, type, label }: { input: HTMLInputElement; type: "im
         <UploadCloudIcon className="mb-2 size-6 text-muted-foreground" />
         <span className="text-sm font-medium">{uploading ? "Uploading..." : type === "images" ? "Upload images" : "Upload attachments"}</span>
         <span className="mt-1 text-xs text-muted-foreground">
-          {type === "images" ? "Uploaded images are saved as an array." : "Uploaded files are saved as an array."}
+          {type === "images" ? "Uploaded images are saved as [imageUrls]." : "Uploaded files are saved as an array."}
         </span>
         <Input type="file" className="hidden" accept={type === "images" ? "image/*" : undefined} multiple disabled={uploading} onChange={(event) => void onFiles(event.target.files)} />
       </label>
@@ -93,12 +112,12 @@ function AssetField({ input, type, label }: { input: HTMLInputElement; type: "im
       {assets.length ? (
         <div className="grid gap-2">
           {assets.map((asset, index) => (
-            <div key={`${asset.url}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border bg-background p-2 text-sm">
+            <div key={`${assetUrl(asset)}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border bg-background p-2 text-sm">
               <div className="min-w-0 flex items-center gap-2">
-                {type === "images" ? <img src={asset.url} alt={asset.name || "Uploaded image"} className="size-10 rounded-md object-cover" /> : null}
+                {type === "images" ? <img src={assetUrl(asset)} alt="Uploaded image" className="size-10 rounded-md object-cover" /> : null}
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{asset.name || asset.url}</p>
-                  <p className="truncate text-xs text-muted-foreground">{asset.mimeType || asset.resourceType || "Uploaded file"}</p>
+                  <p className="truncate font-medium">{assetName(asset)}</p>
+                  <p className="truncate text-xs text-muted-foreground">{assetMeta(asset)}</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
