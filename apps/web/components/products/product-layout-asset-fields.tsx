@@ -32,6 +32,11 @@ type LayoutField = {
 
 type AssetValue = string | AttachmentValue
 
+function cleanFileName(value: string | undefined, fallback: string) {
+  const name = String(value || fallback || "attachment").trim().replace(/\s+/g, " ")
+  return name || "attachment"
+}
+
 function isAttachmentValue(value: unknown): value is AttachmentValue {
   return Boolean(value && typeof value === "object" && !Array.isArray(value) && typeof (value as AttachmentValue).url === "string")
 }
@@ -44,7 +49,8 @@ function safeParseAssetValues(value: string, type: "images" | "attachment"): Ass
     if (type === "images") return parsed.filter((item) => typeof item === "string")
     return parsed
       .filter(isAttachmentValue)
-      .map((item) => ({ name: item.name || item.url, url: item.url }))
+      .map((item) => ({ name: cleanFileName(item.name, item.url), url: item.url.trim() }))
+      .filter((item) => item.url)
   } catch {
     return []
   }
@@ -55,7 +61,7 @@ function assetUrl(asset: AssetValue) {
 }
 
 function assetName(asset: AssetValue) {
-  return typeof asset === "string" ? asset : asset.name || asset.url
+  return typeof asset === "string" ? asset : cleanFileName(asset.name, asset.url)
 }
 
 function assetMeta(type: "images" | "attachment") {
@@ -64,8 +70,11 @@ function assetMeta(type: "images" | "attachment") {
 
 function writeValue(input: HTMLInputElement, assets: AssetValue[], type: "images" | "attachment") {
   const nextValue = type === "images"
-    ? assets.map(assetUrl).filter(Boolean)
-    : assets.filter(isAttachmentValue).map((asset) => ({ name: asset.name || asset.url, url: asset.url }))
+    ? assets.map(assetUrl).map((url) => url.trim()).filter(Boolean)
+    : assets
+        .filter(isAttachmentValue)
+        .map((asset) => ({ name: cleanFileName(asset.name, asset.url), url: asset.url.trim() }))
+        .filter((asset) => asset.url)
 
   input.value = JSON.stringify(nextValue)
   input.dispatchEvent(new Event("input", { bubbles: true }))
@@ -97,7 +106,7 @@ function AssetField({ input, type, label }: { input: HTMLInputElement; type: "im
       for (const file of Array.from(files)) {
         const asset = await uploadAsset(file, type)
         if (!asset.url) continue
-        uploaded.push(type === "images" ? asset.url : { name: asset.name || file.name, url: asset.url })
+        uploaded.push(type === "images" ? asset.url.trim() : { name: cleanFileName(asset.name, file.name), url: asset.url.trim() })
       }
       setAssets((current) => [...current, ...uploaded])
       toast.success(type === "images" ? "Images uploaded" : "Files uploaded", {
