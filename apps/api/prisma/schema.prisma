@@ -87,21 +87,6 @@ enum DeliveryStatus {
   dead
 }
 
-enum CustomFieldType {
-  text
-  richtext
-  number
-  decimal
-  currency
-  attachment
-  images
-  lookup
-  boolean
-  select
-  date
-  json
-}
-
 enum IntegrationProvider {
   zoho
   shopify
@@ -193,7 +178,6 @@ model Organization {
   documentTemplates       DocumentTemplate[]
   generatedDocuments      GeneratedDocument[]
   emailLogs               EmailLog[]
-  customFields            CustomField[]
   apiKeys                 ApiKey[]
   webhooks                Webhook[]
   inventoryLogs           InventoryLog[]
@@ -366,7 +350,6 @@ model Product {
   variants           ProductVariant[]
   inventoryLogs      InventoryLog[]
   purchaseLines      PurchaseOrderLine[]
-  customFieldValues  ProductCustomFieldValue[]
   productSuppliers   ProductSupplier[]
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
@@ -494,44 +477,6 @@ model EmailLog {
 
   @@index([organizationId, status])
   @@index([purchaseOrderId])
-}
-
-model CustomField {
-  id             String                    @id @default(uuid())
-  organizationId String
-  key            String
-  label          String
-  type           CustomFieldType
-  required       Boolean                   @default(false)
-  options        String[]                  @default([])
-  defaultValue   Json?
-  order          Int                       @default(0)
-  isActive       Boolean                   @default(true)
-  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  values         ProductCustomFieldValue[]
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-
-  @@unique([organizationId, key])
-  @@index([organizationId])
-  @@index([organizationId, type])
-  @@index([organizationId, isActive])
-  @@index([organizationId, order])
-}
-
-model ProductCustomFieldValue {
-  id        String      @id @default(uuid())
-  productId String
-  fieldId   String
-  value     Json
-  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  field     CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  @@unique([productId, fieldId])
-  @@index([productId])
-  @@index([fieldId])
 }
 
 model ProductVariant {
