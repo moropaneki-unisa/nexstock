@@ -6,6 +6,7 @@ import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTe
 
 type TemplateField = { group: string; label: string; path: string; description?: string };
 type TestRecord = { id: string; label: string; description?: string | null };
+type TemplateContext = Record<string, any>;
 
 type DocumentTemplateRow = {
   id: string;
@@ -239,9 +240,10 @@ export class DocumentTemplatesService {
   }
 
   async preview(user: CurrentUserPayload, dto: PreviewDocumentTemplateDto) {
-    const context = dto.recordId ? await this.realContext(user, dto.type, dto.recordId) : await this.sampleContext(user, dto.type);
+    const context: TemplateContext = dto.recordId ? await this.realContext(user, dto.type, dto.recordId) : await this.sampleContext(user, dto.type);
+    const defaultRecipient = context.supplier?.email ?? context.customer?.email ?? 'recipient@example.com';
     return {
-      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, context) : context.supplier?.email ?? context.customer?.email ?? 'recipient@example.com',
+      to: dto.recipientEmailTemplate ? this.render(dto.recipientEmailTemplate, context) : defaultRecipient,
       subject: dto.subjectTemplate ? this.render(dto.subjectTemplate, context) : 'Document preview',
       html: this.render(dto.htmlTemplate, context),
       email: dto.emailTemplate ? this.render(dto.emailTemplate, context) : null,
@@ -308,7 +310,7 @@ export class DocumentTemplatesService {
 </html>`;
   }
 
-  private async realContext(user: CurrentUserPayload, module = 'purchase_orders', recordId: string) {
+  private async realContext(user: CurrentUserPayload, module = 'purchase_orders', recordId: string): Promise<TemplateContext> {
     if (module === 'purchase_orders') {
       const order = await this.db.purchaseOrder.findFirst({
         where: { id: recordId, organizationId: user.organizationId },
@@ -349,7 +351,7 @@ export class DocumentTemplatesService {
     return this.sampleContext(user, module);
   }
 
-  private purchaseOrderContext(order: any) {
+  private purchaseOrderContext(order: any): TemplateContext {
     const formatMoney = (value: unknown) => Number(value || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return {
       organization: this.organizationContext(order.organization),
@@ -441,7 +443,7 @@ export class DocumentTemplatesService {
     `;
   }
 
-  private async sampleContext(user: CurrentUserPayload, module?: string) {
+  private async sampleContext(user: CurrentUserPayload, module?: string): Promise<TemplateContext> {
     const layoutFields = await this.layoutFields(user.organizationId);
     const customValues = Object.fromEntries(layoutFields.map((field) => [field.key, `Sample ${field.label}`]));
 
