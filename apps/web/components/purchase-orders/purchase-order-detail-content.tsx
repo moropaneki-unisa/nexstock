@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
@@ -26,22 +27,27 @@ type ProductSupplier = { id: string; supplierId: string; productId: string; supp
 type PurchaseOrderLine = { id: string; productSupplierId?: string | null; supplierSku?: string | null; description?: string | null; quantityOrdered: number; quantityReceived?: number | null; unitCost: string | number; currency: string; lineTotal: string | number; notes?: string | null; product?: Product | null; productSupplier?: ProductSupplier | null }
 type PurchaseOrder = { id: string; poNumber: string; status: PurchaseOrderStatus; currency: string; subtotal: string | number; expectedAt?: string | null; orderedAt?: string | null; receivedAt?: string | null; notes?: string | null; createdAt?: string | null; updatedAt?: string | null; supplier?: Supplier | null; lines?: PurchaseOrderLine[] }
 type SendDocumentResponse = { ok?: boolean; message?: string; to?: string; subject?: string; providerMessageId?: string | null; generatedDocumentId?: string }
+type DocumentTemplate = { id: string; name: string; type: string; kind?: string | null; description?: string | null; subjectTemplate?: string | null; emailTemplate?: string | null; isDefault?: boolean | null; isActive?: boolean | null }
 
 function formatDate(value?: string | null) { if (!value) return "Not set"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleString() }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
 function cleanValue(value?: string | number | null) { if (value === null || value === undefined || value === "") return "Not set"; return String(value) }
+function clean(value: string) { const next = value.trim(); return next || undefined }
 function remainingQuantity(line: PurchaseOrderLine) { return Math.max(0, line.quantityOrdered - numberValue(line.quantityReceived)) }
 function linkedLineCount(lines: PurchaseOrderLine[]) { return lines.filter((line) => Boolean(line.productSupplierId || line.productSupplier)).length }
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) { if (status === "cancelled") return <Badge variant="destructive">Cancelled</Badge>; if (status === "received") return <Badge>Received</Badge>; if (status === "ordered") return <Badge variant="secondary">Ordered</Badge>; if (status === "partially_received") return <Badge variant="outline">Partially received</Badge>; return <Badge variant="outline">Draft</Badge> }
 
 export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderId: string }) {
   const [order, setOrder] = React.useState<PurchaseOrder | null>(null)
+  const [templates, setTemplates] = React.useState<DocumentTemplate[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [templatesLoading, setTemplatesLoading] = React.useState(false)
   const [running, setRunning] = React.useState(false)
   const [receiveOpen, setReceiveOpen] = React.useState(false)
   const [receiveNotes, setReceiveNotes] = React.useState("")
   const [receiveLines, setReceiveLines] = React.useState<Record<string, string>>({})
   const [sendOpen, setSendOpen] = React.useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState("default")
   const [sendTo, setSendTo] = React.useState("")
   const [sendSubject, setSendSubject] = React.useState("")
   const [sendMessage, setSendMessage] = React.useState("")
@@ -55,6 +61,23 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     try { setOrder(await apiFetch<PurchaseOrder>(`/api/purchase-orders/${purchaseOrderId}`)) }
     catch (err) { toast.error("Purchase order could not load", { description: err instanceof Error ? err.message : "Load failed" }) }
     finally { setLoading(false) }
+  }
+
+  async function loadTemplates() {
+    setTemplatesLoading(true)
+    try {
+      const result = await apiFetch<DocumentTemplate[]>("/api/document-templates")
+      const activePurchaseOrderTemplates = result
+        .filter((template) => template.isActive !== false && template.type === "purchase_orders")
+        .sort((a, b) => Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault)) || a.name.localeCompare(b.name))
+      setTemplates(activePurchaseOrderTemplates)
+      setSelectedTemplateId((current) => current !== "default" && activePurchaseOrderTemplates.some((template) => template.id === current) ? current : activePurchaseOrderTemplates.find((template) => template.isDefault)?.id || "default")
+    } catch (err) {
+      setTemplates([])
+      toast.error("Templates could not load", { description: err instanceof Error ? err.message : "Template load failed" })
+    } finally {
+      setTemplatesLoading(false)
+    }
   }
 
   React.useEffect(() => { void loadOrder() }, [purchaseOrderId])
@@ -72,9 +95,10 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     if (!order) return
     const fallbackTo = order.supplier?.email || ""
     setSendTo(fallbackTo)
-    setSendSubject(`Purchase Order ${order.poNumber}`)
-    setSendMessage(`Hi ${order.supplier?.name || ""},\n\nPlease find purchase order ${order.poNumber} below.\n\nRegards,\nNexStock`)
+    setSendSubject("")
+    setSendMessage("")
     setSendOpen(true)
+    void loadTemplates()
     if (!fallbackTo) toast.warning("Supplier email is missing", { description: "Enter the recipient email manually before sending." })
   }
 
@@ -85,7 +109,12 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     try {
       const response = await apiFetch<SendDocumentResponse>(`/api/purchase-orders/${order.id}/send-document`, {
         method: "POST",
-        body: JSON.stringify({ to: sendTo.trim(), subject: sendSubject.trim() || undefined, message: sendMessage.trim() || undefined }),
+        body: JSON.stringify({
+          templateId: selectedTemplateId === "default" ? undefined : selectedTemplateId,
+          to: sendTo.trim(),
+          subject: clean(sendSubject),
+          message: clean(sendMessage),
+        }),
       })
       toast.success(response.message || "Purchase order email sent", { description: [response.to, response.providerMessageId ? `Resend ID: ${response.providerMessageId}` : null].filter(Boolean).join(" · ") })
       setSendOpen(false)
@@ -127,6 +156,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   const linkedLines = linkedLineCount(lines)
   const canReceive = order.status !== "cancelled" && order.status !== "received" && lines.some((line) => numberValue(line.quantityReceived) < line.quantityOrdered)
   const canSend = order.status !== "cancelled"
+  const selectedTemplate = selectedTemplateId === "default" ? null : templates.find((template) => template.id === selectedTemplateId)
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
@@ -158,11 +188,12 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
 
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader><DialogTitle>Send purchase order email</DialogTitle><DialogDescription>The default purchase order template will be rendered and sent through Resend. If the supplier email is missing, enter the recipient manually.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Send purchase order email</DialogTitle><DialogDescription>Select a saved purchase order template, then optionally override subject or message for this send only.</DialogDescription></DialogHeader>
           <div className="grid gap-4">
+            <label className="grid gap-2"><Label>Template</Label><Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading}><SelectTrigger className="w-full"><SelectValue placeholder={templatesLoading ? "Loading templates..." : "Choose template"} /></SelectTrigger><SelectContent><SelectItem value="default">System default template</SelectItem>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}{template.isDefault ? " · Default" : ""}{template.kind ? ` · ${template.kind.toUpperCase()}` : ""}</SelectItem>)}</SelectContent></Select>{selectedTemplate ? <p className="text-xs text-muted-foreground">{selectedTemplate.description || selectedTemplate.subjectTemplate || "Saved template selected."}</p> : <p className="text-xs text-muted-foreground">Uses the default active purchase order template from Settings &gt; Templates when available.</p>}</label>
             <label className="grid gap-2"><Label>To</Label><Input type="email" value={sendTo} onChange={(event) => setSendTo(event.target.value)} placeholder="supplier@example.com" /></label>
-            <label className="grid gap-2"><Label>Subject</Label><Input value={sendSubject} onChange={(event) => setSendSubject(event.target.value)} placeholder={`Purchase Order ${order.poNumber}`} /></label>
-            <label className="grid gap-2"><Label>Message</Label><Textarea value={sendMessage} onChange={(event) => setSendMessage(event.target.value)} className="min-h-36" /></label>
+            <label className="grid gap-2"><Label>Subject override</Label><Input value={sendSubject} onChange={(event) => setSendSubject(event.target.value)} placeholder="Leave blank to use the selected template subject" /></label>
+            <label className="grid gap-2"><Label>Message override</Label><Textarea value={sendMessage} onChange={(event) => setSendMessage(event.target.value)} className="min-h-36" placeholder="Leave blank to use the selected template email message" /></label>
           </div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => setSendOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={sendDocument} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <MailIcon className="size-4" />}Send email</Button></DialogFooter>
         </DialogContent>
