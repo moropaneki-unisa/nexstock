@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { ProductFormContentFixed } from "@/components/products/product-form-content-fixed"
+import { ProductLayoutBridge } from "@/components/products/product-layout-bridge"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
@@ -16,6 +17,7 @@ export default function Page() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
+        <ProductLayoutBridge />
         <ProductFormContentFixed />
       </SidebarInset>
     </SidebarProvider>
