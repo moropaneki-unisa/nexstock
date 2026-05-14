@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import { ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon, Settings2Icon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -144,7 +143,7 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
     try {
       const saved = editing ? await apiFetch<Layout>(`${LAYOUTS_API}/${layoutId}`, { method: "PATCH", body: JSON.stringify(payload) }) : await apiFetch<Layout>(LAYOUTS_API, { method: "POST", body: JSON.stringify(payload) })
       toast.success(editing ? "Layout updated" : "Layout created", { description: saved.name })
-      router.push(`/settings/products/layouts/${saved.id}`)
+      router.push(`/settings/layout/${saved.id}`)
       router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not save layout"
@@ -163,11 +162,11 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
     <form onSubmit={saveLayout} className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Product Settings</p>
+          <p className="text-sm text-muted-foreground">Layout Settings</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">{editing ? "Edit layout" : "Create layout"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">Create product-specific fields directly inside this layout.</p>
         </div>
-        <Button asChild variant="outline" size="sm"><Link href={editing ? `/settings/products/layouts/${layoutId}` : "/settings/products"}><ArrowLeftIcon className="size-4" />Back</Link></Button>
+        <Button asChild variant="outline" size="sm"><Link href={editing ? `/settings/layout/${layoutId}` : "/settings/layout"}><ArrowLeftIcon className="size-4" />Back</Link></Button>
       </div>
 
       {error ? <Card className="border-destructive/30 bg-destructive/5"><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card> : null}
