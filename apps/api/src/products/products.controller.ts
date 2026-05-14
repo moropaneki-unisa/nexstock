@@ -25,7 +25,6 @@ import {
   ListProductsDto,
   UpdateProductDto,
 } from './dto';
-import { ProductFieldsService } from './product-fields.service';
 import { CreateProductTypeDto, UpdateProductTypeDto } from './product-types.dto';
 import { ProductTypesService } from './product-types.service';
 import { ProductsImportExportService } from './products-import-export.service';
@@ -37,7 +36,6 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly importExport: ProductsImportExportService,
-    private readonly fields: ProductFieldsService,
     private readonly productTypes: ProductTypesService,
   ) {}
 
@@ -88,11 +86,6 @@ export class ProductsController {
     @Query() query: ListProductsDto,
   ) {
     return this.products.list(user.organizationId, query);
-  }
-
-  @Get('fields')
-  listFields(@CurrentUser() user: CurrentUserPayload) {
-    return this.fields.list(user.organizationId);
   }
 
   @Get('types')
