@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { apiFetch, getApiUrl } from "@/lib/api"
+import { apiFetch, getAccessToken, getApiUrl } from "@/lib/api"
 
 type TemplateKind = "pdf" | "email"
 type LogoPosition = "left" | "right"
@@ -239,9 +239,13 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
       const payload = { type: module, kind: templateKind, htmlTemplate: fullHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }
 
       if (templateKind === "pdf") {
+        const token = getAccessToken()
         const response = await fetch(`${getApiUrl()}/api/document-templates/preview/pdf`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           credentials: "include",
           body: JSON.stringify(payload),
         })
