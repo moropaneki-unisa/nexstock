@@ -2,23 +2,23 @@ import { GoneException, Injectable } from '@nestjs/common';
 
 @Injectable()
 export class ProductFieldsService {
-  list() {
+  list(..._args: unknown[]) {
     return [];
   }
 
-  get() {
+  get(..._args: unknown[]) {
     throw new GoneException('Legacy product fields were removed. Use layout fields in product types.');
   }
 
-  create() {
+  create(..._args: unknown[]) {
     throw new GoneException('Legacy product fields were removed. Use layout fields in product types.');
   }
 
-  update() {
+  update(..._args: unknown[]) {
     throw new GoneException('Legacy product fields were removed. Use layout fields in product types.');
   }
 
-  delete() {
+  delete(..._args: unknown[]) {
     throw new GoneException('Legacy product fields were removed. Use layout fields in product types.');
   }
 }
