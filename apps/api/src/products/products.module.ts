@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { ProductFieldsController } from './product-fields.controller';
+import { ProductFieldsService } from './product-fields.service';
 import { ProductImagesController } from './product-images.controller';
 import { ProductTypesController } from './product-types.controller';
 import { ProductTypesService } from './product-types.service';
@@ -9,8 +11,8 @@ import { ProductsService } from './products.service';
 
 @Module({
   imports: [WebhooksModule],
-  controllers: [ProductsController, ProductImagesController, ProductTypesController],
-  providers: [ProductsService, ProductsImportExportService, ProductTypesService],
-  exports: [ProductsService, ProductTypesService],
+  controllers: [ProductsController, ProductImagesController, ProductTypesController, ProductFieldsController],
+  providers: [ProductsService, ProductsImportExportService, ProductTypesService, ProductFieldsService],
+  exports: [ProductsService, ProductTypesService, ProductFieldsService],
 })
 export class ProductsModule {}
