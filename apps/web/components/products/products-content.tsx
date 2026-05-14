@@ -43,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api"
 import { getCachedLayouts } from "@/lib/cached-api"
+import { formatMoney, numberValue } from "@/lib/money"
 
 type Product = {
   id: string
@@ -88,19 +89,6 @@ function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
 
 function normalizeProducts(value: Product[] | Paginated<Product> | null | undefined) {
   return normalizeList<Product>(value)
-}
-
-function numberValue(value: unknown) {
-  const next = Number(value ?? 0)
-  return Number.isFinite(next) ? next : 0
-}
-
-function formatMoney(value: unknown, currency = "USD") {
-  return new Intl.NumberFormat("en", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(numberValue(value))
 }
 
 function formatDate(value?: string | null) {
@@ -348,7 +336,7 @@ export function ProductsContent() {
     {
       accessorKey: "price",
       header: "Selling price",
-      cell: ({ row }) => <div className="font-medium tabular-nums">{formatMoney(row.original.price, row.original.priceCurrency || row.original.currency || "USD")}</div>,
+      cell: ({ row }) => <div className="font-medium tabular-nums">{formatMoney(row.original.price, row.original.priceCurrency || row.original.currency || "ZAR")}</div>,
     },
     {
       id: "status",
