@@ -22,6 +22,13 @@ type DocumentTemplateRow = {
   updatedAt: Date;
 };
 
+type LayoutFieldRow = {
+  key: string;
+  label: string;
+  type: string;
+  layoutName: string;
+};
+
 const commonFields: TemplateField[] = [
   { group: 'Organization', label: 'Organization name', path: 'organization.name' },
   { group: 'Organization', label: 'Organization email', path: 'organization.email' },
@@ -81,6 +88,8 @@ const moduleFields: Record<string, TemplateField[]> = {
     { group: 'Product', label: 'SKU', path: 'product.sku' },
     { group: 'Product', label: 'Price', path: 'product.price' },
     { group: 'Product', label: 'Quantity', path: 'product.quantity' },
+    { group: 'Product', label: 'Layout name', path: 'product.metadata.productTypeName' },
+    { group: 'Product', label: 'Layout kind', path: 'product.metadata.kind' },
   ],
   suppliers: [
     { group: 'Supplier', label: 'Supplier name', path: 'supplier.name' },
@@ -108,19 +117,15 @@ export class DocumentTemplatesService {
   }
 
   async fields(user: CurrentUserPayload, module = 'purchase_orders') {
-    const customFields = await this.db.customField.findMany({
-      where: { organizationId: user.organizationId, isActive: true },
-      orderBy: [{ order: 'asc' }, { label: 'asc' }],
-    });
-
-    const customTokens = customFields.map((field) => ({
-      group: 'Custom fields',
+    const layoutFields = await this.layoutFields(user.organizationId);
+    const layoutTokens = layoutFields.map((field) => ({
+      group: `Layout: ${field.layoutName}`,
       label: field.label,
-      path: `customFields.${field.key}`,
-      description: `${field.type} custom field`,
+      path: `product.metadata.customFields.${field.key}`,
+      description: `${field.type} layout field`,
     }));
 
-    return [...commonFields, ...(moduleFields[module] || []), ...customTokens];
+    return [...commonFields, ...(moduleFields[module] || []), ...layoutTokens];
   }
 
   async get(user: CurrentUserPayload, id: string) {
@@ -300,22 +305,29 @@ export class DocumentTemplatesService {
     return text || null;
   }
 
+  private async layoutFields(organizationId: string) {
+    return this.db.$queryRaw<LayoutFieldRow[]>`
+      SELECT f.key, f.label, f.type, t.name AS "layoutName"
+      FROM "ProductTypeField" f
+      JOIN "ProductType" t ON t.id = f."productTypeId"
+      WHERE f."organizationId" = ${organizationId} AND f."isActive" = true AND t."isActive" = true
+      ORDER BY t.name ASC, f."order" ASC, f.label ASC
+    `;
+  }
+
   private async sampleContext(user: CurrentUserPayload, module?: string) {
-    const customFields = await this.db.customField.findMany({
-      where: { organizationId: user.organizationId, isActive: true },
-      orderBy: [{ order: 'asc' }, { label: 'asc' }],
-    });
-    const customValues = Object.fromEntries(customFields.map((field) => [field.key, `Sample ${field.label}`]));
+    const layoutFields = await this.layoutFields(user.organizationId);
+    const customValues = Object.fromEntries(layoutFields.map((field) => [field.key, `Sample ${field.label}`]));
 
     const shared = {
       organization: { name: 'NexStock Demo', email: 'orders@nexstock.test', phone: '+27 00 000 0000' },
       supplier: { name: 'ABC Supplies', supplierCode: 'SUP-0001', email: 'supplier@example.com', phone: '+27 00 111 2222' },
       customer: { name: 'Sample Customer', email: 'customer@example.com', phone: '+27 00 333 4444' },
-      product: { name: 'Sample Product', sku: 'SKU-001', price: '1,250.00', quantity: 12 },
+      product: { name: 'Sample Product', sku: 'SKU-001', price: '1,250.00', quantity: 12, metadata: { productTypeName: 'General product', kind: 'physical', customFields: customValues } },
       customFields: customValues,
       lines: [
-        { product: { name: 'Sample Product A', sku: 'SKU-001' }, quantityOrdered: 5, quantity: 5, unitCost: '150.00', unitPrice: '150.00', lineTotal: '750.00', customFields: customValues },
-        { product: { name: 'Sample Product B', sku: 'SKU-002' }, quantityOrdered: 2, quantity: 2, unitCost: '250.00', unitPrice: '250.00', lineTotal: '500.00', customFields: customValues },
+        { product: { name: 'Sample Product A', sku: 'SKU-001', metadata: { customFields: customValues } }, quantityOrdered: 5, quantity: 5, unitCost: '150.00', unitPrice: '150.00', lineTotal: '750.00', customFields: customValues },
+        { product: { name: 'Sample Product B', sku: 'SKU-002', metadata: { customFields: customValues } }, quantityOrdered: 2, quantity: 2, unitCost: '250.00', unitPrice: '250.00', lineTotal: '500.00', customFields: customValues },
       ],
     };
 
