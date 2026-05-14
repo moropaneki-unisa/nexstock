@@ -14,6 +14,7 @@ const OTP_EXPIRY_MINUTES = 5;
 const OTP_EXPIRY_MS = OTP_EXPIRY_MINUTES * 60 * 1000;
 const PASSWORD_RESET_EXPIRY_MINUTES = 30;
 const PASSWORD_RESET_EXPIRY_MS = PASSWORD_RESET_EXPIRY_MINUTES * 60 * 1000;
+const REFRESH_TOKEN_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
 function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -263,6 +264,31 @@ export class AuthService {
     return this.issueTokens(user.id, user.email, membership.organizationId, membership.role, meta);
   }
 
+  async refresh(refreshToken: string | undefined, meta: TokenMeta) {
+    if (!refreshToken) throw new UnauthorizedException('Missing refresh token');
+
+    const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
+    const stored = await this.prisma.refreshToken.findFirst({
+      where: { tokenHash },
+      include: {
+        user: {
+          include: { memberships: { orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    });
+
+    if (!stored || stored.expiresAt < new Date()) {
+      if (stored) await this.prisma.refreshToken.deleteMany({ where: { id: stored.id } });
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    const membership = stored.user.memberships[0];
+    if (!membership) throw new UnauthorizedException('No organization membership found');
+
+    await this.prisma.refreshToken.deleteMany({ where: { id: stored.id } });
+    return this.issueTokens(stored.user.id, stored.user.email, membership.organizationId, membership.role, meta);
+  }
+
   async logout(refreshToken?: string) {
     if (!refreshToken) return;
     const tokenHash = createHash('sha256').update(refreshToken).digest('hex');
@@ -292,7 +318,7 @@ export class AuthService {
       data: {
         userId,
         tokenHash,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
         ip: meta.ip,
         userAgent: meta.ua,
       },
