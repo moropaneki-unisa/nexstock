@@ -202,7 +202,7 @@ export function ProductLayoutForm({ productId, layout }: { productId?: string; l
 
           <Card><CardHeader><CardTitle>Selling price and stock</CardTitle><CardDescription>Selling currency follows the organization base currency.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><MoneyInputField label="Selling price" required currency={baseCurrency} value={form.price} onChange={(event) => updateForm("price", event.target.value)} min="0" step="0.01" />{editing ? <ReadOnly label="Current stock" value="Use Adjust stock on product detail" /> : <Field label="Initial quantity" required><Input type="number" min="0" value={form.quantity} onChange={(event) => updateForm("quantity", event.target.value)} /></Field>}<Field label="Low-stock alert" required><Input type="number" min="0" value={form.lowStockLevel} onChange={(event) => updateForm("lowStockLevel", event.target.value)} /></Field></CardContent></Card>
 
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" />Product images</CardTitle><CardDescription>These are the main product gallery images.</CardDescription></CardHeader><CardContent className="grid gap-4"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center hover:bg-muted/40"><UploadCloudIcon className="mb-2 size-6" /><span className="text-sm font-medium">{uploadingKey === "product-images" ? "Uploading..." : "Upload product images"}</span><Input type="file" accept="image/*" multiple className="hidden" disabled={Boolean(uploadingKey)} onChange={(event) => void uploadProductImages(event.target.files)} /></label>{productImages.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{productImages.map((image, index) => <div key={`${image}-${index}`} className="relative overflow-hidden rounded-xl border"><img src={image} alt={`Product image ${index + 1}`} className="h-40 w-full object-cover" /><Button type="button" size="icon" variant="secondary" className="absolute right-2 top-2 size-8" onClick={() => setProductImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2Icon className="size-4" /></Button></div>)}</div> : null}</CardContent></Card>
+          <Card><CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" />Product images</CardTitle><CardDescription>These are the main product gallery images.</CardDescription></CardHeader><CardContent className="grid gap-4"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center hover:bg-muted/40"><UploadCloudIcon className="mb-2 size-6" /><span className="text-sm font-medium">{uploadingKey === "product-images" ? "Uploading..." : "Upload product images"}</span><Input type="file" accept="image/*" multiple className="hidden" disabled={Boolean(uploadingKey)} onChange={(event) => void uploadProductImages(event.target.files)} /></label>{productImages.length ? <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{productImages.map((image, index) => <div key={`${image}-${index}`} className="group relative overflow-hidden rounded-xl border bg-muted"><img src={image} alt={`Product image ${index + 1}`} className="aspect-square h-auto w-full object-cover" /><Button type="button" size="icon" variant="secondary" className="absolute right-1.5 top-1.5 size-7 opacity-90 transition group-hover:opacity-100" onClick={() => setProductImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2Icon className="size-3.5" /></Button></div>)}</div> : null}</CardContent></Card>
 
           <Card><CardHeader><CardTitle>{layout?.name || "Layout"} fields</CardTitle><CardDescription>Fields belong to the selected layout and values save under product metadata.</CardDescription></CardHeader><CardContent>{fields.length ? <div className="grid gap-4 md:grid-cols-2">{fields.map((field) => <LayoutFieldInput key={field.key} field={field} value={customValues[field.key]} currency={baseCurrency} uploading={uploadingKey === field.key} onChange={(value) => updateCustom(field.key, value)} onUpload={(files) => void uploadLayoutFiles(field, files)} onRemove={(index) => removeLayoutAsset(field, index)} />)}</div> : <EmptyState title="No layout fields" description="Add fields in Settings > Layout." />}</CardContent></Card>
 
@@ -230,7 +230,44 @@ function LayoutFieldInput({ field, value, currency, uploading, onChange, onUploa
 }
 
 function AssetField({ label, required, type, value, uploading, onUpload, onRemove }: { label: string; required?: boolean; type: "images" | "attachment"; value: unknown[]; uploading: boolean; onUpload: (files: FileList | null) => void; onRemove: (index: number) => void }) {
-  return <Field label={label} required={required}><div className="grid gap-3"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-5 text-center hover:bg-muted/40"><UploadCloudIcon className="mb-2 size-5" /><span className="text-sm font-medium">{uploading ? "Uploading..." : type === "images" ? "Upload images" : "Upload attachments"}</span><span className="mt-1 text-xs text-muted-foreground">{type === "images" ? "Saved as [imageUrls]" : "Saved as [{ name, url }]"}</span><Input type="file" className="hidden" accept={type === "images" ? "image/*" : undefined} multiple disabled={uploading} onChange={(event) => onUpload(event.target.files)} /></label>{value.length ? <div className="grid gap-2">{value.map((item, index) => <div key={index} className="flex items-center justify-between gap-3 rounded-lg border bg-background p-2 text-sm"><div className="min-w-0 flex items-center gap-2">{type === "images" ? <img src={String(item)} alt="Uploaded image" className="size-10 rounded-md object-cover" /> : null}<span className="truncate font-medium">{type === "images" ? String(item) : isRecord(item) ? String(item.name || item.url) : String(item)}</span></div><Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => onRemove(index)}><Trash2Icon className="size-4" /></Button></div>)}</div> : null}</div></Field>
+  return (
+    <Field label={label} required={required}>
+      <div className="grid gap-3">
+        <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-4 text-center hover:bg-muted/40">
+          <UploadCloudIcon className="mb-2 size-5" />
+          <span className="text-sm font-medium">{uploading ? "Uploading..." : type === "images" ? "Upload images" : "Upload attachments"}</span>
+          <span className="mt-1 text-xs text-muted-foreground">{type === "images" ? "Saved as [imageUrls]" : "Saved as [{ name, url }]"}</span>
+          <Input type="file" className="hidden" accept={type === "images" ? "image/*" : undefined} multiple disabled={uploading} onChange={(event) => onUpload(event.target.files)} />
+        </label>
+
+        {value.length && type === "images" ? (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+            {value.map((item, index) => (
+              <div key={`${String(item)}-${index}`} className="group relative overflow-hidden rounded-lg border bg-muted">
+                <img src={String(item)} alt="Uploaded image" className="aspect-square h-auto w-full object-cover" />
+                <Button type="button" variant="secondary" size="icon" className="absolute right-1 top-1 size-6 opacity-90 transition group-hover:opacity-100" onClick={() => onRemove(index)}>
+                  <Trash2Icon className="size-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {value.length && type === "attachment" ? (
+          <div className="grid gap-2">
+            {value.map((item, index) => (
+              <div key={index} className="flex items-center justify-between gap-3 rounded-lg border bg-background p-2 text-sm">
+                <span className="truncate font-medium">{isRecord(item) ? String(item.name || item.url) : String(item)}</span>
+                <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => onRemove(index)}>
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Field>
+  )
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) { return <div className="grid gap-2"><Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}{required ? <span className="ml-1 text-destructive">*</span> : null}</Label>{children}</div> }
