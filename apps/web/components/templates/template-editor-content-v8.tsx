@@ -49,6 +49,7 @@ type Template = {
   emailTemplate?: string | null
 }
 type FieldToken = { label: string; path: string; group: string; description?: string }
+type TestRecord = { id: string; label: string; description?: string | null }
 type PreviewResult = { to?: string | null; subject: string; html: string; email?: string | null }
 type UploadResult = { url: string; publicId?: string; originalName?: string }
 
@@ -62,6 +63,7 @@ const blankEmail = `Hi {{supplier.name}},\n\n`
 const headerStart = "<!-- nexstock-header:start -->"
 const headerEnd = "<!-- nexstock-header:end -->"
 const insertMergeFieldEvent = "nexstock-template-editor-insert-html"
+const sampleRecordValue = "__sample__"
 
 function titleCase(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
@@ -128,11 +130,14 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
   const [logoPosition, setLogoPosition] = React.useState<LogoPosition>("left")
   const [logoUrl, setLogoUrl] = React.useState("")
   const [fields, setFields] = React.useState<FieldToken[]>([])
+  const [testRecords, setTestRecords] = React.useState<TestRecord[]>([])
+  const [selectedRecordId, setSelectedRecordId] = React.useState(sampleRecordValue)
   const [fieldSearch, setFieldSearch] = React.useState("")
   const [loading, setLoading] = React.useState(Boolean(templateId))
   const [saving, setSaving] = React.useState(false)
   const [previewing, setPreviewing] = React.useState(false)
   const [uploadingLogo, setUploadingLogo] = React.useState(false)
+  const [recordsLoading, setRecordsLoading] = React.useState(false)
 
   React.useEffect(() => {
     async function load() {
@@ -167,6 +172,25 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
     void apiFetch<FieldToken[]>(`/api/document-templates/fields?module=${encodeURIComponent(module)}`).then(setFields).catch((error) => toast.error("Could not load fields", { description: errorMessage(error, "Fields failed") }))
   }, [module])
 
+  React.useEffect(() => {
+    let active = true
+    async function loadRecords() {
+      setRecordsLoading(true)
+      setSelectedRecordId(sampleRecordValue)
+      try {
+        const records = await apiFetch<TestRecord[]>(`/api/document-templates/test-records?module=${encodeURIComponent(module)}`)
+        if (active) setTestRecords(records)
+      } catch (error) {
+        if (active) setTestRecords([])
+        toast.error("Could not load test records", { description: errorMessage(error, "Real data failed") })
+      } finally {
+        if (active) setRecordsLoading(false)
+      }
+    }
+    void loadRecords()
+    return () => { active = false }
+  }, [module])
+
   const groupedFields = React.useMemo(() => {
     const query = fieldSearch.trim().toLowerCase()
     return groupFields(fields.filter((field) => !query || [field.label, field.path, field.group, field.description].filter(Boolean).join(" ").toLowerCase().includes(query)))
@@ -175,6 +199,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
   const header = headerHtml({ logoEnabled, addressEnabled, logoUrl, logoPosition })
   const fullHtml = `${header}${bodyHtml || blankPdf}`
   const closeHref = templateKind === "email" ? "/settings/templates/email" : "/settings/templates/pdf"
+  const selectedRecord = testRecords.find((record) => record.id === selectedRecordId)
 
   function insertField(path: string) {
     const token = `{{${path}}}`
@@ -236,7 +261,15 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
   async function preview() {
     setPreviewing(true)
     try {
-      const payload = { type: module, kind: templateKind, htmlTemplate: fullHtml, emailTemplate: emailBody, subjectTemplate: subject, recipientEmailTemplate: to }
+      const payload = {
+        type: module,
+        kind: templateKind,
+        recordId: selectedRecordId === sampleRecordValue ? undefined : selectedRecordId,
+        htmlTemplate: fullHtml,
+        emailTemplate: emailBody,
+        subjectTemplate: subject,
+        recipientEmailTemplate: to,
+      }
 
       if (templateKind === "pdf") {
         const token = getAccessToken()
@@ -256,7 +289,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
         const url = URL.createObjectURL(new Blob([blob], { type: "application/pdf" }))
         window.open(url, "_blank", "noopener,noreferrer")
         window.setTimeout(() => URL.revokeObjectURL(url), 60000)
-        toast.success("PDF preview opened")
+        toast.success(selectedRecord ? `Preview opened with ${selectedRecord.label}` : "PDF preview opened")
         return
       }
 
@@ -265,7 +298,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
       const url = URL.createObjectURL(new Blob([doc], { type: "text/html" }))
       window.open(url, "_blank", "noopener,noreferrer")
       window.setTimeout(() => URL.revokeObjectURL(url), 30000)
-      toast.success("Preview opened")
+      toast.success(selectedRecord ? `Preview opened with ${selectedRecord.label}` : "Preview opened")
     } catch (error) {
       toast.error("Preview failed", { description: errorMessage(error, "Preview failed") })
     } finally {
@@ -286,6 +319,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
           <div className="mb-5 border-b pb-4"><p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Template</p><p className="mt-1 truncate text-sm font-semibold">{name || "Untitled"}</p><p className="truncate text-xs text-muted-foreground">{titleCase(module)}</p></div>
           <div className="grid gap-4">
             <section className="grid gap-3"><h3 className="text-sm font-semibold">Setup</h3><label className="grid gap-1"><Label>Name</Label><Input value={name} onChange={(event) => setName(event.target.value)} /></label><label className="grid gap-1"><Label>Module</Label><Select value={module} onValueChange={setModule}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{modules.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent></Select></label><label className="grid gap-1"><Label>Description</Label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-20" /></label></section>
+            <section className="grid gap-3 border-t pt-4"><h3 className="text-sm font-semibold">Test with real data</h3><label className="grid gap-1"><Label>Preview record</Label><Select value={selectedRecordId} onValueChange={setSelectedRecordId} disabled={recordsLoading}><SelectTrigger><SelectValue placeholder={recordsLoading ? "Loading records..." : "Choose test record"} /></SelectTrigger><SelectContent><SelectItem value={sampleRecordValue}>Sample data</SelectItem>{testRecords.map((record) => <SelectItem key={record.id} value={record.id}>{record.label}</SelectItem>)}</SelectContent></Select></label><p className="text-xs leading-5 text-muted-foreground">{recordsLoading ? "Loading real records..." : selectedRecord ? selectedRecord.description || "Real record selected for preview." : testRecords.length ? "Choose a real record or keep sample data." : "No real records found for this module yet. Sample data will be used."}</p></section>
             {templateKind === "pdf" ? <section className="grid gap-3 border-t pt-4"><h3 className="flex items-center gap-2 text-sm font-semibold"><ImageIcon className="size-4" />Header</h3><label className="flex items-center justify-between gap-3 text-sm"><span>Show logo</span><Checkbox checked={logoEnabled} onCheckedChange={(checked) => setLogoEnabled(Boolean(checked))} /></label><label className="flex items-center justify-between gap-3 text-sm"><span>Show address</span><Checkbox checked={addressEnabled} onCheckedChange={(checked) => setAddressEnabled(Boolean(checked))} /></label><input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={chooseLogoFile} /><Button type="button" variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileRef.current?.click()}>{uploadingLogo ? <Loader2Icon className="size-4 animate-spin" /> : <ImageIcon className="size-4" />}{uploadingLogo ? "Uploading..." : "Upload logo"}</Button><label className="grid gap-1"><Label>Logo URL</Label><Input value={logoUrl} onChange={(event) => { setLogoUrl(event.target.value); if (event.target.value.trim()) setLogoEnabled(true) }} placeholder="https://.../logo.png" /></label><label className="grid gap-1"><Label>Position</Label><Select value={logoPosition} onValueChange={(value: LogoPosition) => setLogoPosition(value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left"><span className="inline-flex items-center gap-2"><AlignLeftIcon className="size-4" />Left</span></SelectItem><SelectItem value="right"><span className="inline-flex items-center gap-2"><AlignRightIcon className="size-4" />Right</span></SelectItem></SelectContent></Select></label></section> : null}
           </div>
         </div>
@@ -293,7 +327,7 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
 
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b bg-background">
-          <div className="flex h-14 items-center justify-between gap-3 px-5"><div className="min-w-0"><p className="truncate text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template</p><h1 className="truncate font-heading text-lg font-semibold tracking-tight">{name}</h1></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={preview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div></div>
+          <div className="flex h-14 items-center justify-between gap-3 px-5"><div className="min-w-0"><p className="truncate text-xs text-muted-foreground">{titleCase(module)} · {templateKind.toUpperCase()} template{selectedRecord ? ` · Testing ${selectedRecord.label}` : ""}</p><h1 className="truncate font-heading text-lg font-semibold tracking-tight">{name}</h1></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={preview} disabled={previewing}>{previewing ? <Loader2Icon className="size-4 animate-spin" /> : <ExternalLinkIcon className="size-4" />}Preview</Button><Button size="sm" onClick={save} disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}Save</Button><Button asChild variant="outline" size="sm"><Link href={closeHref}><XIcon className="size-4" />Close</Link></Button></div></div>
           {templateKind === "pdf" ? <div className="border-t bg-card px-4 py-1"><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div> : null}
         </header>
 
