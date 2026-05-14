@@ -54,7 +54,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
 
 const LIMIT_LABELS: Record<PlanLimitKey, string> = {
   products: 'products',
-  customFields: 'product attributes',
+  customFields: 'layout fields',
   apiKeys: 'API keys',
   webhooks: 'webhooks',
   members: 'team members',
@@ -95,7 +95,11 @@ export class PlanLimitsService {
   }
 
   async assertCanCreateCustomField(organizationId: string) {
-    const count = await this.prisma.customField.count({ where: { organizationId, isActive: true } });
+    await this.assertCanCreateLayoutField(organizationId);
+  }
+
+  async assertCanCreateLayoutField(organizationId: string) {
+    const count = await this.countLayoutFields(organizationId);
     await this.assertWithinLimit(organizationId, 'customFields', count + 1);
   }
 
@@ -126,7 +130,7 @@ export class PlanLimitsService {
     const [organization, products, customFields, apiKeys, webhooks, members] = await Promise.all([
       this.prisma.organization.findUnique({ where: { id: organizationId }, select: { plan: true, enabledCurrencies: true } }),
       this.prisma.product.count({ where: { organizationId, deletedAt: null } }),
-      this.prisma.customField.count({ where: { organizationId, isActive: true } }),
+      this.countLayoutFields(organizationId),
       this.prisma.apiKey.count({ where: { organizationId, revokedAt: null } }),
       this.prisma.webhook.count({ where: { organizationId, isActive: true } }),
       this.prisma.membership.count({ where: { organizationId } }),
@@ -148,6 +152,15 @@ export class PlanLimitsService {
         importRows: 0,
       },
     };
+  }
+
+  private async countLayoutFields(organizationId: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "ProductTypeField"
+      WHERE "organizationId" = ${organizationId} AND "isActive" = true
+    `;
+    return Number(rows[0]?.count ?? 0);
   }
 
   private normalizePlan(plan: Plan | string | null | undefined): Plan {
