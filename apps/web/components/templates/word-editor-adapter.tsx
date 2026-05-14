@@ -77,6 +77,7 @@ function buildTableHtml({ rows, columns, repeat, repeatGroup }: { rows: number; 
 
 export function WordEditorAdapter({ value, onChange, className, beforeHtml }: WordEditorAdapterProps) {
   const editorRef = React.useRef<HTMLDivElement>(null)
+  const savedRangeRef = React.useRef<Range | null>(null)
   const [tableDialogOpen, setTableDialogOpen] = React.useState(false)
   const [tableRows, setTableRows] = React.useState("3")
   const [tableColumns, setTableColumns] = React.useState("4")
@@ -94,19 +95,68 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
     onChange(html.trim() ? html : emptyDocument)
   }
 
+  function saveSelection() {
+    const editor = editorRef.current
+    const selection = window.getSelection()
+    if (!editor || !selection || selection.rangeCount === 0) return
+    const range = selection.getRangeAt(0)
+    if (editor.contains(range.commonAncestorContainer)) savedRangeRef.current = range.cloneRange()
+  }
+
+  function restoreSelection() {
+    const editor = editorRef.current
+    const selection = window.getSelection()
+    if (!editor || !selection) return
+    editor.focus()
+    const range = savedRangeRef.current
+    if (range) {
+      selection.removeAllRanges()
+      selection.addRange(range)
+      return
+    }
+    const fallbackRange = document.createRange()
+    fallbackRange.selectNodeContents(editor)
+    fallbackRange.collapse(false)
+    selection.removeAllRanges()
+    selection.addRange(fallbackRange)
+  }
+
   function runCommand(command: string, commandValue?: string) {
-    editorRef.current?.focus()
+    restoreSelection()
     document.execCommand(command, false, commandValue)
+    saveSelection()
     commit()
   }
 
   function insertHtml(html: string) {
-    editorRef.current?.focus()
-    document.execCommand("insertHTML", false, html)
+    restoreSelection()
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) {
+      if (editorRef.current) editorRef.current.insertAdjacentHTML("beforeend", html)
+      commit()
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    range.deleteContents()
+    const fragment = range.createContextualFragment(html)
+    const lastNode = fragment.lastChild
+    range.insertNode(fragment)
+
+    if (lastNode) {
+      const nextRange = document.createRange()
+      nextRange.setStartAfter(lastNode)
+      nextRange.collapse(true)
+      selection.removeAllRanges()
+      selection.addRange(nextRange)
+      savedRangeRef.current = nextRange.cloneRange()
+    }
+
     commit()
   }
 
   function openTableDialog(repeat = false) {
+    saveSelection()
     setRepeatTable(repeat)
     if (repeat) setTableRows("1")
     setTableDialogOpen(true)
@@ -170,14 +220,19 @@ export function WordEditorAdapter({ value, onChange, className, beforeHtml }: Wo
             role="textbox"
             aria-label="Template document editor"
             className={cn(
-              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:p-2",
+              "prose prose-slate max-w-none min-h-[820px] w-full cursor-text outline-none focus:ring-0 [&_b]:font-bold [&_strong]:font-bold [&_i]:italic [&_em]:italic [&_u]:underline [&_font[size='2']]:text-xs [&_font[size='4']]:text-lg [&_font[size='5']]:text-2xl [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_td]:border [&_td]:border-slate-200 [&_td]:p-2 [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-50 [&_th]:p-2",
               className,
             )}
-            onInput={(event) => commit(event.currentTarget.innerHTML)}
+            onInput={(event) => { saveSelection(); commit(event.currentTarget.innerHTML) }}
+            onKeyUp={saveSelection}
+            onMouseUp={saveSelection}
+            onFocus={saveSelection}
             onPaste={(event) => {
               event.preventDefault()
               const text = event.clipboardData.getData("text/plain")
+              restoreSelection()
               document.execCommand("insertText", false, text)
+              saveSelection()
               commit()
             }}
           />
