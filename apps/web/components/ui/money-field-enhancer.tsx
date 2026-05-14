@@ -15,6 +15,7 @@ const MONEY_LABELS = [
   "paid",
   "balance",
   "deposit",
+  "preferred converted cost",
   "converted cost",
 ]
 
@@ -31,32 +32,47 @@ function isMoneyLabel(value: string) {
   return MONEY_LABELS.some((moneyLabel) => label === moneyLabel || label.endsWith(` ${moneyLabel}`))
 }
 
+function inputValue(wrapper: Element | null) {
+  const input = wrapper?.querySelector("input")
+  return input?.value || input?.getAttribute("value") || textOf(wrapper)
+}
+
+function findBaseCurrency() {
+  const sellingCurrencyLabel = Array.from(document.querySelectorAll("label"))
+    .find((label) => cleanLabel(textOf(label)) === "selling currency")
+  const value = inputValue(sellingCurrencyLabel?.parentElement)
+  return value.match(/[A-Z]{3}/)?.[0] || "ZAR"
+}
+
 function findCurrencyNear(fieldWrapper: HTMLElement, labelText: string) {
-  if (labelText.includes("selling") || labelText === "price") {
-    const sellingCurrencyLabel = Array.from(document.querySelectorAll("label"))
-      .find((label) => cleanLabel(textOf(label)) === "selling currency")
-    const sellingCurrencyWrapper = sellingCurrencyLabel?.parentElement
-    const sellingCurrencyInput = sellingCurrencyWrapper?.querySelector("input")
-    const sellingCurrencyText = sellingCurrencyInput?.value || sellingCurrencyInput?.getAttribute("value") || textOf(sellingCurrencyWrapper)
-    const sellingCurrency = sellingCurrencyText.match(/[A-Z]{3}/)?.[0]
-    if (sellingCurrency) return sellingCurrency
-  }
+  if (labelText.includes("selling") || labelText.includes("converted") || labelText === "price") return findBaseCurrency()
 
-  const container = fieldWrapper.closest('[data-slot="card"]') || fieldWrapper.closest(".rounded-xl") || fieldWrapper.parentElement
-  const currencyLabel = Array.from(container?.querySelectorAll("label") || [])
-    .find((label) => cleanLabel(textOf(label)) === "currency" || cleanLabel(textOf(label)).endsWith(" currency"))
-  const currencyWrapper = currencyLabel?.parentElement
-  const currencyInput = currencyWrapper?.querySelector("input")
-  const currencyText = currencyInput?.value || currencyInput?.getAttribute("value") || textOf(currencyWrapper)
-  const localCurrency = currencyText.match(/[A-Z]{3}/)?.[0]
-  if (localCurrency) return localCurrency
+  const row = fieldWrapper.closest('[data-slot="card-content"]') || fieldWrapper.closest(".rounded-xl") || fieldWrapper.parentElement
+  const currencyLabel = Array.from(row?.querySelectorAll("label") || [])
+    .find((label) => cleanLabel(textOf(label)) === "currency")
+  const localCurrency = inputValue(currencyLabel?.parentElement).match(/[A-Z]{3}/)?.[0]
+  return localCurrency || findBaseCurrency()
+}
 
-  const pageCurrency = document.body.textContent?.match(/\b[A-Z]{3}\b/)?.[0]
-  return pageCurrency || "ZAR"
+function removeBadLegacyMoneyGroups() {
+  document.querySelectorAll<HTMLElement>('[data-slot="button-group"] button').forEach((button) => {
+    if (button.textContent?.trim().toUpperCase() === "URL") {
+      const group = button.parentElement
+      const input = group?.querySelector("input")
+      const parent = group?.parentElement
+      if (group && input && parent) {
+        parent.insertBefore(input, group)
+        group.remove()
+        parent.removeAttribute("data-money-button-group-enhanced")
+        parent.removeAttribute("data-money-input-component")
+      }
+    }
+  })
 }
 
 function enhanceMoneyFields() {
   if (typeof document === "undefined") return
+  removeBadLegacyMoneyGroups()
 
   const labels = Array.from(document.querySelectorAll<HTMLLabelElement>("label"))
 
@@ -67,7 +83,7 @@ function enhanceMoneyFields() {
     const fieldWrapper = label.parentElement as HTMLElement | null
     if (!fieldWrapper || fieldWrapper.dataset.moneyInputComponent === "true") return
 
-    const input = fieldWrapper.querySelector<HTMLInputElement>('input[type="number"], input:not([type])')
+    const input = fieldWrapper.querySelector<HTMLInputElement>('input[type="number"]')
     if (!input) return
     if (input.closest('[data-slot="button-group"]')) {
       fieldWrapper.dataset.moneyInputComponent = "true"
