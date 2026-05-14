@@ -12,6 +12,7 @@ import {
   FileSpreadsheetIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
+  LayoutTemplateIcon,
   PackageIcon,
   Settings2Icon,
   SparklesIcon,
@@ -55,6 +56,7 @@ const data = {
   workspace: [
     { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
     { title: "Products", url: "/products", icon: <BoxesIcon /> },
+    { title: "Layouts", url: "/layouts", icon: <LayoutTemplateIcon /> },
     { title: "Suppliers", url: "/suppliers", icon: <TruckIcon /> },
     { title: "Purchase Orders", url: "/purchase-orders", icon: <ClipboardListIcon /> },
   ],
