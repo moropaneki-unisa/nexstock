@@ -7,14 +7,13 @@ import {
   Patch,
   Post,
   Query,
-  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Response, Express } from 'express';
+import { Express } from 'express';
 import {
   CurrentUser,
   CurrentUserPayload,
@@ -42,7 +41,28 @@ export class ProductsController {
     private readonly productTypes: ProductTypesService,
   ) {}
 
-  // ✅ NEW: upload + attach to product
+  @Post('asset-image')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  uploadFieldImage(@UploadedFile() file: Express.Multer.File) {
+    return this.products.uploadImage(file);
+  }
+
+  @Post('asset-attachment')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  uploadFieldAttachment(@UploadedFile() file: Express.Multer.File) {
+    return this.products.uploadAttachment(file);
+  }
+
   @Post(':id/upload-image')
   @UseInterceptors(
     FileInterceptor('file', {
