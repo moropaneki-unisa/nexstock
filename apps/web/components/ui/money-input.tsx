@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { currencySymbol } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 type MoneyInputFieldProps = Omit<React.ComponentProps<typeof Input>, "type"> & {
@@ -16,16 +17,12 @@ type MoneyInputFieldProps = Omit<React.ComponentProps<typeof Input>, "type"> & {
   groupClassName?: string
 }
 
-function normalizeCurrency(value?: string | null) {
-  return String(value || "ZAR").trim().toUpperCase() || "ZAR"
-}
-
 const MoneyInput = React.forwardRef<HTMLInputElement, Omit<MoneyInputFieldProps, "label" | "required" | "fieldClassName">>(
   ({ currency, className, groupClassName, ...props }, ref) => {
     return (
       <ButtonGroup className={cn("w-full", groupClassName)}>
-        <Button type="button" variant="outline" tabIndex={-1} className="shrink-0" disabled>
-          {normalizeCurrency(currency)}
+        <Button type="button" variant="outline" tabIndex={-1} className="shrink-0 px-3" disabled>
+          {currencySymbol(currency)}
         </Button>
         <Input ref={ref} type="number" className={className} {...props} />
       </ButtonGroup>
