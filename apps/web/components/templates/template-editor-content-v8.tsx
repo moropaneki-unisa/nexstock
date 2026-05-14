@@ -52,6 +52,7 @@ type FieldToken = { label: string; path: string; group: string; description?: st
 type TestRecord = { id: string; label: string; description?: string | null }
 type PreviewResult = { to?: string | null; subject: string; html: string; email?: string | null }
 type UploadResult = { url: string; publicId?: string; originalName?: string }
+type TextSelection = { start: number; end: number }
 
 const modules = ["purchase_orders", "quotes", "invoices", "statements", "products", "suppliers", "customers"].map((value) => ({
   value,
@@ -115,6 +116,8 @@ function emailDocument(result: PreviewResult, fallback: string) {
 export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { templateId?: string; kind?: TemplateKind }) {
   const router = useRouter()
   const fileRef = React.useRef<HTMLInputElement>(null)
+  const emailBodyRef = React.useRef<HTMLTextAreaElement | null>(null)
+  const emailSelectionRef = React.useRef<TextSelection>({ start: blankEmail.length, end: blankEmail.length })
   const [template, setTemplate] = React.useState<Template | null>(null)
   const [templateKind, setTemplateKind] = React.useState<TemplateKind>(kind)
   const [name, setName] = React.useState(kind === "email" ? "New email template" : "New PDF template")
@@ -156,7 +159,9 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
         setAddressEnabled(extracted.addressEnabled)
         setLogoUrl(extracted.logoUrl)
         setLogoPosition(extracted.logoPosition)
-        setEmailBody(data.emailTemplate || blankEmail)
+        const nextEmailBody = data.emailTemplate || blankEmail
+        setEmailBody(nextEmailBody)
+        emailSelectionRef.current = { start: nextEmailBody.length, end: nextEmailBody.length }
         setSubject(data.subjectTemplate || "")
         setTo(data.recipientEmailTemplate || "")
       } catch (error) {
@@ -201,10 +206,36 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
   const closeHref = templateKind === "email" ? "/settings/templates/email" : "/settings/templates/pdf"
   const selectedRecord = testRecords.find((record) => record.id === selectedRecordId)
 
+  function saveEmailCursor(element = emailBodyRef.current) {
+    if (!element) return
+    emailSelectionRef.current = {
+      start: element.selectionStart ?? emailBody.length,
+      end: element.selectionEnd ?? element.selectionStart ?? emailBody.length,
+    }
+  }
+
+  function insertIntoEmailBody(token: string) {
+    const textarea = emailBodyRef.current
+    const max = emailBody.length
+    const saved = emailSelectionRef.current
+    const start = Math.max(0, Math.min(saved.start, max))
+    const end = Math.max(start, Math.min(saved.end, max))
+    const next = `${emailBody.slice(0, start)}${token}${emailBody.slice(end)}`
+    const cursor = start + token.length
+
+    setEmailBody(next)
+    emailSelectionRef.current = { start: cursor, end: cursor }
+
+    window.requestAnimationFrame(() => {
+      textarea?.focus()
+      textarea?.setSelectionRange(cursor, cursor)
+    })
+  }
+
   function insertField(path: string) {
     const token = `{{${path}}}`
     if (templateKind === "email") {
-      setEmailBody((current) => `${current}${token}`)
+      insertIntoEmailBody(token)
       return
     }
 
@@ -331,10 +362,10 @@ export function TemplateEditorContentV8({ templateId, kind = "pdf" }: { template
           {templateKind === "pdf" ? <div className="border-t bg-card px-4 py-1"><Tabs value={mode} onValueChange={setMode}><TabsList><TabsTrigger value="document"><TypeIcon className="size-4" />Document</TabsTrigger><TabsTrigger value="html"><CodeIcon className="size-4" />HTML</TabsTrigger></TabsList></Tabs></div> : null}
         </header>
 
-        {templateKind === "pdf" ? (mode === "document" ? <WordEditorAdapter value={bodyHtml} onChange={setBodyHtml} beforeHtml={header} /> : <main className="min-h-[calc(100vh-6.5rem)] bg-muted/60 p-6"><Textarea value={bodyHtml} onChange={(event) => setBodyHtml(event.target.value)} className="mx-auto min-h-[1123px] w-[794px] rounded-none border bg-white p-8 font-mono text-xs shadow-xl" /></main>) : <main className="min-h-[calc(100vh-3.5rem)] bg-muted/60"><div className="mx-auto min-h-full max-w-4xl bg-background p-8 shadow-xl"><div className="grid gap-5"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea value={emailBody} onChange={(event) => setEmailBody(event.target.value)} className="min-h-[560px]" /></label></div></div></main>}
+        {templateKind === "pdf" ? (mode === "document" ? <WordEditorAdapter value={bodyHtml} onChange={setBodyHtml} beforeHtml={header} /> : <main className="min-h-[calc(100vh-6.5rem)] bg-muted/60 p-6"><Textarea value={bodyHtml} onChange={(event) => setBodyHtml(event.target.value)} className="mx-auto min-h-[1123px] w-[794px] rounded-none border bg-white p-8 font-mono text-xs shadow-xl" /></main>) : <main className="min-h-[calc(100vh-3.5rem)] bg-muted/60"><div className="mx-auto min-h-full max-w-4xl bg-background p-8 shadow-xl"><div className="grid gap-5"><label className="grid gap-2"><Label>To</Label><Input value={to} onChange={(event) => setTo(event.target.value)} /></label><label className="grid gap-2"><Label>Subject</Label><Input value={subject} onChange={(event) => setSubject(event.target.value)} /></label><label className="grid gap-2"><Label>Body</Label><Textarea ref={emailBodyRef} value={emailBody} onChange={(event) => { setEmailBody(event.target.value); saveEmailCursor(event.target) }} onClick={(event) => saveEmailCursor(event.currentTarget)} onKeyUp={(event) => saveEmailCursor(event.currentTarget)} onSelect={(event) => saveEmailCursor(event.currentTarget)} onFocus={(event) => saveEmailCursor(event.currentTarget)} className="min-h-[560px]" /></label></div></div></main>}
       </div>
 
-      <aside className="sticky top-0 flex h-screen min-w-0 flex-col border-l bg-background"><div className="border-b p-4"><h2 className="text-sm font-semibold">Fields</h2><p className="text-xs text-muted-foreground">Click a field to insert it.</p><div className="relative mt-3"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div></div><div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">{Object.entries(groupedFields).map(([group, items]) => <section key={group} className="mb-5 grid gap-2"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onClick={() => insertField(field.path)} className="border-b py-2 text-left transition hover:bg-muted/40"><span className="block text-sm font-medium">{field.label}</span><span className="block truncate font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span></button>)}</section>)}</div></aside>
+      <aside className="sticky top-0 flex h-screen min-w-0 flex-col border-l bg-background"><div className="border-b p-4"><h2 className="text-sm font-semibold">Fields</h2><p className="text-xs text-muted-foreground">Click a field to insert it.</p><div className="relative mt-3"><SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={fieldSearch} onChange={(event) => setFieldSearch(event.target.value)} placeholder="Search fields..." className="pl-9" /></div></div><div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3">{Object.entries(groupedFields).map(([group, items]) => <section key={group} className="mb-5 grid gap-2"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>{items.map((field) => <button key={`${field.group}-${field.path}`} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertField(field.path)} className="border-b py-2 text-left transition hover:bg-muted/40"><span className="block text-sm font-medium">{field.label}</span><span className="block truncate font-mono text-xs text-muted-foreground">{`{{${field.path}}}`}</span></button>)}</section>)}</div></aside>
     </div>
   )
 }
