@@ -2,7 +2,19 @@ import { Type } from 'class-transformer';
 import { Allow, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 
 export const productKinds = ['physical', 'service', 'digital', 'bundle'] as const;
-export const productFieldTypes = ['text', 'number', 'boolean', 'select', 'date', 'json'] as const;
+export const productFieldTypes = [
+  'text',
+  'richtext',
+  'number',
+  'decimal',
+  'currency',
+  'attachment',
+  'images',
+  'lookup',
+  'boolean',
+  'select',
+  'date',
+] as const;
 
 export class ProductTypeFieldDto {
   @IsOptional()
