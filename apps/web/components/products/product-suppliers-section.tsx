@@ -13,27 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api";
+import { formatMoney, normalizeCurrencyCode } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_CURRENCY = "USD";
-
-function normalizeCurrencyCode(value?: string | null, fallback = DEFAULT_CURRENCY) {
-  const code = String(value || fallback).trim().toUpperCase();
-  return /^[A-Z]{3}$/.test(code) ? code : fallback;
-}
-
-function numberValue(value: unknown) {
-  const next = Number(value ?? 0);
-  return Number.isFinite(next) ? next : 0;
-}
-
-function formatMoney(value: unknown, currency = DEFAULT_CURRENCY) {
-  return new Intl.NumberFormat("en", {
-    style: "currency",
-    currency: normalizeCurrencyCode(currency),
-    maximumFractionDigits: 2,
-  }).format(numberValue(value));
-}
+const DEFAULT_CURRENCY = "ZAR";
 
 function formatDate(value?: string | null) {
   if (!value) return "Not set";
@@ -78,7 +61,7 @@ const emptyForm = {
   supplierId: "",
   supplierSku: "",
   cost: "",
-  currency: "USD",
+  currency: "ZAR",
   minimumOrderQty: "",
   leadTimeDays: "",
   isPreferred: false,
