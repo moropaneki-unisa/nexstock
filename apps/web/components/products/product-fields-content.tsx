@@ -8,6 +8,7 @@ import {
   Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
+  Settings2Icon,
   SlidersHorizontalIcon,
   Trash2Icon,
   TriangleAlertIcon,
@@ -43,11 +44,13 @@ import { apiFetch } from "@/lib/api"
 
 type ProductField = {
   id: string
-  name: string
+  name?: string | null
+  label?: string | null
   key?: string | null
   type?: string | null
   required?: boolean | null
   visible?: boolean | null
+  isActive?: boolean | null
   createdAt?: string | null
 }
 
@@ -74,6 +77,14 @@ function normalizeFields(value: unknown): ProductField[] {
     return maybe.items ?? maybe.data ?? []
   }
   return []
+}
+
+function fieldName(field: ProductField) {
+  return field.name || field.label || field.key || "Untitled field"
+}
+
+function fieldVisible(field: ProductField) {
+  return field.visible !== false && field.isActive !== false
 }
 
 function slugify(value: string) {
@@ -108,12 +119,12 @@ export function ProductFieldsContent() {
     setError(null)
 
     try {
-      const result = await apiFetch<unknown>("/api/products/fields")
+      const result = await apiFetch<unknown>("/api/product-fields")
       setFields(normalizeFields(result))
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not load product fields"
+      const message = err instanceof Error ? err.message : "Could not load product attributes"
       setError(message)
-      toast.error("Product fields could not load", { description: message })
+      toast.error("Product attributes could not load", { description: message })
       setFields([])
     } finally {
       setLoading(false)
@@ -143,36 +154,39 @@ export function ProductFieldsContent() {
 
     setSaving(true)
     try {
-      await apiFetch("/api/products/fields", {
+      await apiFetch("/api/product-fields", {
         method: "POST",
         body: JSON.stringify({
           name: form.name.trim(),
+          label: form.name.trim(),
           key: form.key.trim() || slugify(form.name),
           type: form.type,
           required: form.required === "true",
           visible: form.visible === "true",
+          isActive: form.visible === "true",
         }),
       })
-      toast.success("Product field created", { description: form.name })
+      toast.success("Product attribute created", { description: form.name })
       setForm(emptyForm)
       await loadFields()
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not create product field"
+      const message = err instanceof Error ? err.message : "Could not create product attribute"
       setError(message)
-      toast.error("Product field could not save", { description: message })
+      toast.error("Product attribute could not save", { description: message })
     } finally {
       setSaving(false)
     }
   }
 
   async function deleteField(field: ProductField) {
+    if (!window.confirm(`Delete "${fieldName(field)}"? Existing values stay saved, but this attribute will no longer show.`)) return
     setRunning(true)
     try {
-      await apiFetch(`/api/products/fields/${field.id}`, { method: "DELETE" })
-      toast.success("Product field deleted", { description: field.name })
+      await apiFetch(`/api/product-fields/${field.id}`, { method: "DELETE" })
+      toast.success("Product attribute deleted", { description: fieldName(field) })
       await loadFields()
     } catch (err) {
-      toast.error("Could not delete product field", {
+      toast.error("Could not delete product attribute", {
         description: err instanceof Error ? err.message : "Delete failed",
       })
     } finally {
@@ -182,13 +196,14 @@ export function ProductFieldsContent() {
 
   async function bulkDelete(rows: ProductField[]) {
     if (!rows.length) return
+    if (!window.confirm(`Delete ${rows.length} selected product attribute${rows.length === 1 ? "" : "s"}?`)) return
     setRunning(true)
     try {
-      await Promise.all(rows.map((field) => apiFetch(`/api/products/fields/${field.id}`, { method: "DELETE" })))
-      toast.success("Product fields deleted", { description: `${rows.length} field${rows.length === 1 ? "" : "s"} deleted.` })
+      await Promise.all(rows.map((field) => apiFetch(`/api/product-fields/${field.id}`, { method: "DELETE" })))
+      toast.success("Product attributes deleted", { description: `${rows.length} attribute${rows.length === 1 ? "" : "s"} deleted.` })
       await loadFields()
     } catch (err) {
-      toast.error("Could not delete selected fields", {
+      toast.error("Could not delete selected attributes", {
         description: err instanceof Error ? err.message : "Bulk delete failed",
       })
     } finally {
@@ -200,10 +215,10 @@ export function ProductFieldsContent() {
     createSelectColumn<ProductField>(),
     {
       accessorKey: "name",
-      header: "Field",
+      header: "Attribute",
       cell: ({ row }) => (
         <div className="grid gap-1">
-          <span className="font-medium">{row.original.name}</span>
+          <span className="font-medium">{fieldName(row.original)}</span>
           <span className="font-mono text-xs text-muted-foreground">{row.original.key || "No key"}</span>
         </div>
       ),
@@ -212,7 +227,7 @@ export function ProductFieldsContent() {
     {
       accessorKey: "type",
       header: "Type",
-      cell: ({ row }) => <Badge variant="outline">{row.original.type || "text"}</Badge>,
+      cell: ({ row }) => <Badge variant="outline" className="capitalize">{row.original.type || "text"}</Badge>,
     },
     {
       accessorKey: "required",
@@ -222,7 +237,7 @@ export function ProductFieldsContent() {
     {
       accessorKey: "visible",
       header: "Visible",
-      cell: ({ row }) => row.original.visible === false ? <Badge variant="secondary">Hidden</Badge> : <Badge>Visible</Badge>,
+      cell: ({ row }) => fieldVisible(row.original) ? <Badge>Visible</Badge> : <Badge variant="secondary">Hidden</Badge>,
     },
     {
       accessorKey: "createdAt",
@@ -235,7 +250,7 @@ export function ProductFieldsContent() {
       cell: ({ row }) => (
         <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" disabled={running} onClick={() => void deleteField(row.original)}>
           <Trash2Icon className="size-4" />
-          <span className="sr-only">Delete field</span>
+          <span className="sr-only">Delete attribute</span>
         </Button>
       ),
       enableHiding: false,
@@ -264,13 +279,20 @@ export function ProductFieldsContent() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-muted-foreground">Products</p>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">Product fields</h1>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">Product attributes</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Create reusable fields such as VIN, IMEI, material, size, mileage, storage, or billing unit.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href="/products">
               <ArrowLeftIcon className="size-4" />
               Back to products
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/products/types">
+              <Settings2Icon className="size-4" />
+              Product types
             </Link>
           </Button>
           <Button variant="outline" size="sm" onClick={() => void loadFields()} disabled={running || loading}>
@@ -285,12 +307,19 @@ export function ProductFieldsContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
               <TriangleAlertIcon className="size-4" />
-              Product fields issue
+              Product attributes issue
             </CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
         </Card>
       ) : null}
+
+      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+        <Metric title="Total" value={fields.filter(fieldVisible).length} detail="Visible attributes" />
+        <Metric title="Required" value={fields.filter((field) => fieldVisible(field) && field.required).length} detail="Must be filled" />
+        <Metric title="Optional" value={fields.filter((field) => fieldVisible(field) && !field.required).length} detail="Extra detail fields" />
+        <Metric title="Select fields" value={fields.filter((field) => fieldVisible(field) && field.type === "select").length} detail="Fields with options" />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
         <Card className="self-start">
@@ -298,9 +327,9 @@ export function ProductFieldsContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <SlidersHorizontalIcon className="size-4" />
-                Add field
+                Add attribute
               </CardTitle>
-              <CardDescription>Create reusable product attributes for future product forms.</CardDescription>
+              <CardDescription>Create a reusable product attribute for product forms and type layouts.</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
               <div className="grid gap-2">
@@ -323,6 +352,7 @@ export function ProductFieldsContent() {
                     <SelectItem value="date">Date</SelectItem>
                     <SelectItem value="select">Select</SelectItem>
                     <SelectItem value="boolean">Boolean</SelectItem>
+                    <SelectItem value="json">JSON</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -354,7 +384,7 @@ export function ProductFieldsContent() {
             <CardFooter>
               <Button type="submit" className="w-full" disabled={saving}>
                 {saving ? <Loader2Icon className="size-4 animate-spin" /> : <PlusIcon className="size-4" />}
-                Create field
+                Create attribute
               </Button>
             </CardFooter>
           </form>
@@ -364,12 +394,24 @@ export function ProductFieldsContent() {
           data={fields}
           columns={columns}
           title="Product attribute fields"
-          description="Manage reusable custom fields for the product catalog."
-          searchPlaceholder="Search fields..."
+          description="Manage reusable custom fields for product details and product type layouts."
+          searchPlaceholder="Search attributes..."
           getRowId={(row) => row.id}
           bulkActions={bulkActions}
         />
       </div>
     </div>
+  )
+}
+
+function Metric({ title, value, detail }: { title: string; value: string | number; detail: string }) {
+  return (
+    <Card className="@container/card">
+      <CardHeader>
+        <CardDescription>{title}</CardDescription>
+        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">{value}</CardTitle>
+      </CardHeader>
+      <CardFooter className="text-sm text-muted-foreground">{detail}</CardFooter>
+    </Card>
   )
 }
