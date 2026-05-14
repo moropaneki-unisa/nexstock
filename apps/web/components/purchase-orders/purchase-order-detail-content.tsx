@@ -21,7 +21,8 @@ import { cn } from "@/lib/utils"
 type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled"
 type Supplier = { id: string; supplierCode: string; name: string; currency?: string | null; email?: string | null; phone?: string | null; city?: string | null; country?: string | null }
 type Product = { id: string; name: string; sku?: string | null; quantity?: number | string | null }
-type PurchaseOrderLine = { id: string; supplierSku?: string | null; description?: string | null; quantityOrdered: number; quantityReceived?: number | null; unitCost: string | number; currency: string; lineTotal: string | number; notes?: string | null; product?: Product | null }
+type ProductSupplier = { id: string; supplierId: string; productId: string; supplierSku?: string | null; cost?: string | number | null; currency?: string | null; isPreferred?: boolean | null; lastPurchaseAt?: string | null; supplier?: Supplier | null }
+type PurchaseOrderLine = { id: string; productSupplierId?: string | null; supplierSku?: string | null; description?: string | null; quantityOrdered: number; quantityReceived?: number | null; unitCost: string | number; currency: string; lineTotal: string | number; notes?: string | null; product?: Product | null; productSupplier?: ProductSupplier | null }
 type PurchaseOrder = { id: string; poNumber: string; status: PurchaseOrderStatus; currency: string; subtotal: string | number; expectedAt?: string | null; orderedAt?: string | null; receivedAt?: string | null; notes?: string | null; createdAt?: string | null; updatedAt?: string | null; supplier?: Supplier | null; lines?: PurchaseOrderLine[] }
 type SendDocumentResponse = { ok?: boolean; message?: string; to?: string; subject?: string; providerMessageId?: string | null; generatedDocumentId?: string }
 
@@ -31,6 +32,8 @@ function formatMoney(value: unknown, currency = "USD") { return new Intl.NumberF
 function formatDate(value?: string | null) { if (!value) return "Not set"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleString() }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
 function cleanValue(value?: string | number | null) { if (value === null || value === undefined || value === "") return "Not set"; return String(value) }
+function remainingQuantity(line: PurchaseOrderLine) { return Math.max(0, line.quantityOrdered - numberValue(line.quantityReceived)) }
+function linkedLineCount(lines: PurchaseOrderLine[]) { return lines.filter((line) => Boolean(line.productSupplierId || line.productSupplier)).length }
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) { if (status === "cancelled") return <Badge variant="destructive">Cancelled</Badge>; if (status === "received") return <Badge>Received</Badge>; if (status === "ordered") return <Badge variant="secondary">Ordered</Badge>; if (status === "partially_received") return <Badge variant="outline">Partially received</Badge>; return <Badge variant="outline">Draft</Badge> }
 
 export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderId: string }) {
@@ -61,10 +64,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   function openReceiveDialog() {
     if (!order) return
     const next: Record<string, string> = {}
-    for (const line of order.lines ?? []) {
-      const remaining = Math.max(0, line.quantityOrdered - numberValue(line.quantityReceived))
-      next[line.id] = remaining ? String(remaining) : "0"
-    }
+    for (const line of order.lines ?? []) next[line.id] = remainingQuantity(line) ? String(remainingQuantity(line)) : "0"
     setReceiveLines(next)
     setReceiveNotes(`Received against ${order.poNumber}`)
     setReceiveOpen(true)
@@ -77,31 +77,23 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     setSendSubject(`Purchase Order ${order.poNumber}`)
     setSendMessage(`Hi ${order.supplier?.name || ""},\n\nPlease find purchase order ${order.poNumber} below.\n\nRegards,\nNexStock`)
     setSendOpen(true)
-    if (!fallbackTo) {
-      toast.warning("Supplier email is missing", { description: "Enter the recipient email manually before sending." })
-    }
+    if (!fallbackTo) toast.warning("Supplier email is missing", { description: "Enter the recipient email manually before sending." })
   }
 
   async function sendDocument() {
     if (!order) return
     if (!sendTo.trim()) return toast.error("Recipient email is required")
-
     setRunning(true)
     try {
       const response = await apiFetch<SendDocumentResponse>(`/api/purchase-orders/${order.id}/send-document`, {
         method: "POST",
         body: JSON.stringify({ to: sendTo.trim(), subject: sendSubject.trim() || undefined, message: sendMessage.trim() || undefined }),
       })
-      toast.success(response.message || "Purchase order email sent", {
-        description: [response.to, response.providerMessageId ? `Resend ID: ${response.providerMessageId}` : null].filter(Boolean).join(" · "),
-      })
+      toast.success(response.message || "Purchase order email sent", { description: [response.to, response.providerMessageId ? `Resend ID: ${response.providerMessageId}` : null].filter(Boolean).join(" · ") })
       setSendOpen(false)
       await loadOrder()
-    } catch (err) {
-      toast.error("Could not send purchase order email", { description: err instanceof Error ? err.message : "Send failed" })
-    } finally {
-      setRunning(false)
-    }
+    } catch (err) { toast.error("Could not send purchase order email", { description: err instanceof Error ? err.message : "Send failed" }) }
+    finally { setRunning(false) }
   }
 
   async function receiveOrder() {
@@ -109,18 +101,14 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     const lines = (order.lines ?? []).map((line) => ({ lineId: line.id, quantityReceived: Math.max(0, Math.floor(numberValue(receiveLines[line.id]))) }))
     const hasReceived = lines.some((line) => line.quantityReceived > 0)
     if (!hasReceived) return toast.error("Enter received quantity for at least one line")
-
     setRunning(true)
     try {
       const response = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${order.id}/receive`, { method: "POST", body: JSON.stringify({ lines, notes: receiveNotes.trim() || undefined }) })
-      toast.success("Purchase order received", { description: `${response.poNumber} is now ${titleCase(response.status)}. Stock quantities were updated.` })
+      toast.success("Purchase order received", { description: `${response.poNumber} is now ${titleCase(response.status)}. Stock and supplier costs were updated.` })
       setReceiveOpen(false)
       await loadOrder()
-    } catch (err) {
-      toast.error("Could not receive purchase order", { description: err instanceof Error ? err.message : "Receive failed" })
-    } finally {
-      setRunning(false)
-    }
+    } catch (err) { toast.error("Could not receive purchase order", { description: err instanceof Error ? err.message : "Receive failed" }) }
+    finally { setRunning(false) }
   }
 
   async function cancelOrder() {
@@ -134,10 +122,12 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[640px] rounded-xl" /></div>
   if (!order) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/purchase-orders"><ArrowLeftIcon className="size-4" />Back to purchase orders</Link></Button><Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle>Purchase order not found</CardTitle><CardDescription>The purchase order record could not be loaded.</CardDescription></CardHeader></Card></div>
 
-  const lineCount = order.lines?.length ?? 0
-  const receivedQty = (order.lines ?? []).reduce((sum, line) => sum + numberValue(line.quantityReceived), 0)
-  const orderedQty = (order.lines ?? []).reduce((sum, line) => sum + numberValue(line.quantityOrdered), 0)
-  const canReceive = order.status !== "cancelled" && order.status !== "received" && (order.lines ?? []).some((line) => numberValue(line.quantityReceived) < line.quantityOrdered)
+  const lines = order.lines ?? []
+  const lineCount = lines.length
+  const receivedQty = lines.reduce((sum, line) => sum + numberValue(line.quantityReceived), 0)
+  const orderedQty = lines.reduce((sum, line) => sum + numberValue(line.quantityOrdered), 0)
+  const linkedLines = linkedLineCount(lines)
+  const canReceive = order.status !== "cancelled" && order.status !== "received" && lines.some((line) => numberValue(line.quantityReceived) < line.quantityOrdered)
   const canSend = order.status !== "cancelled"
 
   return (
@@ -154,18 +144,18 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
       <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
         <MetricCard title="Subtotal" value={formatMoney(order.subtotal, order.currency)} detail={order.currency} icon={WalletCardsIcon} />
         <MetricCard title="Lines" value={lineCount} detail={`${orderedQty} units ordered`} icon={ClipboardListIcon} />
-        <MetricCard title="Received" value={receivedQty} detail="Units received" icon={PackageCheckIcon} />
-        <MetricCard title="Supplier" value={order.supplier?.supplierCode || "Not set"} detail={order.supplier?.name || "No supplier"} icon={TruckIcon} mono />
+        <MetricCard title="Received" value={receivedQty} detail={`${Math.max(0, orderedQty - receivedQty)} units remaining`} icon={PackageCheckIcon} />
+        <MetricCard title="Supplier links" value={`${linkedLines}/${lineCount}`} detail="Lines connected to supplier cost" icon={TruckIcon} mono />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
         <div className="grid gap-4">
           <DetailSection title="Purchase order details" description="Status, timeline, and order metadata." open={detailsOpen} onOpenChange={setDetailsOpen} badge="8 fields"><FieldGrid fields={[["PO number", order.poNumber], ["Status", titleCase(order.status)], ["Currency", order.currency], ["Subtotal", formatMoney(order.subtotal, order.currency)], ["Expected", formatDate(order.expectedAt)], ["Ordered", formatDate(order.orderedAt)], ["Received", formatDate(order.receivedAt)], ["Created", formatDate(order.createdAt)]]} /></DetailSection>
-          <DetailSection title="Order lines" description="Products, quantities, unit costs, received quantities, and line totals." open={linesOpen} onOpenChange={setLinesOpen} badge={`${lineCount} lines`}><LinesTable lines={order.lines ?? []} currency={order.currency} /></DetailSection>
+          <DetailSection title="Order lines" description="Products, supplier SKU, linked supplier cost, received quantities, and totals." open={linesOpen} onOpenChange={setLinesOpen} badge={`${lineCount} lines`}><LinesTable lines={lines} currency={order.currency} /></DetailSection>
           <DetailSection title="Supplier" description="Supplier linked to this purchase order." open={supplierOpen} onOpenChange={setSupplierOpen} badge={order.supplier?.supplierCode || "None"}><FieldGrid fields={[["Supplier", cleanValue(order.supplier?.name)], ["Supplier code", cleanValue(order.supplier?.supplierCode)], ["Email", cleanValue(order.supplier?.email)], ["Phone", cleanValue(order.supplier?.phone)], ["City", cleanValue(order.supplier?.city)], ["Country", cleanValue(order.supplier?.country)]]} /></DetailSection>
           <DetailSection title="Notes" description="Internal purchase order notes." open={notesOpen} onOpenChange={setNotesOpen} badge={order.notes ? "Saved" : "Empty"}><p className="whitespace-pre-wrap rounded-xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">{order.notes || "No notes saved for this purchase order."}</p></DetailSection>
         </div>
-        <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]"><CardHeader><CardTitle>Quick facts</CardTitle><CardDescription>At-a-glance purchasing context.</CardDescription></CardHeader><CardContent className="grid gap-3 text-sm"><QuickFact label="PO" value={order.poNumber} mono /><QuickFact label="Status" value={titleCase(order.status)} /><QuickFact label="Supplier" value={order.supplier?.name || "Not set"} /><QuickFact label="Expected" value={formatDate(order.expectedAt)} /><QuickFact label="Updated" value={formatDate(order.updatedAt)} /></CardContent></Card>
+        <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]"><CardHeader><CardTitle>Quick facts</CardTitle><CardDescription>At-a-glance purchasing context.</CardDescription></CardHeader><CardContent className="grid gap-3 text-sm"><QuickFact label="PO" value={order.poNumber} mono /><QuickFact label="Status" value={titleCase(order.status)} /><QuickFact label="Supplier" value={order.supplier?.name || "Not set"} /><QuickFact label="Linked lines" value={`${linkedLines}/${lineCount}`} /><QuickFact label="Expected" value={formatDate(order.expectedAt)} /><QuickFact label="Updated" value={formatDate(order.updatedAt)} /></CardContent></Card>
       </div>
 
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
@@ -181,10 +171,10 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
       </Dialog>
 
       <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader><DialogTitle>Receive stock</DialogTitle><DialogDescription>Enter quantities received now. Product stock and purchase order status will update automatically.</DialogDescription></DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader><DialogTitle>Receive stock</DialogTitle><DialogDescription>Enter quantities received now. Product stock, purchase order status, and linked supplier costs will update automatically.</DialogDescription></DialogHeader>
           <div className="grid gap-4">
-            <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Already received</TableHead><TableHead className="w-40 text-right">Receive now</TableHead></TableRow></TableHeader><TableBody>{(order.lines ?? []).map((line) => { const already = numberValue(line.quantityReceived); const remaining = Math.max(0, line.quantityOrdered - already); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{already}</TableCell><TableCell><Input type="number" min="0" max={remaining} value={receiveLines[line.id] ?? "0"} onChange={(event) => setReceiveLines((current) => ({ ...current, [line.id]: event.target.value }))} className="text-right" /></TableCell></TableRow> })}</TableBody></Table></div>
+            <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="w-36 text-right">Receive now</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const already = numberValue(line.quantityReceived); const remaining = remainingQuantity(line); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span>{line.productSupplier?.isPreferred ? <Badge variant="secondary" className="w-fit">Preferred supplier</Badge> : null}</div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || line.productSupplier?.supplierSku || "-"}</TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{already}</TableCell><TableCell className="text-right">{remaining}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || order.currency)}</TableCell><TableCell><Input type="number" min="0" max={remaining} value={receiveLines[line.id] ?? "0"} onChange={(event) => setReceiveLines((current) => ({ ...current, [line.id]: event.target.value }))} className="text-right" /></TableCell></TableRow> })}</TableBody></Table></div>
             <label className="grid gap-2"><Label>Receiving notes</Label><Textarea value={receiveNotes} onChange={(event) => setReceiveNotes(event.target.value)} className="min-h-24" /></label>
           </div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => setReceiveOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={receiveOrder} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}Receive stock</Button></DialogFooter>
@@ -197,5 +187,5 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
 function MetricCard({ title, value, detail, icon: Icon, mono }: { title: string; value: string | number; detail: string; icon: React.ComponentType<{ className?: string }>; mono?: boolean }) { return <Card className="@container/card"><CardHeader><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums @[250px]/card:text-3xl", mono && "font-mono text-xl")}>{value}</CardTitle></CardHeader><CardFooter className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{detail}</span><Icon className="size-4 text-muted-foreground" /></CardFooter></Card> }
 function DetailSection({ title, description, badge, open, onOpenChange, children }: { title: string; description: string; badge: string; open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode }) { return <Collapsible open={open} onOpenChange={onOpenChange}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{badge}</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="pt-0">{children}</CardContent></CollapsibleContent></Card></Collapsible> }
 function FieldGrid({ fields }: { fields: Array<[string, string | number]> }) { return <div className="grid overflow-hidden rounded-xl border md:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r even:md:border-r-0"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 break-words font-medium">{value}</p></div>)}</div> }
-function LinesTable({ lines, currency }: { lines: PurchaseOrderLine[]; currency: string }) { return <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const received = numberValue(line.quantityReceived); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || "-"}</TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{received}</TableCell><TableCell className="text-right">{Math.max(0, line.quantityOrdered - received)}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || currency)}</TableCell><TableCell className="text-right font-medium">{formatMoney(line.lineTotal, line.currency || currency)}</TableCell></TableRow> })}</TableBody></Table></div> }
+function LinesTable({ lines, currency }: { lines: PurchaseOrderLine[]; currency: string }) { return <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Supplier link</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const received = numberValue(line.quantityReceived); const linkCurrency = line.productSupplier?.currency || line.currency || currency; return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || line.productSupplier?.supplierSku || "-"}</TableCell><TableCell><div className="flex flex-wrap items-center gap-1">{line.productSupplierId || line.productSupplier ? <Badge variant={line.productSupplier?.isPreferred ? "default" : "secondary"}>{line.productSupplier?.isPreferred ? "Preferred" : "Linked"}</Badge> : <Badge variant="outline">Manual</Badge>}{line.productSupplier?.cost ? <Badge variant="outline">{formatMoney(line.productSupplier.cost, linkCurrency)}</Badge> : null}</div></TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{received}</TableCell><TableCell className="text-right">{Math.max(0, line.quantityOrdered - received)}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || currency)}</TableCell><TableCell className="text-right font-medium">{formatMoney(line.lineTotal, line.currency || currency)}</TableCell></TableRow> })}</TableBody></Table></div> }
 function QuickFact({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className={cn("truncate font-medium", mono && "font-mono text-xs")}>{value}</span></div> }
