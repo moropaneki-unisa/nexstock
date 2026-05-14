@@ -39,6 +39,26 @@ const commonFields: TemplateField[] = [
   { group: 'Organization', label: 'Organization address', path: 'organization.address' },
 ];
 
+const moduleAliases: Record<string, string> = {
+  purchase_order: 'purchase_orders',
+  purchase_orders: 'purchase_orders',
+  purchaseorders: 'purchase_orders',
+  purchaseorder: 'purchase_orders',
+  purchase_orders_module: 'purchase_orders',
+  quote: 'quotes',
+  quotes: 'quotes',
+  invoice: 'invoices',
+  invoices: 'invoices',
+  statement: 'statements',
+  statements: 'statements',
+  product: 'products',
+  products: 'products',
+  supplier: 'suppliers',
+  suppliers: 'suppliers',
+  customer: 'customers',
+  customers: 'customers',
+};
+
 const moduleFields: Record<string, TemplateField[]> = {
   purchase_orders: [
     { group: 'Purchase order', label: 'PO number', path: 'purchaseOrder.poNumber' },
@@ -137,22 +157,23 @@ export class DocumentTemplatesService {
   }
 
   async fields(user: CurrentUserPayload, module = 'purchase_orders') {
-    const normalizedModule = this.templateType(module);
-    const fields = [
+    const normalizedModule = this.normalizeModule(module);
+    const fields = this.uniqueFields([
       ...commonFields,
       ...(moduleFields[normalizedModule] || []),
       ...(lookupFields[normalizedModule] || []),
-    ];
+    ]);
 
     if (modulesWithProductLookups.has(normalizedModule)) {
       fields.push(...await this.productLayoutTokens(user.organizationId, normalizedModule === 'products' ? 'Product layout' : 'Line item / product layout'));
     }
 
-    return fields;
+    return this.uniqueFields(fields);
   }
 
   async testRecords(user: CurrentUserPayload, module = 'purchase_orders'): Promise<TestRecord[]> {
-    if (module === 'purchase_orders') {
+    const normalizedModule = this.normalizeModule(module);
+    if (normalizedModule === 'purchase_orders') {
       const rows = await this.db.purchaseOrder.findMany({
         where: { organizationId: user.organizationId },
         include: { supplier: { select: { name: true, supplierCode: true } } },
@@ -166,7 +187,7 @@ export class DocumentTemplatesService {
       }));
     }
 
-    if (module === 'products') {
+    if (normalizedModule === 'products') {
       const rows = await this.db.product.findMany({
         where: { organizationId: user.organizationId, deletedAt: null },
         orderBy: { updatedAt: 'desc' },
@@ -175,7 +196,7 @@ export class DocumentTemplatesService {
       return rows.map((row) => ({ id: row.id, label: row.name, description: `${row.sku || 'No SKU'} · ${row.category || 'Uncategorized'}` }));
     }
 
-    if (module === 'suppliers') {
+    if (normalizedModule === 'suppliers') {
       const rows = await this.db.supplier.findMany({
         where: { organizationId: user.organizationId },
         orderBy: { updatedAt: 'desc' },
@@ -331,7 +352,8 @@ export class DocumentTemplatesService {
   }
 
   private async realContext(user: CurrentUserPayload, module = 'purchase_orders', recordId: string): Promise<TemplateContext> {
-    if (module === 'purchase_orders') {
+    const normalizedModule = this.normalizeModule(module);
+    if (normalizedModule === 'purchase_orders') {
       const order = await this.db.purchaseOrder.findFirst({
         where: { id: recordId, organizationId: user.organizationId },
         include: {
@@ -344,31 +366,31 @@ export class DocumentTemplatesService {
       return this.purchaseOrderContext(order);
     }
 
-    if (module === 'products') {
+    if (normalizedModule === 'products') {
       const product = await this.db.product.findFirst({ where: { id: recordId, organizationId: user.organizationId, deletedAt: null } });
       if (!product) throw new NotFoundException('Product test record not found');
       const organization = await this.db.organization.findUnique({ where: { id: user.organizationId } });
       return {
         organization: this.organizationContext(organization),
         product,
-        module,
+        module: normalizedModule,
         lines: [],
       };
     }
 
-    if (module === 'suppliers') {
+    if (normalizedModule === 'suppliers') {
       const supplier = await this.db.supplier.findFirst({ where: { id: recordId, organizationId: user.organizationId } });
       if (!supplier) throw new NotFoundException('Supplier test record not found');
       const organization = await this.db.organization.findUnique({ where: { id: user.organizationId } });
       return {
         organization: this.organizationContext(organization),
         supplier,
-        module,
+        module: normalizedModule,
         lines: [],
       };
     }
 
-    return this.sampleContext(user, module);
+    return this.sampleContext(user, normalizedModule);
   }
 
   private purchaseOrderContext(order: any): TemplateContext {
@@ -435,10 +457,15 @@ export class DocumentTemplatesService {
     `;
   }
 
+  private normalizeModule(value?: string) {
+    const raw = (value || 'purchase_orders').trim();
+    if (!raw) throw new BadRequestException('Template module is required');
+    const key = raw.replace(/([a-z])([A-Z])/g, '$1_$2').replace(/[\s-]+/g, '_').toLowerCase();
+    return moduleAliases[key] || key;
+  }
+
   private templateType(value?: string) {
-    const type = (value || 'purchase_orders').trim();
-    if (!type) throw new BadRequestException('Template module is required');
-    return type;
+    return this.normalizeModule(value);
   }
 
   private templateKind(value?: string) {
@@ -451,6 +478,16 @@ export class DocumentTemplatesService {
     if (value === undefined || value === null) return null;
     const text = value.trim();
     return text || null;
+  }
+
+  private uniqueFields(fields: TemplateField[]) {
+    const seen = new Set<string>();
+    return fields.filter((field) => {
+      const key = `${field.group}:${field.path}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   private rethrowTemplateSaveError(error: unknown, fallback: string): never {
@@ -474,7 +511,8 @@ export class DocumentTemplatesService {
   }
 
   private async sampleContext(user: CurrentUserPayload, module?: string): Promise<TemplateContext> {
-    const includeProductLayoutFields = modulesWithProductLookups.has(this.templateType(module));
+    const normalizedModule = this.normalizeModule(module);
+    const includeProductLayoutFields = modulesWithProductLookups.has(normalizedModule);
     const layoutFields = includeProductLayoutFields ? await this.layoutFields(user.organizationId) : [];
     const customValues = Object.fromEntries(layoutFields.map((field) => [field.key, `Sample ${field.label}`]));
 
@@ -496,7 +534,7 @@ export class DocumentTemplatesService {
       quote: { quoteNumber: 'QT-00001', total: '1,250.00', currency: 'ZAR', validUntil: '2026-06-20', customFields: customValues },
       invoice: { invoiceNumber: 'INV-00001', total: '1,250.00', currency: 'ZAR', dueDate: '2026-06-20', customFields: customValues },
       statement: { statementNumber: 'ST-00001', balance: '1,250.00', currency: 'ZAR', period: 'May 2026', customFields: customValues },
-      module: module || 'purchase_orders',
+      module: normalizedModule,
     };
   }
 }
