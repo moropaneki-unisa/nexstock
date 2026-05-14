@@ -38,23 +38,58 @@ async function parseError(response: Response, fallback: string) {
   return body?.message || body?.error || fallback
 }
 
+let refreshPromise: Promise<string | null> | null = null
+
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/api/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({}),
+    })
+      .then(async (response) => {
+        if (!response.ok) return null
+        const data = await response.json().catch(() => null)
+        const token = data?.accessToken
+        if (token) setAccessToken(token)
+        return token || null
+      })
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null
+      })
+  }
+
+  return refreshPromise
+}
+
 export async function apiFetch<T = unknown>(url: string, options: RequestInit = {}) {
-  const token = getAccessToken()
   const body = options.body as BodyInit | null | undefined
-  const headers: Record<string, string> = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...((options.headers as Record<string, string>) || {}),
+
+  async function request(token: string | null) {
+    const headers: Record<string, string> = {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...((options.headers as Record<string, string>) || {}),
+    }
+
+    if (body && !(body instanceof FormData) && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json"
+    }
+
+    return fetch(`${API_URL}${url}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    })
   }
 
-  if (body && !(body instanceof FormData) && !headers["Content-Type"]) {
-    headers["Content-Type"] = "application/json"
-  }
+  let response = await request(getAccessToken())
 
-  const response = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  })
+  if (response.status === 401 || response.status === 419) {
+    const freshToken = await refreshAccessToken()
+    if (freshToken) response = await request(freshToken)
+  }
 
   if (response.status === 401 || response.status === 419) {
     sendToLogin()
