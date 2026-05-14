@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
+import { formatMoney, numberValue } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
 type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "received" | "cancelled"
@@ -26,9 +27,6 @@ type PurchaseOrderLine = { id: string; productSupplierId?: string | null; suppli
 type PurchaseOrder = { id: string; poNumber: string; status: PurchaseOrderStatus; currency: string; subtotal: string | number; expectedAt?: string | null; orderedAt?: string | null; receivedAt?: string | null; notes?: string | null; createdAt?: string | null; updatedAt?: string | null; supplier?: Supplier | null; lines?: PurchaseOrderLine[] }
 type SendDocumentResponse = { ok?: boolean; message?: string; to?: string; subject?: string; providerMessageId?: string | null; generatedDocumentId?: string }
 
-function numberValue(value: unknown) { const next = Number(value ?? 0); return Number.isFinite(next) ? next : 0 }
-function normalizeCurrency(value?: string | null) { const code = String(value || "USD").trim().toUpperCase(); return /^[A-Z]{3}$/.test(code) ? code : "USD" }
-function formatMoney(value: unknown, currency = "USD") { return new Intl.NumberFormat("en", { style: "currency", currency: normalizeCurrency(currency), maximumFractionDigits: 2 }).format(numberValue(value)) }
 function formatDate(value?: string | null) { if (!value) return "Not set"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "Not set" : date.toLocaleString() }
 function titleCase(value: string) { return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) }
 function cleanValue(value?: string | number | null) { if (value === null || value === undefined || value === "") return "Not set"; return String(value) }
