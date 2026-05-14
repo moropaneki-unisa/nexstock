@@ -37,6 +37,11 @@ const fieldTypes: Array<{ value: FieldType; label: string }> = [
   { value: "select", label: "Select" },
   { value: "date", label: "Date" },
 ]
+const lookupSources = [
+  { value: "suppliers", label: "Suppliers" },
+  { value: "products", label: "Products" },
+  { value: "customers", label: "Customers" },
+]
 
 function numberValue(value: unknown) {
   const next = Number(value ?? 0)
@@ -56,16 +61,20 @@ function uniqueKey(label: string, fields: LayoutField[], currentIndex: number) {
   return key
 }
 
-function usesOptions(type?: string) {
+function hasFieldConfig(type?: string) {
   return type === "select" || type === "lookup"
 }
 
-function optionsLabel(type?: string) {
-  return type === "lookup" ? "Lookup source" : "Options"
+function lookupSource(field: LayoutField) {
+  const source = String(field.options?.[0] || "suppliers").trim().toLowerCase()
+  return lookupSources.some((item) => item.value === source) ? source : "suppliers"
 }
 
-function optionsPlaceholder(type?: string) {
-  return type === "lookup" ? "suppliers, customers, products" : "Small, Medium, Large"
+function normalizeFieldOptions(field: LayoutField) {
+  const type = String(field.type || "text")
+  if (type === "lookup") return [lookupSource(field)]
+  if (type === "select") return (field.options || []).map((option) => String(option).trim()).filter(Boolean)
+  return []
 }
 
 function draftFromLayout(layout: Layout): Draft {
@@ -83,7 +92,7 @@ function draftFromLayout(layout: Layout): Draft {
         label: field.label || field.key || `Field ${index + 1}`,
         type: field.type || "text",
         required: Boolean(field.required),
-        options: field.options || [],
+        options: normalizeFieldOptions(field),
         defaultValue: field.defaultValue,
         order: index,
         isActive: true,
@@ -99,7 +108,7 @@ function normalizeFields(fields: LayoutField[]) {
       key: field.key || keyFromLabel(field.label),
       label: field.label.trim(),
       type: field.type || "text",
-      options: usesOptions(String(field.type)) ? (field.options || []).map((option) => String(option).trim()).filter(Boolean) : [],
+      options: normalizeFieldOptions(field),
       order: index,
       isActive: true,
     }))
@@ -145,7 +154,11 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
         if (fieldIndex !== index) return field
         const next = { ...field, ...patch }
         if (patch.label !== undefined && (!field.key || field.key === keyFromLabel(field.label))) next.key = uniqueKey(patch.label, current.fields, index)
-        if (patch.type !== undefined && !usesOptions(String(patch.type))) next.options = []
+        if (patch.type !== undefined) {
+          if (patch.type === "lookup") next.options = [lookupSource(next)]
+          else if (patch.type === "select") next.options = []
+          else next.options = []
+        }
         return next
       })
       return { ...current, fields }
@@ -222,11 +235,11 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
                 <div key={index} className="rounded-xl border p-3">
                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_13rem_8.5rem_2.25rem] md:items-end">
                     <Field label="Field label"><Input value={field.label} onChange={(event) => updateField(index, { label: event.target.value })} placeholder="VIN, IMEI, Warranty docs..." /></Field>
-                    <Field label="Type"><Select value={String(field.type || "text")} onValueChange={(value: FieldType) => updateField(index, { type: value, options: usesOptions(value) ? field.options || [] : [] })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{fieldTypes.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent></Select></Field>
+                    <Field label="Type"><Select value={String(field.type || "text")} onValueChange={(value: FieldType) => updateField(index, { type: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{fieldTypes.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent></Select></Field>
                     <label className="flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm"><Checkbox checked={Boolean(field.required)} onCheckedChange={(checked) => updateField(index, { required: Boolean(checked) })} /><span>Required</span></label>
                     <Button type="button" variant="ghost" size="icon" className="size-9 text-muted-foreground hover:text-destructive" onClick={() => removeField(index)}><Trash2Icon className="size-4" /></Button>
                   </div>
-                  {usesOptions(String(field.type)) ? <div className="mt-3"><Field label={optionsLabel(String(field.type))}><Input value={(field.options || []).join(", ")} onChange={(event) => updateField(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} placeholder={optionsPlaceholder(String(field.type))} /></Field></div> : null}
+                  {hasFieldConfig(String(field.type)) ? <FieldConfig field={field} index={index} updateField={updateField} /> : null}
                 </div>
               )) : <div className="rounded-xl border border-dashed p-8 text-center"><p className="font-medium">No fields yet</p><p className="mt-1 text-sm text-muted-foreground">Add fields that only apply to products using this layout.</p><Button type="button" className="mt-4" size="sm" onClick={addField}><PlusIcon className="size-4" />Add first field</Button></div>}
             </CardContent>
@@ -248,6 +261,34 @@ export function LayoutFormContent({ layoutId }: { layoutId?: string }) {
       </div>
     </form>
   )
+}
+
+function FieldConfig({ field, index, updateField }: { field: LayoutField; index: number; updateField: (index: number, patch: Partial<LayoutField>) => void }) {
+  const type = String(field.type || "text")
+  if (type === "lookup") {
+    return (
+      <div className="mt-3 max-w-sm">
+        <Field label="Lookup source">
+          <Select value={lookupSource(field)} onValueChange={(value) => updateField(index, { options: [value] })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{lookupSources.map((source) => <SelectItem key={source.value} value={source.value}>{source.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </Field>
+      </div>
+    )
+  }
+
+  if (type === "select") {
+    return (
+      <div className="mt-3">
+        <Field label="Options">
+          <Input value={(field.options || []).join(", ")} onChange={(event) => updateField(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} placeholder="Small, Medium, Large" />
+        </Field>
+      </div>
+    )
+  }
+
+  return null
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) { return <div className="grid gap-2"><Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}{required ? <span className="ml-1 text-destructive">*</span> : null}</Label>{children}</div> }
