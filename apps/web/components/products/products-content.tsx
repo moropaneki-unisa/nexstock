@@ -9,6 +9,7 @@ import {
   BoxesIcon,
   EditIcon,
   EllipsisVerticalIcon,
+  FilterIcon,
   Loader2Icon,
   PackageIcon,
   PlusIcon,
@@ -38,8 +39,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api"
+import { getCachedLayouts } from "@/lib/cached-api"
 
 type Product = {
   id: string
@@ -52,8 +55,23 @@ type Product = {
   price?: number | string | null
   costPrice?: number | string | null
   currency?: string | null
+  priceCurrency?: string | null
+  metadata?: {
+    productTypeId?: string | null
+    productTypeName?: string | null
+    kind?: string | null
+    trackInventory?: boolean | null
+    customFields?: Record<string, unknown> | null
+  } | null
   createdAt?: string | null
   updatedAt?: string | null
+}
+
+type Layout = {
+  id: string
+  name: string
+  kind?: string | null
+  isDefault?: boolean | null
 }
 
 type Paginated<T> = {
@@ -62,10 +80,14 @@ type Paginated<T> = {
   pagination?: { total?: number | null } | null
 }
 
-function normalizeProducts(value: Product[] | Paginated<Product> | null | undefined) {
+function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
   if (!value) return []
   if (Array.isArray(value)) return value
   return value.items ?? value.data ?? []
+}
+
+function normalizeProducts(value: Product[] | Paginated<Product> | null | undefined) {
+  return normalizeList<Product>(value)
 }
 
 function numberValue(value: unknown) {
@@ -98,9 +120,18 @@ function getProductState(product: Product) {
 
   if (product.status === "archived") return "archived"
   if (product.status === "draft") return "draft"
+  if (product.metadata?.trackInventory === false) return "active"
   if (quantity <= 0) return "out"
   if (lowStockLevel > 0 && quantity <= lowStockLevel) return "low"
   return "active"
+}
+
+function productLayoutId(product: Product) {
+  return product.metadata?.productTypeId || ""
+}
+
+function productLayoutName(product: Product) {
+  return product.metadata?.productTypeName || "No layout"
 }
 
 function ProductStatusBadge({ product }: { product: Product }) {
@@ -170,6 +201,9 @@ function ProductsLoading() {
 
 export function ProductsContent() {
   const [products, setProducts] = React.useState<Product[]>([])
+  const [layouts, setLayouts] = React.useState<Layout[]>([])
+  const [selectedLayoutId, setSelectedLayoutId] = React.useState("all")
+  const [selectedKind, setSelectedKind] = React.useState("all")
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [running, setRunning] = React.useState(false)
@@ -179,8 +213,12 @@ export function ProductsContent() {
     setError(null)
 
     try {
-      const result = await apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100")
-      setProducts(normalizeProducts(result))
+      const [productResult, layoutResult] = await Promise.all([
+        apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100"),
+        getCachedLayouts<Layout[] | Paginated<Layout>>().catch(() => []),
+      ])
+      setProducts(normalizeProducts(productResult))
+      setLayouts(normalizeList<Layout>(layoutResult).filter((layout) => layout?.id))
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load products"
       setError(message)
@@ -244,12 +282,22 @@ export function ProductsContent() {
     }
   }
 
-  const activeProducts = products.filter((product) => getProductState(product) === "active")
-  const draftProducts = products.filter((product) => getProductState(product) === "draft")
-  const lowStockProducts = products.filter((product) => getProductState(product) === "low")
-  const outOfStockProducts = products.filter((product) => getProductState(product) === "out")
-  const archivedProducts = products.filter((product) => getProductState(product) === "archived")
-  const totalStock = products.reduce((sum, product) => sum + numberValue(product.quantity), 0)
+  const kinds = React.useMemo(() => Array.from(new Set(products.map((product) => product.metadata?.kind).filter(Boolean) as string[])).sort(), [products])
+  const filteredProducts = React.useMemo(() => {
+    return products.filter((product) => {
+      const layoutMatches = selectedLayoutId === "all" || (selectedLayoutId === "none" ? !productLayoutId(product) : productLayoutId(product) === selectedLayoutId)
+      const kindMatches = selectedKind === "all" || product.metadata?.kind === selectedKind
+      return layoutMatches && kindMatches
+    })
+  }, [products, selectedLayoutId, selectedKind])
+
+  const activeProducts = filteredProducts.filter((product) => getProductState(product) === "active")
+  const draftProducts = filteredProducts.filter((product) => getProductState(product) === "draft")
+  const lowStockProducts = filteredProducts.filter((product) => getProductState(product) === "low")
+  const outOfStockProducts = filteredProducts.filter((product) => getProductState(product) === "out")
+  const archivedProducts = filteredProducts.filter((product) => getProductState(product) === "archived")
+  const totalStock = filteredProducts.reduce((sum, product) => sum + numberValue(product.quantity), 0)
+  const selectedLayoutName = selectedLayoutId === "all" ? "All layouts" : selectedLayoutId === "none" ? "No layout" : layouts.find((layout) => layout.id === selectedLayoutId)?.name || "Selected layout"
 
   const columns = React.useMemo<ColumnDef<Product>[]>(() => [
     createSelectColumn<Product>(),
@@ -267,6 +315,16 @@ export function ProductsContent() {
       enableHiding: false,
     },
     {
+      id: "layout",
+      header: "Layout",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="secondary">{productLayoutName(row.original)}</Badge>
+          {row.original.metadata?.kind ? <Badge variant="outline" className="capitalize">{row.original.metadata.kind}</Badge> : null}
+        </div>
+      ),
+    },
+    {
       accessorKey: "category",
       header: "Category",
       cell: ({ row }) => row.original.category || "Uncategorized",
@@ -276,15 +334,14 @@ export function ProductsContent() {
       header: "Stock",
       cell: ({ row }) => (
         <div className="text-right tabular-nums">
-          <span className="font-medium">{numberValue(row.original.quantity).toLocaleString()}</span>
-          <span className="ml-1 text-xs text-muted-foreground">/ alert {numberValue(row.original.lowStockLevel).toLocaleString()}</span>
+          {row.original.metadata?.trackInventory === false ? <span className="text-muted-foreground">Not tracked</span> : <><span className="font-medium">{numberValue(row.original.quantity).toLocaleString()}</span><span className="ml-1 text-xs text-muted-foreground">/ alert {numberValue(row.original.lowStockLevel).toLocaleString()}</span></>}
         </div>
       ),
     },
     {
       accessorKey: "price",
       header: "Selling price",
-      cell: ({ row }) => <div className="font-medium tabular-nums">{formatMoney(row.original.price, row.original.currency || "USD")}</div>,
+      cell: ({ row }) => <div className="font-medium tabular-nums">{formatMoney(row.original.price, row.original.priceCurrency || row.original.currency || "USD")}</div>,
     },
     {
       id: "status",
@@ -359,14 +416,38 @@ export function ProductsContent() {
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
-          <ProductMetricCard title="Total products" value={products.length} detail={`${activeProducts.length} active · ${draftProducts.length} draft`} icon={BoxesIcon} />
-          <ProductMetricCard title="Stock on hand" value={totalStock.toLocaleString()} detail="Total quantity across catalog" icon={PackageIcon} />
+          <ProductMetricCard title="Total products" value={filteredProducts.length} detail={`${activeProducts.length} active · ${draftProducts.length} draft`} icon={BoxesIcon} />
+          <ProductMetricCard title="Stock on hand" value={totalStock.toLocaleString()} detail="Quantity in current filter" icon={PackageIcon} />
           <ProductMetricCard title="Low stock" value={lowStockProducts.length} detail={`${outOfStockProducts.length} out of stock`} icon={TriangleAlertIcon} />
           <ProductMetricCard title="Archived" value={archivedProducts.length} detail="Hidden from active operations" icon={ArchiveIcon} />
         </div>
 
+        <div className="mx-4 flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-xs lg:mx-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-medium"><FilterIcon className="size-4" />Product filters</p>
+            <p className="text-xs text-muted-foreground">Showing {filteredProducts.length} of {products.length} products · {selectedLayoutName}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId}>
+              <SelectTrigger className="min-w-48"><SelectValue placeholder="Filter by layout" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All layouts</SelectItem>
+                <SelectItem value="none">No layout</SelectItem>
+                {layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={selectedKind} onValueChange={setSelectedKind}>
+              <SelectTrigger className="min-w-40"><SelectValue placeholder="Filter by kind" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All kinds</SelectItem>
+                {kinds.map((kind) => <SelectItem key={kind} value={kind} className="capitalize">{kind}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <RecordsTable
-          data={products}
+          data={filteredProducts}
           columns={columns}
           title="All products"
           description="Manage product records, stock status, prices, categories, and product actions."
@@ -374,8 +455,8 @@ export function ProductsContent() {
           getRowId={(row) => row.id}
           actions={
             <Button asChild variant="outline" size="sm">
-              <Link href="/products/fields">
-                Product fields
+              <Link href="/settings/layout">
+                Layout settings
                 <ArrowRightIcon className="size-4" />
               </Link>
             </Button>
