@@ -80,6 +80,18 @@ export class AuthController {
     return { accessToken: tokens.accessToken };
   }
 
+  @Post('refresh')
+  @Throttle(30, 60_000)
+  async refresh(
+    @Body() body: { refreshToken?: string },
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const tokens = await this.auth.refresh(getRefreshToken(request, body), getRequestMeta(request));
+    setAuthCookies(response, tokens);
+    return { accessToken: tokens.accessToken };
+  }
+
   @Post('invite/accept')
   @Throttle(10, 60_000)
   async acceptInvite(@Body() dto: AcceptInviteDto, @Req() request: Request, @Res({ passthrough: true }) response: Response) {
