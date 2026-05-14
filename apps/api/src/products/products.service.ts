@@ -18,6 +18,22 @@ const PRODUCT_TRANSACTION_OPTIONS = {
   timeout: 30_000,
 };
 
+const LAYOUT_FIELD_TYPES = new Set([
+  'text',
+  'richtext',
+  'number',
+  'decimal',
+  'currency',
+  'attachment',
+  'images',
+  'lookup',
+  'boolean',
+  'select',
+  'date',
+]);
+
+const LOOKUP_SOURCES = new Set(['suppliers', 'products', 'customers']);
+
 type PrismaTransaction = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 type CurrencySettings = {
@@ -395,7 +411,14 @@ export class ProductsService {
 
   private normalizeLayoutValues(fields: ProductTypeFieldRow[], values: Record<string, unknown>) {
     const output: Record<string, unknown> = {};
+    const fieldKeys = new Set(fields.map((field) => field.key));
+    const unknownKeys = Object.keys(values).filter((key) => !fieldKeys.has(key));
+    if (unknownKeys.length) {
+      throw new BadRequestException(`Unknown layout field${unknownKeys.length === 1 ? '' : 's'}: ${unknownKeys.join(', ')}`);
+    }
+
     for (const field of fields) {
+      this.assertKnownLayoutType(field);
       const rawValue = values[field.key] ?? field.defaultValue;
       const hasValue = !this.isEmptyLayoutValue(rawValue);
       if (field.required && !hasValue) throw new BadRequestException(`Layout field "${field.label}" is required`);
@@ -418,33 +441,34 @@ export class ProductsService {
         return value;
       }
       case 'currency': {
-        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be a currency object`);
-        const value = rawValue as Record<string, unknown>;
-        const amount = Number(value.amount ?? value.value ?? 0);
-        const currency = this.normalizeCurrencyCode(String(value.currency ?? 'ZAR'));
+        if (!this.isPlainObject(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be a currency object`);
+        const amount = Number(rawValue.amount ?? rawValue.value);
+        const currency = this.normalizeCurrencyCode(String(rawValue.currency ?? ''));
         if (!Number.isFinite(amount)) throw new BadRequestException(`Layout field "${field.label}" must have a valid currency amount`);
+        if (!/^[A-Z]{3}$/.test(currency)) throw new BadRequestException(`Layout field "${field.label}" must include a valid 3-letter currency code`);
         return { amount, currency };
       }
       case 'attachment': {
-        if (!Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be an array`);
+        if (!Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be an attachment array`);
         return rawValue.map((item) => {
-          if (!item || typeof item !== 'object' || Array.isArray(item)) throw new BadRequestException(`Layout field "${field.label}" attachments must be { name, url } objects`);
-          const value = item as Record<string, unknown>;
-          const name = String(value.name ?? '').trim();
-          const url = String(value.url ?? '').trim();
-          if (!name || !url) throw new BadRequestException(`Layout field "${field.label}" attachments must include name and url`);
+          if (!this.isPlainObject(item)) throw new BadRequestException(`Layout field "${field.label}" attachments must be { name, url } objects`);
+          const name = String(item.name ?? '').trim().replace(/\.[^./\\]+$/, '');
+          const url = String(item.url ?? '').trim();
+          if (!name || !this.isLikelyUrl(url)) throw new BadRequestException(`Layout field "${field.label}" attachments must include name and valid url`);
           return { name, url };
         }) as Prisma.InputJsonArray;
       }
       case 'images': {
-        if (!Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be an array`);
-        return rawValue.map((item) => String(item).trim()).filter(Boolean) as Prisma.InputJsonArray;
+        if (!Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be an image URL array`);
+        const urls = rawValue.map((item) => String(item).trim()).filter(Boolean);
+        if (urls.some((url) => !this.isLikelyUrl(url))) throw new BadRequestException(`Layout field "${field.label}" images must be valid URLs`);
+        return urls as Prisma.InputJsonArray;
       }
       case 'lookup': {
-        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be a lookup object`);
-        const value = rawValue as Record<string, unknown>;
-        const id = String(value.id ?? '').trim();
-        const name = String(value.name ?? '').trim();
+        if (!this.isPlainObject(rawValue)) throw new BadRequestException(`Layout field "${field.label}" must be a lookup object`);
+        this.assertLookupSource(field);
+        const id = String(rawValue.id ?? '').trim();
+        const name = String(rawValue.name ?? '').trim();
         if (!id || !name) throw new BadRequestException(`Layout field "${field.label}" lookup must include id and name`);
         return { id, name };
       }
@@ -456,18 +480,52 @@ export class ProductsService {
       }
       case 'select': {
         const value = String(rawValue).trim();
-        if (field.options.length > 0 && !field.options.includes(value)) throw new BadRequestException(`Layout field "${field.label}" must match one of its options`);
-        return value;
+        const options = field.options.map((option) => String(option).trim()).filter(Boolean);
+        if (!options.length) throw new BadRequestException(`Layout field "${field.label}" has no select options configured`);
+        const matched = options.find((option) => option.toLowerCase() === value.toLowerCase());
+        if (!matched) throw new BadRequestException(`Layout field "${field.label}" must match one of its options`);
+        return matched;
       }
       case 'date': {
         const value = String(rawValue).trim();
-        if (Number.isNaN(Date.parse(value))) throw new BadRequestException(`Layout field "${field.label}" must be a valid date`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00.000Z`))) {
+          throw new BadRequestException(`Layout field "${field.label}" must be a valid date in YYYY-MM-DD format`);
+        }
         return value;
       }
       case 'richtext':
-      case 'text':
-      default:
+      case 'text': {
+        if (typeof rawValue === 'object') throw new BadRequestException(`Layout field "${field.label}" must be text`);
         return String(rawValue).trim();
+      }
+      default:
+        throw new BadRequestException(`Layout field "${field.label}" has unsupported type "${field.type}"`);
+    }
+  }
+
+  private assertKnownLayoutType(field: ProductTypeFieldRow) {
+    if (!LAYOUT_FIELD_TYPES.has(String(field.type))) {
+      throw new BadRequestException(`Layout field "${field.label}" has unsupported type "${field.type}"`);
+    }
+  }
+
+  private assertLookupSource(field: ProductTypeFieldRow) {
+    const source = String(field.options?.[0] || '').trim().toLowerCase();
+    if (!LOOKUP_SOURCES.has(source)) {
+      throw new BadRequestException(`Layout field "${field.label}" lookup source must be suppliers, products, or customers`);
+    }
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, unknown> {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+  }
+
+  private isLikelyUrl(value: string) {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol);
+    } catch {
+      return false;
     }
   }
 
