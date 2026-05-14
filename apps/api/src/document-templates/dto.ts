@@ -96,6 +96,10 @@ export class PreviewDocumentTemplateDto {
 
   @IsOptional()
   @IsString()
+  recordId?: string;
+
+  @IsOptional()
+  @IsString()
   recipientEmailTemplate?: string;
 
   @IsOptional()
