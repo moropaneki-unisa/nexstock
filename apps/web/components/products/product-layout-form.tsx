@@ -3,28 +3,26 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { AlertCircleIcon, ArrowLeftIcon, CheckCircle2Icon, ImageIcon, Loader2Icon, PackagePlusIcon, PlusIcon, SaveIcon, Trash2Icon, UploadCloudIcon } from "lucide-react"
+import { AlertCircleIcon, ArrowLeftIcon, CheckCircle2Icon, ImageIcon, Loader2Icon, PackagePlusIcon, SaveIcon, Trash2Icon, UploadCloudIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { MoneyInputField } from "@/components/ui/money-input"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupItem } from "@/components/ui/button-group"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
+import { getCachedOrganization } from "@/lib/cached-api"
 
 type LayoutField = { key: string; label: string; type?: string | null; required?: boolean | null; options?: string[] | null; isActive?: boolean | null; order?: number | null }
 type Layout = { id: string; name: string; kind?: string | null; trackInventory?: boolean | null; fields?: LayoutField[] | null }
 type ProductMetadata = { productTypeId?: string | null; productTypeName?: string | null; kind?: string | null; trackInventory?: boolean | null; customFields?: Record<string, unknown> | null }
 type Product = { id: string; name: string; sku?: string | null; category?: string | null; description?: string | null; status?: string | null; quantity?: number | string | null; lowStockLevel?: number | string | null; price?: number | string | null; priceCurrency?: string | null; images?: string[] | null; metadata?: ProductMetadata | null }
 type Organization = { baseCurrency?: string | null }
-type AttachmentValue = { name: string; url: string }
 type AssetResponse = { url: string; name?: string }
 type FormState = { name: string; sku: string; category: string; description: string; status: string; price: string; quantity: string; lowStockLevel: string }
 
@@ -79,7 +77,7 @@ export function ProductLayoutForm({ productId, layout }: { productId?: string; l
       setError(null)
       try {
         const [org, product] = await Promise.all([
-          apiFetch<Organization>("/api/organization").catch(() => null),
+          getCachedOrganization<Organization>().catch(() => null),
           productId ? apiFetch<Product>(`/api/products/${productId}`) : Promise.resolve(null),
         ])
         if (!active) return
