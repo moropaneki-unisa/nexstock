@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateDocumentTemplateDto, PreviewDocumentTemplateDto, UpdateDocumentTemplateDto } from './dto';
@@ -162,7 +163,7 @@ export class DocumentTemplatesService {
       await this.db.$executeRaw`UPDATE "DocumentTemplate" SET kind = ${kind} WHERE id = ${created.id}`;
       return this.get(user, created.id);
     } catch (error) {
-      throw new BadRequestException('A template with this name already exists');
+      this.rethrowTemplateSaveError(error, 'Template could not be created');
     }
   }
 
@@ -190,7 +191,7 @@ export class DocumentTemplatesService {
       await this.db.$executeRaw`UPDATE "DocumentTemplate" SET kind = ${kind} WHERE id = ${id}`;
       return this.get(user, id);
     } catch (error) {
-      throw new BadRequestException('Template could not be updated');
+      this.rethrowTemplateSaveError(error, 'Template could not be updated');
     }
   }
 
@@ -303,6 +304,16 @@ export class DocumentTemplatesService {
     if (value === undefined || value === null) return null;
     const text = value.trim();
     return text || null;
+  }
+
+  private rethrowTemplateSaveError(error: unknown, fallback: string): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new BadRequestException('A template with this name already exists');
+    }
+
+    if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+    if (error instanceof Error) throw new BadRequestException(`${fallback}: ${error.message}`);
+    throw new BadRequestException(fallback);
   }
 
   private async layoutFields(organizationId: string) {
