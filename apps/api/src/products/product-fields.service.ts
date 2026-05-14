@@ -3,7 +3,20 @@ import { CustomFieldType, Prisma } from '@prisma/client';
 import slugify from 'slugify';
 import { PrismaService } from '../prisma/prisma.service';
 
-const fieldTypes = ['text', 'number', 'boolean', 'select', 'date', 'json'] as const;
+const fieldTypes = [
+  'text',
+  'richtext',
+  'number',
+  'decimal',
+  'currency',
+  'attachment',
+  'images',
+  'lookup',
+  'boolean',
+  'select',
+  'date',
+  'json',
+] as const;
 
 type ProductFieldInput = {
   key?: string;
