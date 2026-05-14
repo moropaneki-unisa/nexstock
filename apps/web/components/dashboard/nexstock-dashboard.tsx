@@ -172,15 +172,15 @@ export function NexStockDashboard() {
 
     try {
       const [productResult, supplierResult, poResult, orgResult] = await Promise.all([
-        apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100").catch(() => []),
-        apiFetch<Supplier[]>("/api/suppliers").catch(() => []),
-        apiFetch<PurchaseOrder[]>("/api/purchase-orders").catch(() => []),
+        apiFetch<Product[] | Paginated<Product>>("/api/products?limit=100").catch((): Product[] => []),
+        apiFetch<Supplier[] | Paginated<Supplier>>("/api/suppliers").catch((): Supplier[] => []),
+        apiFetch<PurchaseOrder[] | Paginated<PurchaseOrder>>("/api/purchase-orders").catch((): PurchaseOrder[] => []),
         apiFetch<Organization>("/api/organization").catch(() => null),
       ])
 
-      setProducts(normalizeList(productResult))
-      setSuppliers(normalizeList(supplierResult))
-      setPurchaseOrders(normalizeList(poResult))
+      setProducts(normalizeList<Product>(productResult))
+      setSuppliers(normalizeList<Supplier>(supplierResult))
+      setPurchaseOrders(normalizeList<PurchaseOrder>(poResult))
       setOrganization(orgResult)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load dashboard data")
