@@ -75,12 +75,14 @@ export function TemplatesContent({ kindFilter }: { kindFilter?: "pdf" | "email" 
   const [templates, setTemplates] = React.useState<DocumentTemplate[]>([])
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
+  const [deletingId, setDeletingId] = React.useState<string | null>(null)
 
   async function loadTemplates() {
     setLoading(true)
     try {
       const all = await apiFetch<DocumentTemplate[]>("/api/document-templates")
-      setTemplates(kindFilter ? all.filter((template) => (template.kind || "pdf") === kindFilter) : all)
+      const visible = all.filter((template) => template.isActive !== false)
+      setTemplates(kindFilter ? visible.filter((template) => (template.kind || "pdf") === kindFilter) : visible)
     } catch (err) { toast.error("Templates could not load", { description: err instanceof Error ? err.message : "Load failed" }) }
     finally { setLoading(false) }
   }
@@ -88,16 +90,41 @@ export function TemplatesContent({ kindFilter }: { kindFilter?: "pdf" | "email" 
   React.useEffect(() => { void loadTemplates() }, [kindFilter])
 
   async function deactivate(template: DocumentTemplate) {
+    const confirmed = window.confirm(`Delete "${template.name}"? This will remove it from the templates list.`)
+    if (!confirmed) return
+
+    setDeletingId(template.id)
     setRunning(true)
-    try { await apiFetch(`/api/document-templates/${template.id}`, { method: "DELETE" }); toast.success("Template deactivated", { description: template.name }); await loadTemplates() }
-    catch (err) { toast.error("Could not deactivate template", { description: err instanceof Error ? err.message : "Delete failed" }) }
-    finally { setRunning(false) }
+    setTemplates((current) => current.filter((item) => item.id !== template.id))
+    try {
+      await apiFetch(`/api/document-templates/${template.id}`, { method: "DELETE" })
+      toast.success("Template deleted", { description: template.name })
+      await loadTemplates()
+    }
+    catch (err) {
+      toast.error("Could not delete template", { description: err instanceof Error ? err.message : "Delete failed" })
+      await loadTemplates()
+    }
+    finally { setDeletingId(null); setRunning(false) }
   }
 
   async function bulkDeactivate(rows: DocumentTemplate[]) {
+    if (!rows.length) return
+    const confirmed = window.confirm(`Delete ${rows.length} selected template${rows.length === 1 ? "" : "s"}? This will remove them from the templates list.`)
+    if (!confirmed) return
+
     setRunning(true)
-    try { await Promise.all(rows.map((template) => apiFetch(`/api/document-templates/${template.id}`, { method: "DELETE" }))); toast.success("Templates deactivated", { description: `${rows.length} selected.` }); await loadTemplates() }
-    catch (err) { toast.error("Could not deactivate selected templates", { description: err instanceof Error ? err.message : "Bulk action failed" }) }
+    const rowIds = new Set(rows.map((template) => template.id))
+    setTemplates((current) => current.filter((template) => !rowIds.has(template.id)))
+    try {
+      await Promise.all(rows.map((template) => apiFetch(`/api/document-templates/${template.id}`, { method: "DELETE" })))
+      toast.success("Templates deleted", { description: `${rows.length} selected.` })
+      await loadTemplates()
+    }
+    catch (err) {
+      toast.error("Could not delete selected templates", { description: err instanceof Error ? err.message : "Bulk action failed" })
+      await loadTemplates()
+    }
     finally { setRunning(false) }
   }
 
@@ -116,10 +143,10 @@ export function TemplatesContent({ kindFilter }: { kindFilter?: "pdf" | "email" 
     { accessorKey: "subjectTemplate", header: "Subject", cell: ({ row }) => row.original.subjectTemplate || "Not set" },
     { id: "status", header: "Status", cell: ({ row }) => <div className="flex gap-2">{row.original.isDefault ? <Badge>Default</Badge> : null}<Badge variant={row.original.isActive ? "secondary" : "outline"}>{row.original.isActive ? "Active" : "Inactive"}</Badge></div> },
     { id: "updatedAt", header: "Updated", cell: ({ row }) => formatDate(row.original.updatedAt) },
-    { id: "actions", header: "", cell: ({ row }) => <div className="flex justify-end gap-1"><Button asChild variant="ghost" size="icon" className="size-8"><Link href={`/settings/templates/${row.original.id}/editor`}><PenLineIcon className="size-4" /></Link></Button><Button asChild variant="ghost" size="icon" className="size-8"><Link href={`/settings/templates/${row.original.id}/edit`}><EditIcon className="size-4" /></Link></Button><Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => void deactivate(row.original)} disabled={running}><Trash2Icon className="size-4" /></Button></div>, enableHiding: false },
-  ], [running])
+    { id: "actions", header: "", cell: ({ row }) => <div className="flex justify-end gap-1"><Button asChild variant="ghost" size="icon" className="size-8"><Link href={`/settings/templates/${row.original.id}/editor`}><PenLineIcon className="size-4" /></Link></Button><Button asChild variant="ghost" size="icon" className="size-8"><Link href={`/settings/templates/${row.original.id}/edit`}><EditIcon className="size-4" /></Link></Button><Button type="button" variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={(event) => { event.preventDefault(); event.stopPropagation(); void deactivate(row.original) }} disabled={running || deletingId === row.original.id}>{deletingId === row.original.id ? <Loader2Icon className="size-4 animate-spin" /> : <Trash2Icon className="size-4" />}</Button></div>, enableHiding: false },
+  ], [running, deletingId])
 
-  const bulkActions = React.useMemo<RecordsTableBulkAction<DocumentTemplate>[]>(() => [{ label: "Deactivate selected", variant: "destructive", onClick: bulkDeactivate }], [])
+  const bulkActions = React.useMemo<RecordsTableBulkAction<DocumentTemplate>[]>(() => [{ label: "Delete selected", variant: "destructive", onClick: bulkDeactivate }], [])
 
   if (loading) return <Loading />
 
