@@ -32,8 +32,13 @@ type LayoutField = {
 
 type AssetValue = string | AttachmentValue
 
+function stripFileExtension(value: string) {
+  return value.replace(/\.[^./\\]+$/, "")
+}
+
 function cleanFileName(value: string | undefined, fallback: string) {
-  const name = String(value || fallback || "attachment").trim().replace(/\s+/g, " ")
+  const raw = String(value || fallback || "attachment").trim().replace(/\s+/g, " ")
+  const name = stripFileExtension(raw).trim()
   return name || "attachment"
 }
 
