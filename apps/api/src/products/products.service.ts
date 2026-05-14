@@ -532,10 +532,29 @@ export class ProductsService {
     switch (field.type) {
       case CustomFieldType.number: {
         const value = Number(rawValue);
-        if (!Number.isFinite(value)) {
-          throw new BadRequestException(`Product attribute "${field.label}" must be a valid number`);
+        if (!Number.isInteger(value)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be a whole number`);
         }
         return value;
+      }
+      case CustomFieldType.decimal: {
+        const value = Number(rawValue);
+        if (!Number.isFinite(value)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be a valid decimal`);
+        }
+        return value;
+      }
+      case CustomFieldType.currency: {
+        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be a currency object`);
+        }
+        const value = rawValue as Record<string, unknown>;
+        const amount = Number(value.amount ?? value.value ?? 0);
+        const currency = this.normalizeCurrencyCode(String(value.currency ?? 'ZAR'));
+        if (!Number.isFinite(amount)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must have a valid currency amount`);
+        }
+        return { amount, currency };
       }
       case CustomFieldType.boolean: {
         if (typeof rawValue === 'boolean') return rawValue;
@@ -545,7 +564,7 @@ export class ProductsService {
       }
       case CustomFieldType.select: {
         const value = String(rawValue).trim();
-        if (!field.options.includes(value)) {
+        if (field.options.length > 0 && !field.options.includes(value)) {
           throw new BadRequestException(`Product attribute "${field.label}" must match one of its configured options`);
         }
         return value;
@@ -557,6 +576,29 @@ export class ProductsService {
         }
         return value;
       }
+      case CustomFieldType.attachment:
+      case CustomFieldType.images: {
+        if (!Array.isArray(rawValue)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be an array`);
+        }
+        return rawValue.map((item) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object' && !Array.isArray(item)) return item as Prisma.InputJsonObject;
+          throw new BadRequestException(`Product attribute "${field.label}" contains an invalid file entry`);
+        }) as Prisma.InputJsonArray;
+      }
+      case CustomFieldType.lookup: {
+        if (!rawValue || typeof rawValue !== 'object' || Array.isArray(rawValue)) {
+          throw new BadRequestException(`Product attribute "${field.label}" must be a lookup object`);
+        }
+        const value = rawValue as Record<string, unknown>;
+        const id = String(value.id ?? '').trim();
+        const name = String(value.name ?? '').trim();
+        if (!id || !name) {
+          throw new BadRequestException(`Product attribute "${field.label}" lookup must include id and name`);
+        }
+        return { id, name };
+      }
       case CustomFieldType.json: {
         if (typeof rawValue === 'string') {
           try {
@@ -567,6 +609,7 @@ export class ProductsService {
         }
         return rawValue as Prisma.InputJsonValue;
       }
+      case CustomFieldType.richtext:
       case CustomFieldType.text:
       default:
         return String(rawValue).trim();
@@ -574,6 +617,6 @@ export class ProductsService {
   }
 
   private isEmptyCustomValue(value: unknown) {
-    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0);
   }
 }
