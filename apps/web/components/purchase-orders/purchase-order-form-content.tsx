@@ -103,8 +103,7 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
       }
       setLinksLoading(true)
       try {
-        const allLinks = await Promise.all(products.map((product) => apiFetch<ProductSupplierLink[]>(`/api/products/${product.id}/suppliers`).catch(() => [])))
-        const links = allLinks.flat().filter((link) => link.supplierId === form.supplierId)
+        const links = await apiFetch<ProductSupplierLink[]>(`/api/suppliers/${form.supplierId}/products`).catch(() => [])
         if (active) setSupplierLinks(links)
       } finally {
         if (active) setLinksLoading(false)
@@ -112,7 +111,7 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
     }
     if (!loading && !purchaseOrderId) void loadLinks()
     return () => { active = false }
-  }, [form.supplierId, products, loading, purchaseOrderId])
+  }, [form.supplierId, loading, purchaseOrderId])
 
   function changeSupplier(supplierId: string) {
     setForm((current) => ({ ...current, supplierId, lines: current.lines.map((line) => ({ ...line, productId: "", productSupplierId: "", supplierSku: "", unitCost: "0" })) }))
