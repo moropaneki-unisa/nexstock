@@ -331,10 +331,17 @@ export function ProductsContent() {
     },
     {
       accessorKey: "quantity",
-      header: "Stock",
+      header: () => <div className="text-left">Stock</div>,
       cell: ({ row }) => (
-        <div className="text-right tabular-nums">
-          {row.original.metadata?.trackInventory === false ? <span className="text-muted-foreground">Not tracked</span> : <><span className="font-medium">{numberValue(row.original.quantity).toLocaleString()}</span><span className="ml-1 text-xs text-muted-foreground">/ alert {numberValue(row.original.lowStockLevel).toLocaleString()}</span></>}
+        <div className="flex min-w-[7.5rem] items-baseline justify-start gap-1 tabular-nums">
+          {row.original.metadata?.trackInventory === false ? (
+            <span className="text-muted-foreground">Not tracked</span>
+          ) : (
+            <>
+              <span className="font-medium">{numberValue(row.original.quantity).toLocaleString()}</span>
+              <span className="text-xs text-muted-foreground">/ alert {numberValue(row.original.lowStockLevel).toLocaleString()}</span>
+            </>
+          )}
         </div>
       ),
     },
