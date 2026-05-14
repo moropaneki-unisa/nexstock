@@ -12,8 +12,6 @@ import {
   FileSpreadsheetIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
-  LayoutTemplateIcon,
-  PackageIcon,
   Settings2Icon,
   SparklesIcon,
   TruckIcon,
@@ -56,14 +54,12 @@ const data = {
   workspace: [
     { title: "Dashboard", url: "/dashboard", icon: <LayoutDashboardIcon /> },
     { title: "Products", url: "/products", icon: <BoxesIcon /> },
-    { title: "Layouts", url: "/layouts", icon: <LayoutTemplateIcon /> },
     { title: "Suppliers", url: "/suppliers", icon: <TruckIcon /> },
     { title: "Purchase Orders", url: "/purchase-orders", icon: <ClipboardListIcon /> },
   ],
   dataTools: [
     { title: "Imports", url: "/imports", icon: <FileSpreadsheetIcon /> },
     { title: "Data Tools", url: "/data-tools", icon: <DatabaseZapIcon /> },
-    { title: "Product Fields", url: "/products/fields", icon: <PackageIcon /> },
   ],
   connect: [
     { title: "Integrations", url: "/integrations", icon: <SparklesIcon /> },
