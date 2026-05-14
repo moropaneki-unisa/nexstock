@@ -205,6 +205,29 @@ export class DocumentTemplatesService {
     };
   }
 
+  async previewPdf(user: CurrentUserPayload, dto: PreviewDocumentTemplateDto) {
+    const rendered = await this.preview(user, dto);
+    const { default: puppeteer } = await import('puppeteer');
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(this.pdfDocument(rendered.html), { waitUntil: 'networkidle0' });
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+      });
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close();
+    }
+  }
+
   render(template: string, context: Record<string, any>) {
     let output = template || '';
     output = output.replace(/{{#lines}}([\s\S]*?){{\/lines}}/g, (_, block) => {
@@ -219,6 +242,27 @@ export class DocumentTemplatesService {
       const value = key.split('.').reduce((current: any, part: string) => current?.[part], context);
       return value === undefined || value === null ? '' : String(value);
     });
+  }
+
+  private pdfDocument(html: string) {
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; color: #111827; font-family: Arial, Helvetica, sans-serif; }
+    .page { width: 210mm; min-height: 297mm; padding: 16.9mm 18mm; background: #fff; }
+    table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+    th, td { word-break: break-word; overflow-wrap: anywhere; white-space: normal; vertical-align: top; }
+    img { max-width: 100%; }
+  </style>
+</head>
+<body>
+  <main class="page">${html}</main>
+</body>
+</html>`;
   }
 
   private async clearDefault(organizationId: string, type: string, kind: string, exceptId?: string) {
