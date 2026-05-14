@@ -97,11 +97,11 @@ export function ProductLayoutBridge({ productId }: { productId?: string }) {
       <Card>
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div><CardTitle className="flex items-center gap-2"><BoxesIcon className="size-4" />Layout</CardTitle><CardDescription>Choose the layout for this product. The selected layout is saved with the product and shown on the product details page.</CardDescription></div>
-          <Button asChild variant="outline" size="sm"><Link href="/layouts"><Settings2Icon className="size-4" />Manage layouts</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link href="/settings/layout"><Settings2Icon className="size-4" />Manage layouts</Link></Button>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-[minmax(0,24rem)_1fr] md:items-start">
           <div className="grid gap-2"><Select value={selectedTypeId} onValueChange={setSelectedTypeId}><SelectTrigger><SelectValue placeholder="Choose layout" /></SelectTrigger><SelectContent>{types.map((type) => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}</SelectContent></Select>{selectedType ? <div className="flex flex-wrap gap-2"><Badge variant="outline">{humanKind(selectedType.kind)}</Badge><Badge variant={selectedType.trackInventory === false ? "secondary" : "default"}>{selectedType.trackInventory === false ? "No stock tracking" : "Stock tracked"}</Badge>{selectedType.isDefault ? <Badge variant="secondary">Default</Badge> : null}</div> : null}</div>
-          <div className="flex flex-wrap gap-2">{selectedFields.length ? selectedFields.map((field) => <Badge key={field.key} variant="secondary">{field.label || field.key}</Badge>) : <span className="text-sm text-muted-foreground">No layout attributes selected yet.</span>}</div>
+          <div className="flex flex-wrap gap-2">{selectedFields.length ? selectedFields.map((field) => <Badge key={field.key} variant="secondary">{field.label || field.key}</Badge>) : <span className="text-sm text-muted-foreground">No layout fields selected yet.</span>}</div>
         </CardContent>
       </Card>
     </div>
