@@ -104,6 +104,12 @@ GET    /api/dashboard
 GET    /api/organization
 PATCH  /api/organization
 
+GET    /api/tasks
+POST   /api/tasks
+POST   /api/tasks/launch-checklist
+PATCH  /api/tasks/:id
+DELETE /api/tasks/:id
+
 GET    /api/products
 POST   /api/products
 GET    /api/products/export?format=csv
@@ -252,6 +258,15 @@ These changes were applied directly to the `main-v2` branch.
    - Supplier cost source now follows the same shadcn-style card/form pattern as Selling price and stock: summary values use read-only input fields in a responsive two-column grid, and supplier rows sit below as card rows.
    - Supplier rows now use component-level shadcn/Tailwind structure: row header with preferred badge/action and delete action, then a responsive two-column form grid for supplier, SKU, cost, currency, MOQ, and converted cost.
    - The product form grid now uses `minmax(0,1fr)` for the main content next to the summary panel, so the main form respects the available width without overlaying the summary.
+
+16. **Tasks CRUD pages**
+   - Added `/tasks` as the authenticated tasks dashboard page.
+   - Added `/tasks/new`, `/tasks/[id]`, and `/tasks/[id]/edit` CRUD pages.
+   - Added shadcn-style task list, task detail, and task form components using Card, Button, Select, Badge, Input, Textarea, Switch, and sidebar layout components.
+   - Connected the UI to the existing backend task API: `GET /api/tasks`, `POST /api/tasks`, `PATCH /api/tasks/:id`, `DELETE /api/tasks/:id`, and `POST /api/tasks/launch-checklist`.
+   - Added task summary cards for total, to-do, in-progress, blocked, done, due today, and overdue counts.
+   - Added task status filtering, inline status updates, delete actions, mark-done action, reminder fields, priority/category fields, and launch checklist generation.
+   - Added Tasks to the main sidebar and the user dropdown menu.
 
 ## Current known follow-up items
 
