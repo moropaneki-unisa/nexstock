@@ -39,6 +39,7 @@ type ProductStatusPatch = UpdateProductDto & {
 
 type ImportBody = {
   mapping?: string | Record<string, string>;
+  productTypeId?: string;
 };
 
 @Controller('products')
@@ -111,7 +112,12 @@ export class ProductsController {
     @UploadedFile() file: Express.Multer.File,
     @Body() body: ImportBody,
   ) {
-    return this.importExport.importProducts(user.organizationId, file, this.parseImportMapping(body?.mapping));
+    return this.importExport.importProducts(
+      user.organizationId,
+      file,
+      this.parseImportMapping(body?.mapping),
+      { productTypeId: body?.productTypeId },
+    );
   }
 
   @Post(':id/upload-image')
