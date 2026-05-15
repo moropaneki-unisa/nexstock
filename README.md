@@ -251,6 +251,8 @@ These changes were applied directly to the `main-v2` branch.
    - Supplier costing cards now use responsive `auto-fit` columns instead of forcing four fixed columns that can collide with the right summary panel.
    - Supplier links now render as compact cards on smaller layouts and as a horizontally scroll-safe table on large layouts.
    - Added `min-w-0`, truncation, and bounded dialog scrolling so long supplier names, SKUs, and rows do not push into or hide behind the summary panel.
+   - Corrected the active product form alignment scope so the CSS also targets the live `@container/main` form, not only the unused `.product-form-layout-scope` selector.
+   - The active supplier row editor now wraps into responsive `auto-fit` columns instead of forcing the 7-column supplier grid that was clipping content under the summary panel.
 
 ## Current known follow-up items
 
