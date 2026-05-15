@@ -22,12 +22,12 @@ import {
   createSelectColumn,
   type RecordsTableBulkAction,
 } from "@/components/records/records-table"
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -149,35 +149,47 @@ function ProductStatusBadge({ product }: { product: Product }) {
   return <Badge>Active</Badge>
 }
 
-function ProductActions({ product, onArchive }: { product: Product; onArchive: (product: Product) => void }) {
+function ProductActions({ product, busy, onArchive }: { product: Product; busy?: boolean; onArchive: (product: Product) => void }) {
+  const [open, setOpen] = React.useState(false)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted">
-          <EllipsisVerticalIcon className="size-4" />
-          <span className="sr-only">Open product menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem asChild>
-          <Link href={`/products/${product.id}`}>
-            <ArrowRightIcon className="size-4" />
-            View
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/products/${product.id}/edit`}>
-            <EditIcon className="size-4" />
-            Edit
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => onArchive(product)}>
-          <ArchiveIcon className="size-4" />
-          Archive
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted" disabled={busy}>
+            <EllipsisVerticalIcon className="size-4" />
+            <span className="sr-only">Open product menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem asChild>
+            <Link href={`/products/${product.id}`}>
+              <ArrowRightIcon className="size-4" />
+              View
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/products/${product.id}/edit`}>
+              <EditIcon className="size-4" />
+              Edit
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => setOpen(true)}>
+            <ArchiveIcon className="size-4" />
+            Archive
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <RecordActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        busy={busy}
+        title="Archive product?"
+        description={`This will archive "${product.name}" and remove it from active inventory workflows. You can still keep historical records.`}
+        confirmLabel="Archive product"
+        onConfirm={() => onArchive(product)}
+      />
+    </>
   )
 }
 
@@ -429,10 +441,10 @@ export function ProductsContent() {
     {
       id: "actions",
       header: "",
-      cell: ({ row }) => <ProductActions product={row.original} onArchive={archiveProduct} />,
+      cell: ({ row }) => <ProductActions product={row.original} busy={running} onArchive={archiveProduct} />,
       enableHiding: false,
     },
-  ], [])
+  ], [running])
 
   const bulkActions = React.useMemo<RecordsTableBulkAction<Product>[]>(() => [
     {
