@@ -106,6 +106,11 @@ PATCH  /api/organization
 
 GET    /api/products
 POST   /api/products
+GET    /api/products/export?format=csv
+GET    /api/products/export?format=xlsx
+POST   /api/products/import
+GET    /api/products/types
+POST   /api/products/types
 GET    /api/products/:id
 PATCH  /api/products/:id
 DELETE /api/products/:id
@@ -126,8 +131,10 @@ POST   /api/webhooks/:id/test
 POST   /api/billing/paystack/initialize
 GET    /api/billing/paystack/verify/:reference
 
-GET    /api/v1/products      # public, API key authenticated
-POST   /api/v1/products      # public, API key authenticated
+GET    /api/v1/products             # public, API key authenticated
+POST   /api/v1/products             # public, API key authenticated
+PATCH  /api/v1/products/:id         # public, API key authenticated
+POST   /api/v1/products/:id/adjust  # public, API key authenticated
 ```
 
 ## Security notes
@@ -139,3 +146,36 @@ POST   /api/v1/products      # public, API key authenticated
   are applied to every response.
 - Webhook deliveries are signed with HMAC-SHA256 in `x-nexstock-signature`.
 - API keys are hashed at rest; the secret is shown only at creation time.
+
+## main-v2 functionality fixes
+
+These changes were applied directly to the `main-v2` branch.
+
+### 2026-05-15
+
+1. **Product layout database tables**
+   - Added Prisma migration `20260515120000_add_product_layout_tables`.
+   - Creates `ProductType` and `ProductTypeField` tables used by product layout/custom field logic.
+   - Adds organization-scoped unique/index constraints and cascade foreign keys.
+   - This fixes runtime failures for `/api/products/types` when the layout tables do not exist.
+
+2. **Product import/export routes**
+   - Added authenticated product export route: `GET /api/products/export?format=csv|xlsx`.
+   - Added authenticated spreadsheet import route: `POST /api/products/import` with multipart `file` upload.
+   - These routes expose the existing `ProductsImportExportService` logic for CSV/XLSX product operations.
+
+3. **Public API inventory adjustment**
+   - Added `POST /api/v1/products/:id/adjust`.
+   - Uses the existing API key guard and `products:write` scope.
+   - Defaults adjustment source to `public_api` when no source is supplied.
+   - Enables external systems to adjust stock through API keys.
+
+4. **Product status persistence**
+   - Updated product PATCH handling so web bulk actions such as `Set active` and `Set draft` can persist product status.
+   - Status is saved after the normal product update while preserving the existing product service update flow.
+
+## Current known follow-up items
+
+- Signup frontend auth persistence cleanup is still recommended: signup should return verification state only and should not attempt to persist auth data until OTP verification succeeds.
+- Product status persistence currently happens in the products controller after the normal update. A cleaner follow-up is to add `status` to `UpdateProductDto` and move status handling into `ProductsService.update()`.
+- After pulling `main-v2`, run `npm install`, `npm run prisma:generate -w @nexstock/api`, and `npm run migrate -w @nexstock/api` before testing layouts.
