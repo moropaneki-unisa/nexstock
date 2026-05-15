@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react"
+
 import { AppSidebar } from "@/components/app-sidebar"
 import { ProductFormWithLayout } from "@/components/products/product-form-with-layout"
 import { SiteHeader } from "@/components/site-header"
@@ -10,7 +12,7 @@ export default function Page() {
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
           "--header-height": "calc(var(--spacing) * 16)",
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       <AppSidebar variant="inset" />
