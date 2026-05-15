@@ -500,7 +500,7 @@ export function ProductsContent() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/imports">
+                  <Link href="/imports/new">
                     <UploadIcon className="size-4" />
                     Import products
                   </Link>
