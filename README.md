@@ -224,12 +224,13 @@ These changes were applied directly to the `main-v2` branch.
    - Required layout fields are enforced during import.
    - Select layout fields treat `none` as an empty/default UI value and only save a value when the spreadsheet value matches a configured select option.
 
-13. **Import template exports**
-   - Selecting a layout on `/imports/new` now regenerates the mapping JSON example to include that layout's custom fields.
-   - Added export data structure buttons for CSV, XLSX, and JSON templates.
-   - CSV export remains an upload-ready template with sample product rows.
-   - XLSX export is now a workbook with `Import Template`, `Field Guide`, `Select Options`, and `Import Info` sheets.
-   - JSON export is now a typed schema/data contract with data types, required flags, defaults, allowed values, examples, import formats, notes, and validation rules.
+13. **Backend-aligned import template exports**
+   - Selecting a layout on `/imports/new` regenerates the mapping JSON example to include that layout's custom fields.
+   - CSV and XLSX exports are explicitly importable by the current backend.
+   - CSV export is an upload-ready product import template.
+   - XLSX export keeps the importable product data in the first worksheet because the backend reads only the first worksheet; additional `Field Guide`, `Select Options`, and `Import Info` sheets are reference-only and ignored by import.
+   - JSON export is renamed/treated as a schema/reference file only, not an importable upload format.
+   - Templates now include backend-supported core fields: price currency, cost, cost currency, exchange rate, quantity, low stock level, status, images, and selected layout fields.
    - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
 
 ## Current known follow-up items
