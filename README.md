@@ -172,10 +172,10 @@ These changes were applied directly to the `main-v2` branch.
 
 4. **Product status persistence**
    - Updated product PATCH handling so web bulk actions such as `Set active` and `Set draft` can persist product status.
-   - Status is saved after the normal product update while preserving the existing product service update flow.
+   - Follow-up cleanup moved status persistence into `ProductsService.update()` so the normal service update flow now saves status.
+   - Simplified `ProductsController.update()` back to a single service call after moving status logic into the service.
 
 ## Current known follow-up items
 
 - Signup frontend auth persistence cleanup is still recommended: signup should return verification state only and should not attempt to persist auth data until OTP verification succeeds.
-- Product status persistence currently happens in the products controller after the normal update. A cleaner follow-up is to add `status` to `UpdateProductDto` and move status handling into `ProductsService.update()`.
 - After pulling `main-v2`, run `npm install`, `npm run prisma:generate -w @nexstock/api`, and `npm run migrate -w @nexstock/api` before testing layouts.
