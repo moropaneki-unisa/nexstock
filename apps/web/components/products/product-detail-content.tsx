@@ -176,9 +176,16 @@ export function ProductDetailContent({ productId }: { productId: string }) {
         </section>
 
         <main className="grid min-w-0 gap-4">
-          <DropdownSection defaultOpen icon={<InfoIcon className="size-5" />} title="Basic information" summary="Name, SKU, category, layout and product classification.">
+          <section className="grid min-w-0 gap-4 border p-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <InfoIcon className="size-5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <h2 className="font-semibold">Basic information</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Name, SKU, category, layout and product classification.</p>
+              </div>
+            </div>
             <InfoGrid><InfoPair label="Product name" value={cleanText(product.name) || "-"} /><InfoPair label="Location" value="Default warehouse" /><InfoPair label="Vendor" value={layoutName} /><InfoPair label="Code" value={sku} mono /><InfoPair label="SKU" value={sku} mono /><InfoPair label="Images" value={`${images.length} picture${images.length === 1 ? "" : "s"}`} /><InfoPair label="Category" value={cleanText(product.category) || "Uncategorized"} /><InfoPair label="Kind" value={productKindLabel(layoutKind)} /></InfoGrid>
-          </DropdownSection>
+          </section>
 
           <DropdownSection defaultOpen icon={<span className="text-xl leading-none">$</span>} title="Sale information" summary="Pricing, cost, profit and currency information.">
             <InfoGrid><InfoPair label="Price" value={formatMoney(product.price, priceCurrency)} /><InfoPair label="Cost" value={costValue == null ? "Not set" : formatMoney(costValue, costCurrency)} /><InfoPair label="Profit" value={costValue == null ? "Not set" : formatMoney(numberValue(product.price) - numberValue(costValue), priceCurrency)} /><InfoPair label="Currency" value={priceCurrency} /><InfoPair label="Base currency" value={baseCurrency} /><InfoPair label="Converted cost" value={product.convertedCost == null ? "Not set" : formatMoney(product.convertedCost, baseCurrency)} /></InfoGrid>
