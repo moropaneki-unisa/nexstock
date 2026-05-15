@@ -20,6 +20,7 @@ import {
   createSelectColumn,
   type RecordsTableBulkAction,
 } from "@/components/records/records-table"
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -105,48 +106,74 @@ function SupplierStatusBadge({ supplier }: { supplier: Supplier }) {
 
 function SupplierActions({
   supplier,
+  busy,
   onArchive,
   onReactivate,
 }: {
   supplier: Supplier
+  busy?: boolean
   onArchive: (supplier: Supplier) => void
   onReactivate: (supplier: Supplier) => void
 }) {
+  const [archiveOpen, setArchiveOpen] = React.useState(false)
+  const [reactivateOpen, setReactivateOpen] = React.useState(false)
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted">
-          <EllipsisVerticalIcon className="size-4" />
-          <span className="sr-only">Open supplier menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem asChild>
-          <Link href={`/suppliers/${supplier.id}`}>
-            <ArrowRightIcon className="size-4" />
-            View
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/suppliers/${supplier.id}/edit`}>
-            <EditIcon className="size-4" />
-            Edit
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        {supplier.status === "archived" ? (
-          <DropdownMenuItem onClick={() => onReactivate(supplier)}>
-            <RotateCcwIcon className="size-4" />
-            Reactivate
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted" disabled={busy}>
+            <EllipsisVerticalIcon className="size-4" />
+            <span className="sr-only">Open supplier menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem asChild>
+            <Link href={`/suppliers/${supplier.id}`}>
+              <ArrowRightIcon className="size-4" />
+              View
+            </Link>
           </DropdownMenuItem>
-        ) : (
-          <DropdownMenuItem variant="destructive" onClick={() => onArchive(supplier)}>
-            <ArchiveIcon className="size-4" />
-            Archive
+          <DropdownMenuItem asChild>
+            <Link href={`/suppliers/${supplier.id}/edit`}>
+              <EditIcon className="size-4" />
+              Edit
+            </Link>
           </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuSeparator />
+          {supplier.status === "archived" ? (
+            <DropdownMenuItem onClick={() => setReactivateOpen(true)}>
+              <RotateCcwIcon className="size-4" />
+              Reactivate
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem variant="destructive" onClick={() => setArchiveOpen(true)}>
+              <ArchiveIcon className="size-4" />
+              Archive
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <RecordActionDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        busy={busy}
+        title="Archive supplier?"
+        description={`This will archive "${supplier.name}" and remove it from active supplier workflows. Existing purchase history remains available.`}
+        confirmLabel="Archive supplier"
+        onConfirm={() => onArchive(supplier)}
+      />
+      <RecordActionDialog
+        open={reactivateOpen}
+        onOpenChange={setReactivateOpen}
+        busy={busy}
+        variant="default"
+        title="Reactivate supplier?"
+        description={`This will make "${supplier.name}" available again for purchasing workflows.`}
+        confirmLabel="Reactivate supplier"
+        onConfirm={() => onReactivate(supplier)}
+      />
+    </>
   )
 }
 
@@ -289,13 +316,14 @@ export function SuppliersContent() {
       cell: ({ row }) => (
         <SupplierActions
           supplier={row.original}
+          busy={running}
           onArchive={archiveSupplier}
           onReactivate={reactivateSupplier}
         />
       ),
       enableHiding: false,
     },
-  ], [])
+  ], [running])
 
   const bulkActions = React.useMemo<RecordsTableBulkAction<Supplier>[]>(() => [
     {
