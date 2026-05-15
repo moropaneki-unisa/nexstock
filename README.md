@@ -307,6 +307,15 @@ These changes were applied directly to the `main-v2` branch.
    - Backend now returns a clearer error when Product layout tables are missing, instructing developers to run the latest Prisma migrations for `main-v2`.
    - Manual test checklist: create a product with only a name and layout, create/edit a product with optional layout fields blank, save a product with an optional `attachment` field blank, add/remove supplier rows, upload/remove images, adjust stock from the detail page, and verify archive confirmation on product detail.
 
+21. **Supplier CRUD page standardization**
+   - Patched `/suppliers/new`, `/suppliers/[id]`, and `/suppliers/[id]/edit` route files to use type-only `CSSProperties` imports and avoid `React.CSSProperties` build errors.
+   - Reworked supplier detail archive/reactivate actions to use shadcn AlertDialog through `RecordActionDialog` instead of running immediately.
+   - Tightened `supplier-form-content.tsx` with clearer shadcn/Tailwind sections for classification, contact/address, purchasing, and notes.
+   - Supplier name is the only required supplier form field; other supplier fields can use defaults or remain blank.
+   - Replaced the large supplier form error card with a compact destructive alert.
+   - Added sticky save/cancel actions, form submit behavior, improved loading skeletons, and mobile-friendly layout behavior.
+   - Manual test checklist: create a supplier with only a name, edit a supplier with optional fields blank, verify sticky save/cancel on desktop and mobile widths, archive/reactivate from detail and confirm dialogs appear first, and verify supplier routes build without `React.CSSProperties` errors.
+
 ## Current known follow-up items
 
 - Add import preview/validation before final upload.
