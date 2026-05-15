@@ -158,8 +158,9 @@ export function PurchaseOrdersContent() {
   async function bulkCancel(rows: PurchaseOrder[]) {
     setRunning(true)
     try {
-      await Promise.all(rows.filter((row) => row.status !== "cancelled").map((order) => apiFetch(`/api/purchase-orders/${order.id}`, { method: "DELETE" })))
-      toast.success("Purchase orders cancelled", { description: `${rows.length} selected.` })
+      const cancellableRows = rows.filter((row) => row.status !== "cancelled")
+      await Promise.all(cancellableRows.map((order) => apiFetch(`/api/purchase-orders/${order.id}`, { method: "DELETE" })))
+      toast.success("Purchase orders cancelled", { description: `${cancellableRows.length} order${cancellableRows.length === 1 ? "" : "s"} cancelled.` })
       await loadOrders()
     } catch (err) {
       toast.error("Could not cancel selected purchase orders", { description: err instanceof Error ? err.message : "Bulk cancel failed" })
@@ -201,7 +202,17 @@ export function PurchaseOrdersContent() {
     { id: "actions", header: "", cell: ({ row }) => <PurchaseOrderActions order={row.original} busy={running} onCancel={cancelOrder} />, enableHiding: false },
   ], [running])
 
-  const bulkActions = React.useMemo<RecordsTableBulkAction<PurchaseOrder>[]>(() => [{ label: "Cancel selected", variant: "destructive", onClick: bulkCancel }], [])
+  const bulkActions = React.useMemo<RecordsTableBulkAction<PurchaseOrder>[]>(() => [
+    {
+      label: "Cancel selected",
+      variant: "destructive",
+      confirmTitle: "Cancel selected purchase orders?",
+      confirmDescription: (count) => `This will cancel ${count} selected purchase order${count === 1 ? "" : "s"}. Cancelled orders should not be received later. Already-cancelled orders will be skipped.`,
+      confirmLabel: "Cancel orders",
+      confirmVariant: "destructive",
+      onClick: bulkCancel,
+    },
+  ], [])
 
   if (loading) return <PurchaseOrdersLoading />
 
