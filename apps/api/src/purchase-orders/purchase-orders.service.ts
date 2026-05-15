@@ -108,9 +108,14 @@ export class PurchaseOrdersService {
       if (!existing) throw new NotFoundException('Purchase order not found');
       if (existing.status === PurchaseOrderStatus.cancelled) throw new BadRequestException('Cancelled purchase orders cannot be received');
 
+      const validLineIds = new Set(existing.lines.map((line) => line.id));
+      const unknownLineIds = Array.from(incoming.keys()).filter((lineId) => !validLineIds.has(lineId));
+      if (unknownLineIds.length) throw new BadRequestException(`Received line does not belong to this purchase order: ${unknownLineIds[0]}`);
+
       let totalOrdered = 0;
       let totalReceived = 0;
       const receivedAt = new Date();
+      const productQuantities = new Map(existing.lines.map((line) => [line.productId, line.product.quantity]));
 
       for (const line of existing.lines) {
         totalOrdered += line.quantityOrdered;
@@ -124,7 +129,9 @@ export class PurchaseOrdersService {
         totalReceived += nextReceived;
         if (receiveDelta === 0) continue;
 
-        const productAfter = line.product.quantity + receiveDelta;
+        const quantityBefore = productQuantities.get(line.productId) ?? line.product.quantity;
+        const quantityAfter = quantityBefore + receiveDelta;
+        productQuantities.set(line.productId, quantityAfter);
 
         await tx.product.update({
           where: { id: line.productId },
@@ -139,8 +146,8 @@ export class PurchaseOrdersService {
             organizationId: user.organizationId,
             productId: line.productId,
             type: InventoryMovementType.purchase,
-            quantityBefore: line.product.quantity,
-            quantityAfter: productAfter,
+            quantityBefore,
+            quantityAfter,
             delta: receiveDelta,
             reason: this.optionalText(dto.notes) ?? `Received against ${existing.poNumber}`,
             source: 'purchase_order',
