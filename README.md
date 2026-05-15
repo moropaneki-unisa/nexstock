@@ -249,7 +249,8 @@ These changes were applied directly to the `main-v2` branch.
 15. **Product supplier section overflow cleanup**
    - Removed the product form global CSS/alignment shim because it conflicted with normal shadcn/Tailwind component behavior.
    - Fixed the active product supplier row inside `product-layout-form.tsx` itself instead of applying page-wide CSS overrides.
-   - Supplier rows now use component-level shadcn/Tailwind structure: a card-like row, responsive field grid, a compact preferred badge/action, and a normal delete button in the row header.
+   - Supplier cost source now follows the same shadcn-style card/form pattern as Selling price and stock: summary values use read-only input fields in a responsive two-column grid, and supplier rows sit below as card rows.
+   - Supplier rows now use component-level shadcn/Tailwind structure: row header with preferred badge/action and delete action, then a responsive two-column form grid for supplier, SKU, cost, currency, MOQ, and converted cost.
    - The product form grid now uses `minmax(0,1fr)` for the main content next to the summary panel, so the main form respects the available width without overlaying the summary.
 
 ## Current known follow-up items
@@ -258,4 +259,3 @@ These changes were applied directly to the `main-v2` branch.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
 - Verify or complete webhook management UI.
-- After pulling `main-v2`, run `npm install`, `npm run prisma:generate -w @nexstock/api`, and `npm run migrate -w @nexstock/api` before testing layouts/import logs.
