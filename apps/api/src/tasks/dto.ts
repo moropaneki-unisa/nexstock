@@ -1,5 +1,10 @@
 import { TaskPriority, TaskStatus } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import { IsBoolean, IsDateString, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+
+function emptyToUndefined(value: unknown) {
+  return value === null || value === '' ? undefined : value;
+}
 
 export class CreateTaskDto {
   @IsString()
@@ -7,6 +12,7 @@ export class CreateTaskDto {
   title!: string;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsString()
   @MaxLength(3000)
   description?: string;
@@ -20,11 +26,13 @@ export class CreateTaskDto {
   priority?: TaskPriority;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsString()
   @MaxLength(80)
   category?: string;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsDateString()
   dueAt?: string;
 
@@ -33,6 +41,7 @@ export class CreateTaskDto {
   reminderEnabled?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsDateString()
   reminderAt?: string;
 }
@@ -44,9 +53,10 @@ export class UpdateTaskDto {
   title?: string;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsString()
   @MaxLength(3000)
-  description?: string | null;
+  description?: string;
 
   @IsOptional()
   @IsIn(['todo', 'in_progress', 'blocked', 'done'])
@@ -57,19 +67,22 @@ export class UpdateTaskDto {
   priority?: TaskPriority;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsString()
   @MaxLength(80)
-  category?: string | null;
+  category?: string;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsDateString()
-  dueAt?: string | null;
+  dueAt?: string;
 
   @IsOptional()
   @IsBoolean()
   reminderEnabled?: boolean;
 
   @IsOptional()
+  @Transform(({ value }) => emptyToUndefined(value))
   @IsDateString()
-  reminderAt?: string | null;
+  reminderAt?: string;
 }
