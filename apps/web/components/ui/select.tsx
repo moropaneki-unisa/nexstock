@@ -61,7 +61,6 @@ function SelectContent({
   className,
   children,
   position = "popper",
-  side = "bottom",
   align = "start",
   sideOffset = 4,
   ...props
@@ -77,7 +76,7 @@ function SelectContent({
           className
         )}
         position={position}
-        side={side}
+        side="bottom"
         align={align}
         sideOffset={sideOffset}
         {...props}
