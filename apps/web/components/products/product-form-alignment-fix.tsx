@@ -22,7 +22,7 @@ function enhanceReadOnlyFields() {
   if (typeof document === "undefined") return
 
   const nodes = document.querySelectorAll<HTMLSpanElement>(
-    ".product-form-layout-scope form div > span.sr-only",
+    ".product-form-layout-scope form div > span.sr-only, form[class*='@container/main'] div > span.sr-only",
   )
 
   nodes.forEach((labelNode) => {
@@ -39,7 +39,7 @@ function enhanceReadOnlyFields() {
     const isMoneyValue = MONEY_READ_ONLY_LABELS.has(normalizedLabel)
 
     wrapper.dataset.readonlyInputEnhanced = "true"
-    wrapper.className = "grid gap-2"
+    wrapper.className = "grid min-w-0 gap-2"
     wrapper.innerHTML = ""
 
     const labelElement = document.createElement("label")
@@ -74,30 +74,98 @@ export function ProductFormAlignmentFix() {
 
   return (
     <style>{`
+      .product-form-layout-scope form,
+      form[class*="@container/main"] {
+        min-width: 0 !important;
+      }
+
+      .product-form-layout-scope form > .grid,
+      form[class*="@container/main"] > .grid {
+        min-width: 0 !important;
+      }
+
+      .product-form-layout-scope form > .grid > main,
+      form[class*="@container/main"] > .grid > main,
+      .product-form-layout-scope form > .grid > aside,
+      form[class*="@container/main"] > .grid > aside {
+        min-width: 0 !important;
+      }
+
+      @media (min-width: 1280px) {
+        .product-form-layout-scope form > .grid,
+        form[class*="@container/main"] > .grid {
+          grid-template-columns: minmax(0, 1fr) 22rem !important;
+        }
+      }
+
+      .product-form-layout-scope form main [data-slot="card"],
+      form[class*="@container/main"] main [data-slot="card"],
+      .product-form-layout-scope form main [data-slot="card-content"],
+      form[class*="@container/main"] main [data-slot="card-content"] {
+        min-width: 0 !important;
+      }
+
       .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] input,
       .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] textarea,
-      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] button[role="combobox"] {
-        width: 100% !important;
-      }
-
-      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] [data-slot="button-group"] input {
+      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] button[role="combobox"],
+      form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"] input,
+      form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"] textarea,
+      form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"] button[role="combobox"] {
         width: 100% !important;
         min-width: 0 !important;
       }
 
-      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] > div {
+      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] [data-slot="button-group"] input,
+      form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"] [data-slot="button-group"] input {
+        width: 100% !important;
         min-width: 0 !important;
       }
 
-      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] .grid.gap-2 input:disabled {
+      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] > div,
+      form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"] > div {
+        min-width: 0 !important;
+      }
+
+      .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"] .grid.gap-2 input:disabled,
+      form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"] .grid.gap-2 input:disabled {
         opacity: 1 !important;
       }
 
+      /* Active supplier row editor: never force seven columns inside the product form. */
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"],
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)) !important;
+        align-items: start !important;
+        overflow: visible !important;
+        max-width: 100% !important;
+      }
+
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > div,
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > div {
+        min-width: 0 !important;
+      }
+
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2,
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 {
+        align-self: end !important;
+        justify-content: flex-end !important;
+      }
+
+      @media (max-width: 1279px) {
+        .product-form-layout-scope form > .grid,
+        form[class*="@container/main"] > .grid {
+          grid-template-columns: minmax(0, 1fr) !important;
+        }
+      }
+
       @media (min-width: 768px) {
-        .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"].md\\:grid-cols-2 > div {
+        .product-form-layout-scope form main > [data-slot="card"] [data-slot="card-content"].md\\:grid-cols-2 > div,
+        form[class*="@container/main"] main > [data-slot="card"] [data-slot="card-content"].md\\:grid-cols-2 > div {
           display: grid !important;
           gap: 1rem !important;
           align-content: start !important;
+          min-width: 0 !important;
         }
       }
     `}</style>
