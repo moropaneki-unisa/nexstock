@@ -76,6 +76,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null)
   const [adjustOpen, setAdjustOpen] = React.useState(false)
   const [archiveOpen, setArchiveOpen] = React.useState(false)
   const [delta, setDelta] = React.useState("")
@@ -138,15 +139,15 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     }
   }
 
-  if (loading) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72 max-w-full" /><Skeleton className="h-[700px] rounded-xl" /></div>
-  if (!product || error) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button><div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5"><h2 className="flex items-center gap-2 font-semibold text-destructive"><TriangleAlertIcon className="size-4" />Product not available</h2><p className="mt-1 text-sm text-muted-foreground">{error || "The product could not be found."}</p></div></div>
+  if (loading) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72 max-w-full" /><Skeleton className="h-[700px] rounded-lg" /></div>
+  if (!product || error) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button><div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5"><h2 className="flex items-center gap-2 font-semibold text-destructive"><TriangleAlertIcon className="size-4" />Product not available</h2><p className="mt-1 text-sm text-muted-foreground">{error || "The product could not be found."}</p></div></div>
 
   const baseCurrency = normalizeCurrency(organization?.baseCurrency || product.currency || product.priceCurrency || "ZAR")
   const priceCurrency = normalizeCurrency(product.priceCurrency || product.currency || baseCurrency)
   const costCurrency = normalizeCurrency(product.costCurrency || product.currency || priceCurrency)
   const costValue = product.cost ?? product.costPrice
   const images = product.images ?? []
-  const primaryImage = images[0]
+  const activeImage = selectedImage && images.includes(selectedImage) ? selectedImage : images[0]
   const cleanDescription = cleanText(product.description)
   const productMetadata = product.metadata || {}
   const layoutName = productMetadata.productTypeName || layout?.name || "General product"
@@ -184,17 +185,9 @@ export function ProductDetailContent({ productId }: { productId: string }) {
           </div>
         </header>
 
-        <main className="grid min-w-0 gap-6 border p-4 md:grid-cols-[minmax(18rem,0.42fr)_minmax(0,0.58fr)] md:p-7">
-          <section className="grid min-w-0 gap-5">
-            <div className="border p-5">
-              <div className="flex aspect-square min-h-80 items-center justify-center overflow-hidden bg-muted/40">
-                {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" /> : <div className="grid place-items-center text-muted-foreground"><ImageIcon className="size-28 opacity-30" /></div>}
-              </div>
-            </div>
-            <div className="border p-6 text-center">
-              <h2 className="text-xl font-semibold">Barcode</h2>
-              <SkuBarcode value={sku} />
-            </div>
+        <main className="grid min-w-0 gap-6 rounded-lg border p-4 md:grid-cols-[minmax(18rem,0.42fr)_minmax(0,0.58fr)] md:p-7">
+          <section className="grid min-w-0 content-start gap-5">
+            <ProductGallery productName={cleanText(product.name) || "Product"} images={images} activeImage={activeImage} onSelect={setSelectedImage} />
           </section>
 
           <section className="grid min-w-0 content-start gap-8">
@@ -211,7 +204,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
                 <InfoPair label="Vendor" value={layoutName} />
                 <InfoPair label="Code" value={sku} mono />
                 <InfoPair label="SKU" value={sku} mono />
-                <InfoPair label="Barcode" value={sku} mono />
+                <InfoPair label="Images" value={`${images.length} picture${images.length === 1 ? "" : "s"}`} />
                 <InfoPair label="Category" value={cleanText(product.category) || "Uncategorized"} />
                 <InfoPair label="Kind" value={productKindLabel(layoutKind)} />
               </InfoGrid>
@@ -237,19 +230,19 @@ export function ProductDetailContent({ productId }: { productId: string }) {
 
             <section className="grid min-w-0 gap-3">
               <h3 className="font-semibold">Relevant Inventory Plans</h3>
-              <div className="min-w-0 border">
+              <div className="min-w-0 rounded-lg border">
                 {layoutAttributeFields.length ? layoutAttributeFields.slice(0, 4).map((field, index) => <PlanRow key={field.id} title={field.label} subtitle={field.value} status={index === 0 ? "Todo" : index === 1 ? "Processing" : "Completed"} progress={index === 0 ? 35 : index === 1 ? 55 : 100} />) : <PlanRow title="No layout fields" subtitle="No layout-specific values saved" status="Todo" progress={10} />}
               </div>
             </section>
 
             <section className="grid min-w-0 gap-3">
               <h3 className="font-semibold">Notes</h3>
-              <div className="max-h-40 overflow-y-auto border bg-muted/20 p-4 text-sm leading-6 whitespace-pre-wrap text-muted-foreground">{cleanDescription || "No description added."}</div>
+              <div className="max-h-40 overflow-y-auto rounded-lg border bg-muted/20 p-4 text-sm leading-6 whitespace-pre-wrap text-muted-foreground">{cleanDescription || "No description added."}</div>
             </section>
           </section>
         </main>
 
-        <section className="min-w-0 border p-4 md:p-6">
+        <section className="min-w-0 rounded-lg border p-4 md:p-6">
           <ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} />
         </section>
       </div>
@@ -260,15 +253,17 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   )
 }
 
-function StockBox({ label, value }: { label: string; value: string }) { return <div className="border p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 text-2xl font-bold">{value}</p></div> }
+function ProductGallery({ productName, images, activeImage, onSelect }: { productName: string; images: string[]; activeImage?: string; onSelect: (image: string) => void }) {
+  return <div className="grid min-w-0 gap-4 rounded-lg border p-5"><div className="flex aspect-square min-h-80 items-center justify-center overflow-hidden rounded-lg bg-muted/40">{activeImage ? <img src={activeImage} alt={productName} className="h-full w-full object-cover" /> : <div className="grid place-items-center text-muted-foreground"><ImageIcon className="size-28 opacity-30" /></div>}</div><div className="grid gap-2"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold">Product pictures</h2><Badge variant="outline">{images.length}</Badge></div>{images.length ? <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-4 xl:grid-cols-5">{images.map((image, index) => <button key={`${image}-${index}`} type="button" onClick={() => onSelect(image)} className={cn("aspect-square overflow-hidden rounded-md border bg-muted ring-offset-background transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", activeImage === image && "ring-2 ring-primary")}><img src={image} alt={`${productName} picture ${index + 1}`} className="h-full w-full object-cover" /></button>)}</div> : <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No product pictures uploaded.</div>}</div></div>
+}
+function StockBox({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 text-2xl font-bold">{value}</p></div> }
 function InfoSection({ icon, title, action, children }: { icon: React.ReactNode; title: string; action?: React.ReactNode; children: React.ReactNode }) { return <section className="grid min-w-0 gap-4"><div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-lg font-semibold">{icon}{title}</h2>{action}</div>{children}</section> }
 function InfoGrid({ children }: { children: React.ReactNode }) { return <div className="grid min-w-0 gap-x-10 gap-y-4 sm:grid-cols-2">{children}</div> }
 function InfoPair({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-3 text-sm"><span className="font-semibold">{label}</span><span className={cn("min-w-0 break-words text-muted-foreground", mono && "font-mono text-xs")}>{value}</span></div> }
-function SkuBarcode({ value }: { value: string }) { const bars = Array.from({ length: 44 }, (_, index) => ((value.charCodeAt(index % Math.max(value.length, 1)) || 7) + index) % 4 + 1); return <div className="mx-auto mt-8 max-w-sm"><div className="flex h-28 items-end justify-center gap-1">{bars.map((width, index) => <span key={index} className="block bg-foreground" style={{ width: `${width}px`, height: `${64 + (index % 5) * 8}px` }} />)}</div><p className="mt-3 break-all font-mono text-3xl tracking-[0.18em]">{value}</p></div> }
 function PlanRow({ title, subtitle, status, progress }: { title: string; subtitle: string; status: string; progress: number }) { return <div className="grid min-w-0 gap-4 border-b p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_7rem_8rem] sm:items-center"><div className="flex min-w-0 items-center gap-3"><BoxesIcon className="size-5 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate font-medium">{title}</p><p className="truncate text-xs text-muted-foreground">{subtitle}</p></div></div><Badge variant="outline" className="w-fit rounded-full">{status}</Badge><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div></div> }
 function FieldValue({ field, compact = false }: { field: ProductDataField; compact?: boolean }) {
-  if (field.kind === "images" && Array.isArray(field.raw)) return <div className="grid grid-cols-3 gap-2">{field.raw.map((url) => <a key={String(url)} href={String(url)} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-lg border bg-muted"><img src={String(url)} alt={field.label} className="aspect-square w-full object-cover transition group-hover:scale-105" /></a>)}</div>
-  if (field.kind === "attachments" && Array.isArray(field.raw)) return <div className="grid gap-2">{field.raw.map((item) => isAttachment(item) ? <a key={`${item.name}-${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-background p-2 font-medium hover:bg-muted/40"><span className="min-w-0 truncate">{item.name || fileNameFromUrl(item.url)}</span><ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground" /></a> : null)}</div>
+  if (field.kind === "images" && Array.isArray(field.raw)) return <div className="grid grid-cols-3 gap-2">{field.raw.map((url) => <a key={String(url)} href={String(url)} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-md border bg-muted"><img src={String(url)} alt={field.label} className="aspect-square w-full object-cover transition group-hover:scale-105" /></a>)}</div>
+  if (field.kind === "attachments" && Array.isArray(field.raw)) return <div className="grid gap-2">{field.raw.map((item) => isAttachment(item) ? <a key={`${item.name}-${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center justify-between gap-3 rounded-md border bg-background p-2 font-medium hover:bg-muted/40"><span className="min-w-0 truncate">{item.name || fileNameFromUrl(item.url)}</span><ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground" /></a> : null)}</div>
   if (field.kind === "boolean") return <Badge variant={field.raw ? "default" : "secondary"}>{field.value}</Badge>
-  return <p className={cn("min-w-0 max-w-full break-words", field.mono && "font-mono", field.multiline && "max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/20 p-3 leading-6", compact && "text-sm")}>{field.value}</p>
+  return <p className={cn("min-w-0 max-w-full break-words", field.mono && "font-mono", field.multiline && "max-h-32 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/20 p-3 leading-6", compact && "text-sm")}>{field.value}</p>
 }
