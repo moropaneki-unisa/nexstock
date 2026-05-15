@@ -3,7 +3,23 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArchiveIcon, ArrowLeftIcon, BoxesIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, DatabaseZapIcon, EditIcon, ExternalLinkIcon, FileTextIcon, HistoryIcon, ImageIcon, Loader2Icon, RefreshCwIcon, TriangleAlertIcon, WarehouseIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  ArrowLeftIcon,
+  BoxesIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  EditIcon,
+  ExternalLinkIcon,
+  FileTextIcon,
+  HistoryIcon,
+  ImageIcon,
+  Loader2Icon,
+  RefreshCwIcon,
+  TriangleAlertIcon,
+  WarehouseIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { ProductSuppliersSection } from "@/components/products/product-suppliers-section"
@@ -11,11 +27,11 @@ import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
@@ -125,8 +141,8 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     finally { setRunning(false) }
   }
 
-  if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[680px] rounded-xl" /></div>
-  if (!product || error) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button><Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><TriangleAlertIcon className="size-4" />Product not available</CardTitle><CardDescription>{error || "The product could not be found."}</CardDescription></CardHeader></Card></div>
+  if (loading) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72 max-w-full" /><Skeleton className="h-[680px] rounded-xl" /></div>
+  if (!product || error) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button><div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5"><h2 className="flex items-center gap-2 font-semibold text-destructive"><TriangleAlertIcon className="size-4" />Product not available</h2><p className="mt-1 text-sm text-muted-foreground">{error || "The product could not be found."}</p></div></div>
 
   const baseCurrency = normalizeCurrency(organization?.baseCurrency || product.currency || product.priceCurrency || "ZAR")
   const priceCurrency = normalizeCurrency(product.priceCurrency || product.currency || baseCurrency)
@@ -143,17 +159,8 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const layoutCustomFields = product.customFields || productMetadata.customFields || {}
   const activeLayoutFields = [...(layout?.fields || [])].filter((field) => field.isActive !== false).sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0))
 
-  function showPreviousImage() {
-    if (images.length < 2) return
-    const previousIndex = (currentImageIndex - 1 + images.length) % images.length
-    setSelectedImage(images[previousIndex])
-  }
-
-  function showNextImage() {
-    if (images.length < 2) return
-    const nextIndex = (currentImageIndex + 1) % images.length
-    setSelectedImage(images[nextIndex])
-  }
+  function showPreviousImage() { if (images.length < 2) return; setSelectedImage(images[(currentImageIndex - 1 + images.length) % images.length]) }
+  function showNextImage() { if (images.length < 2) return; setSelectedImage(images[(currentImageIndex + 1) % images.length]) }
 
   const defaultFields: ProductDataField[] = [
     { id: "name", label: "Product name", value: cleanText(product.name) || "-" },
@@ -166,7 +173,6 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     { id: "convertedCost", label: `Converted cost (${baseCurrency})`, value: product.convertedCost == null ? "Not set" : formatMoney(product.convertedCost, baseCurrency) },
     { id: "quantity", label: "Current stock", value: `${numberValue(product.quantity).toLocaleString()} units` },
     { id: "lowStockLevel", label: "Low-stock level", value: `${numberValue(product.lowStockLevel).toLocaleString()} units` },
-    { id: "images", label: "Images", value: `${images.length} image${images.length === 1 ? "" : "s"}` },
     { id: "createdAt", label: "Created", value: formatDate(product.createdAt) },
     { id: "updatedAt", label: "Updated", value: formatDate(product.updatedAt) },
   ]
@@ -181,42 +187,51 @@ export function ProductDetailContent({ productId }: { productId: string }) {
     : Object.entries(layoutCustomFields).map(([key, value]) => ({ id: `layout-${key}`, label: productKindLabel(key), value: formatCustomValue(value), multiline: typeof value === "object" }))
 
   return (
-    <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+    <div className="grid min-w-0 gap-5 p-4 md:p-6">
+      <header className="grid min-w-0 gap-3 border-b pb-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div className="min-w-0">
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/products"><ArrowLeftIcon className="size-4" />Products</Link></Button>
-          <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1><ProductBadge product={product} /><Badge variant="outline">{layoutName}</Badge></div>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Review identity, images, pricing, inventory, layout, attributes, suppliers, and stock movement from one profile.</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2"><h1 className="min-w-0 break-words font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1><ProductBadge product={product} /><Badge variant="outline">{layoutName}</Badge></div>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Readable product profile with identity, pricing, layout values, suppliers, and stock movement.</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={() => setArchiveOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
-      </div>
+        <div className="flex min-w-0 flex-wrap gap-2 lg:justify-end"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={() => setArchiveOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard title="SKU" value={product.sku || "No SKU"} detail="Product code" mono />
-        <SummaryCard title="Product layout" value={layoutName} detail={`${productKindLabel(layoutKind)} · ${layoutTrackInventory ? "Stock tracked" : "No stock tracking"}`} />
-        <SummaryCard title={`Selling price (${priceCurrency})`} value={formatMoney(product.price, priceCurrency)} detail={`Base currency: ${baseCurrency}`} />
-        <SummaryCard title="Status" value={productState(product).replace("out", "Out of stock")} detail={product.status || "active"} />
-      </div>
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <main className="grid min-w-0 gap-6">
+          <section className="grid min-w-0 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+            <ProductImagePanel productName={cleanText(product.name)} images={images} primaryImage={primaryImage} currentImageIndex={currentImageIndex} onPrevious={showPreviousImage} onNext={showNextImage} />
+            <DetailSection icon={<FileTextIcon className="size-4" />} title="Product details" description="Core fields stored on this product record."><FieldList fields={defaultFields} /></DetailSection>
+          </section>
 
-      <div className="grid items-start gap-4 xl:grid-cols-4">
-        <div className="grid gap-4 self-start xl:sticky xl:top-[calc(var(--header-height)+1rem)] xl:max-h-[calc(100vh-var(--header-height)-2rem)] xl:overflow-y-auto xl:pr-1">
-          <Card className="gap-0 overflow-hidden py-0">
-            <div className="relative aspect-square overflow-hidden bg-muted">
-              {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="block h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="size-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}
-              <div className="absolute left-3 top-3"><ProductBadge product={product} /></div>
-              {images.length ? <div className="absolute bottom-3 right-3 opacity-55 transition-opacity duration-200 hover:opacity-100 focus-within:opacity-100"><ButtonGroup className="rounded-lg bg-muted/85 shadow-sm backdrop-blur"><Button type="button" variant="outline" size="icon" onClick={showPreviousImage} disabled={images.length < 2} aria-label="Previous product image" className="size-8 border-muted bg-muted text-foreground hover:bg-muted/90 hover:text-foreground disabled:border-muted/50 disabled:bg-muted/50 disabled:text-foreground/70"><ChevronLeftIcon className="size-4" /></Button><ButtonGroupText className="h-8 min-w-16 justify-center border-y bg-muted/85 px-2 text-xs font-medium tabular-nums text-foreground">{currentImageIndex + 1} / {images.length}</ButtonGroupText><Button type="button" variant="outline" size="icon" onClick={showNextImage} disabled={images.length < 2} aria-label="Next product image" className="size-8 border-muted bg-muted text-foreground hover:bg-muted/90 hover:text-foreground disabled:border-muted/50 disabled:bg-muted/50 disabled:text-foreground/70"><ChevronRightIcon className="size-4" /></Button></ButtonGroup></div> : null}
-            </div>
-          </Card>
+          <Collapsible open={layoutOpen} onOpenChange={setLayoutOpen}>
+            <DetailSection
+              icon={<BoxesIcon className="size-4" />}
+              title="Product layout"
+              description="Assigned product layout and layout-specific values."
+              action={<CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm"><Badge variant="secondary">{layoutAttributeFields.length} values</Badge><ChevronDownIcon className={cn("size-4 transition-transform", layoutOpen && "rotate-180")} /></Button></CollapsibleTrigger>}
+            >
+              <CollapsibleContent className="grid gap-4"><FieldList fields={layoutFields} />{layoutAttributeFields.length ? <FieldList fields={layoutAttributeFields} /> : <EmptyLine>No layout-specific values have been saved for this product yet.</EmptyLine>}</CollapsibleContent>
+            </DetailSection>
+          </Collapsible>
 
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Quick facts</CardTitle></CardHeader><CardContent className="grid gap-3 text-sm"><SideFact label="SKU" value={product.sku || "No SKU"} mono /><SideFact label="Layout" value={layoutName} /><SideFact label="Kind" value={productKindLabel(layoutKind)} /><SideFact label="Category" value={cleanText(product.category) || "Uncategorized"} /><SideFact label="Images" value={String(images.length)} /><SideFact label="Base currency" value={baseCurrency} /><SideFact label="Updated" value={formatDate(product.updatedAt)} /></CardContent></Card>
-        </div>
+          <section className="min-w-0"><ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} /></section>
 
-        <div className="grid min-w-0 gap-4 xl:col-span-3">
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileTextIcon className="size-4" />Product details</CardTitle><CardDescription>Core fields stored on every product record.</CardDescription></CardHeader><CardContent><FieldGrid fields={defaultFields} /></CardContent></Card>
-          <Collapsible open={layoutOpen} onOpenChange={setLayoutOpen}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle className="flex items-center gap-2"><BoxesIcon className="size-4" />Product layout</CardTitle><CardDescription className="mt-1">The product type/layout assigned to this record and its layout-specific values.</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{layoutAttributeFields.length} layout values</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", layoutOpen && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="grid gap-4 pt-0"><FieldGrid fields={layoutFields} />{layoutAttributeFields.length ? <FieldGrid fields={layoutAttributeFields} /> : <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No layout-specific values have been saved for this product yet.</div>}</CardContent></CollapsibleContent></Card></Collapsible>
-          <ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} />
-          <Collapsible open={logsOpen} onOpenChange={setLogsOpen}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle className="flex items-center gap-2"><HistoryIcon className="size-4" />Inventory movement</CardTitle><CardDescription className="mt-1">Every stock adjustment is recorded with before/after quantity and reason.</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{product.inventoryLogs?.length ?? 0} logs</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", logsOpen && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="grid gap-3 pt-0">{product.inventoryLogs?.length ? product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />) : <div className="rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">No inventory movement yet.</div>}</CardContent></CollapsibleContent></Card></Collapsible>
-        </div>
+          <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
+            <DetailSection
+              icon={<HistoryIcon className="size-4" />}
+              title="Inventory movement"
+              description="Stock adjustments with before/after quantity and reason."
+              action={<CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm"><Badge variant="secondary">{product.inventoryLogs?.length ?? 0} logs</Badge><ChevronDownIcon className={cn("size-4 transition-transform", logsOpen && "rotate-180")} /></Button></CollapsibleTrigger>}
+            >
+              <CollapsibleContent className="grid gap-3">{product.inventoryLogs?.length ? product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />) : <EmptyLine>No inventory movement yet.</EmptyLine>}</CollapsibleContent>
+            </DetailSection>
+          </Collapsible>
+        </main>
+
+        <aside className="min-w-0 xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
+          <FloatingSummary product={product} layoutName={layoutName} layoutKind={layoutKind} layoutTrackInventory={layoutTrackInventory} baseCurrency={baseCurrency} priceCurrency={priceCurrency} />
+        </aside>
       </div>
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}><DialogContent><DialogHeader><DialogTitle>Adjust stock</DialogTitle><DialogDescription>Current stock is {numberValue(product.quantity).toLocaleString()} units. Add stock with a positive number or reduce stock with a negative number.</DialogDescription></DialogHeader><div className="grid gap-4">{adjustError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{adjustError}</div> : null}<div className="grid gap-2"><Label htmlFor="delta">Adjustment quantity</Label><Input id="delta" value={delta} onChange={(event) => setDelta(event.target.value)} type="number" step="1" placeholder="Example: 10 or -3" /></div><div className="grid gap-2"><Label htmlFor="reason">Reason</Label><Textarea id="reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Stock count correction, supplier delivery, damaged goods..." className="min-h-24" /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={submitStockAdjustment} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}Save adjustment</Button></DialogFooter></DialogContent></Dialog>
@@ -225,17 +240,23 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   )
 }
 
-function SummaryCard({ title, value, detail, mono }: { title: string; value: string; detail: string; mono?: boolean }) {
-  return <Card className="h-full gap-0 overflow-hidden py-0"><CardHeader className="min-h-28 justify-between px-6 py-5"><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums", mono && "font-mono text-lg")}>{value}</CardTitle></CardHeader><CardFooter className="mt-auto border-t bg-muted px-6 py-4 text-sm font-medium text-muted-foreground">{detail}</CardFooter></Card>
+function DetailSection({ icon, title, description, action, children }: { icon: React.ReactNode; title: string; description?: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return <section className="grid min-w-0 gap-4 border-b pb-6 last:border-b-0"><div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0"><h2 className="flex min-w-0 items-center gap-2 font-semibold">{icon}<span className="min-w-0 break-words">{title}</span></h2>{description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}</div>{action ? <div className="shrink-0">{action}</div> : null}</div>{children}</section>
 }
-
-function FieldGrid({ fields }: { fields: ProductDataField[] }) { return <div className="grid overflow-hidden rounded-xl border md:grid-cols-2">{fields.map((field) => <div key={field.id} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r even:md:border-r-0"><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{field.label}</p>{field.type ? <Badge variant="outline">{field.type}</Badge> : null}</div><FieldValue field={field} /></div>)}</div> }
+function ProductImagePanel({ productName, images, primaryImage, currentImageIndex, onPrevious, onNext }: { productName: string; images: string[]; primaryImage?: string; currentImageIndex: number; onPrevious: () => void; onNext: () => void }) {
+  return <section className="min-w-0"><div className="relative aspect-square overflow-hidden rounded-xl border bg-muted">{primaryImage ? <img src={primaryImage} alt={productName || "Product image"} className="block h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="size-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}{images.length ? <div className="absolute bottom-3 right-3"><ButtonGroup className="rounded-lg bg-background/90 shadow-sm backdrop-blur"><Button type="button" variant="outline" size="icon" onClick={onPrevious} disabled={images.length < 2} aria-label="Previous product image" className="size-8"><ChevronLeftIcon className="size-4" /></Button><ButtonGroupText className="h-8 min-w-16 justify-center px-2 text-xs font-medium tabular-nums">{currentImageIndex + 1} / {images.length}</ButtonGroupText><Button type="button" variant="outline" size="icon" onClick={onNext} disabled={images.length < 2} aria-label="Next product image" className="size-8"><ChevronRightIcon className="size-4" /></Button></ButtonGroup></div> : null}</div></section>
+}
+function FloatingSummary({ product, layoutName, layoutKind, layoutTrackInventory, baseCurrency, priceCurrency }: { product: Product; layoutName: string; layoutKind: string; layoutTrackInventory: boolean; baseCurrency: string; priceCurrency: string }) {
+  return <div className="grid min-w-0 gap-3 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur"><div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Summary</p><h2 className="mt-1 break-words font-semibold">{cleanText(product.name) || "Product"}</h2></div><Separator /><SummaryLine label="SKU" value={product.sku || "No SKU"} mono /><SummaryLine label="Status" value={productState(product).replace("out", "Out of stock")} /><SummaryLine label="Layout" value={layoutName} /><SummaryLine label="Kind" value={productKindLabel(layoutKind)} /><SummaryLine label="Inventory" value={layoutTrackInventory ? "Tracked" : "Not tracked"} /><SummaryLine label={`Price (${priceCurrency})`} value={formatMoney(product.price, priceCurrency)} /><SummaryLine label="Base currency" value={baseCurrency} /><SummaryLine label="Stock" value={`${numberValue(product.quantity).toLocaleString()} units`} /><SummaryLine label="Updated" value={formatDate(product.updatedAt)} /></div>
+}
+function SummaryLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="grid min-w-0 gap-1 text-sm"><span className="text-xs text-muted-foreground">{label}</span><span className={cn("min-w-0 break-words font-medium", mono && "font-mono text-xs")}>{value}</span></div> }
+function FieldList({ fields }: { fields: ProductDataField[] }) { return <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2">{fields.map((field) => <div key={field.id} className="min-w-0 border-t pt-3"><dt className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><span>{field.label}</span>{field.type ? <Badge variant="outline">{field.type}</Badge> : null}</dt><dd><FieldValue field={field} /></dd></div>)}</dl> }
 function FieldValue({ field }: { field: ProductDataField }) {
   if (field.kind === "images" && Array.isArray(field.raw)) return <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{field.raw.map((url) => <a key={String(url)} href={String(url)} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-lg border bg-muted"><img src={String(url)} alt={field.label} className="aspect-square w-full object-cover transition group-hover:scale-105" /></a>)}</div>
-  if (field.kind === "attachments" && Array.isArray(field.raw)) return <div className="mt-3 grid gap-2">{field.raw.map((item) => isAttachment(item) ? <a key={`${item.name}-${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 rounded-lg border bg-background p-2 font-medium hover:bg-muted/40"><span className="truncate">{item.name || fileNameFromUrl(item.url)}</span><ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground" /></a> : null)}</div>
+  if (field.kind === "attachments" && Array.isArray(field.raw)) return <div className="mt-3 grid gap-2">{field.raw.map((item) => isAttachment(item) ? <a key={`${item.name}-${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-background p-2 font-medium hover:bg-muted/40"><span className="min-w-0 truncate">{item.name || fileNameFromUrl(item.url)}</span><ExternalLinkIcon className="size-4 shrink-0 text-muted-foreground" /></a> : null)}</div>
   if (field.kind === "boolean") return <div className="mt-2"><Badge variant={field.raw ? "default" : "secondary"}>{field.value}</Badge></div>
   if (field.kind === "lookup" && isRecord(field.raw)) return <p className="mt-2 break-words font-medium">{String(field.raw.name || field.raw.id || field.value)}</p>
-  return <p className={cn("mt-2 break-words font-medium", field.mono && "font-mono", field.multiline && "whitespace-pre-wrap leading-6")}>{field.value}</p>
+  return <p className={cn("mt-2 min-w-0 break-words font-medium", field.mono && "font-mono", field.multiline && "whitespace-pre-wrap leading-6")}>{field.value}</p>
 }
-function SideFact({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className={cn("truncate font-medium", mono && "font-mono text-xs")}>{value}</span></div> }
-function InventoryLogRow({ log }: { log: InventoryLog }) { return <div className="rounded-xl border p-4 text-sm"><div className="flex items-start justify-between gap-3"><div><p className="font-medium capitalize">{log.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{log.quantityBefore} to {log.quantityAfter} · {log.reason ?? "No reason"}</p></div><Badge variant={log.delta < 0 ? "destructive" : "secondary"}>{log.delta > 0 ? `+${log.delta}` : log.delta}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(log.createdAt)}{log.source ? ` · ${log.source}` : ""}</p></div> }
+function EmptyLine({ children }: { children: React.ReactNode }) { return <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">{children}</div> }
+function InventoryLogRow({ log }: { log: InventoryLog }) { return <div className="rounded-xl border p-4 text-sm"><div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0"><p className="font-medium capitalize">{log.type.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{log.quantityBefore} to {log.quantityAfter} · {log.reason ?? "No reason"}</p></div><Badge variant={log.delta < 0 ? "destructive" : "secondary"}>{log.delta > 0 ? `+${log.delta}` : log.delta}</Badge></div><p className="mt-2 text-xs text-muted-foreground">{formatDate(log.createdAt)}{log.source ? ` · ${log.source}` : ""}</p></div> }
