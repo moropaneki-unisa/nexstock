@@ -227,7 +227,9 @@ These changes were applied directly to the `main-v2` branch.
 13. **Import template exports**
    - Selecting a layout on `/imports/new` now regenerates the mapping JSON example to include that layout's custom fields.
    - Added export data structure buttons for CSV, XLSX, and JSON templates.
-   - Exported templates include core product columns plus selected layout fields, with example row values and select-field option examples.
+   - CSV export remains an upload-ready template with sample product rows.
+   - XLSX export is now a workbook with `Import Template`, `Field Guide`, `Select Options`, and `Import Info` sheets.
+   - JSON export is now a typed schema/data contract with data types, required flags, defaults, allowed values, examples, import formats, notes, and validation rules.
    - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
 
 ## Current known follow-up items
