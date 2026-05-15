@@ -210,15 +210,16 @@ These changes were applied directly to the `main-v2` branch.
    - `POST /api/products/import` now accepts an optional `mapping` payload so spreadsheet columns can be mapped to product fields.
    - Inventory logs created during imports now reference the import log ID.
 
-11. **Imports sidebar page and product action dropdown**
-   - Added the `/imports` dashboard page used by the existing sidebar Imports item.
-   - The Imports page supports product spreadsheet upload, mapping JSON, latest result summary, import history, and row error display.
+11. **Imports CRUD pages and product action dropdown**
+   - The sidebar `Imports` item now opens `/imports`, a previous-imports dashboard focused on import history, totals, logs, review status, and links to import details.
+   - Added `/imports/new` as the dedicated create/import flow for uploading CSV/XLSX files and submitting column mapping.
+   - Added `/imports/[id]` as the import detail/read page for one import log, including status, row totals, mapping used, metadata, and row-level errors.
    - Changed the Products page primary action into a dropdown with `Add new product` and `Import products` options.
-   - The `Import products` option now routes users to the dedicated sidebar Imports page.
+   - The `Import products` option now routes users to `/imports/new`.
 
 ## Current known follow-up items
 
-- Improve the Imports page from JSON mapping to a visual column-to-field mapping UI.
+- Improve `/imports/new` from JSON mapping to a visual column-to-field mapping UI.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
 - Verify or complete webhook management UI.
