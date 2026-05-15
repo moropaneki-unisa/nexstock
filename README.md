@@ -191,9 +191,13 @@ These changes were applied directly to the `main-v2` branch.
    - `signup()` now returns the signup response directly and leaves auth persistence to `login()` and `verifyEmail()`.
    - This prevents pre-verification users from being written into the persisted auth store.
 
+8. **Prisma product layout models**
+   - Added `ProductType` and `ProductTypeField` models to `apps/api/prisma/schema.prisma`.
+   - Added organization relations for `productTypes` and `productTypeFields`.
+   - Prisma can now generate typed clients for the layout tables created by the existing migration.
+
 ## Current known follow-up items
 
-- Add Prisma models for `ProductType` and `ProductTypeField` or intentionally document them as raw SQL-only tables.
 - Verify or complete product import/export frontend actions.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
