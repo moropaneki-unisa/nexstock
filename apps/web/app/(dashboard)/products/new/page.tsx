@@ -1,5 +1,4 @@
 import { AppSidebar } from "@/components/app-sidebar"
-import { ProductFormAlignmentFix } from "@/components/products/product-form-alignment-fix"
 import { ProductFormWithLayout } from "@/components/products/product-form-with-layout"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -17,7 +16,6 @@ export default function Page() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <ProductFormAlignmentFix />
         <ProductFormWithLayout />
       </SidebarInset>
     </SidebarProvider>
