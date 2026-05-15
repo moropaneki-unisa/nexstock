@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner"
 
 import { RecordsTable, createSelectColumn, type RecordsTableBulkAction } from "@/components/records/records-table"
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -75,28 +76,40 @@ function CompactStat({ label, value }: { label: string; value: string | number }
   )
 }
 
-function PurchaseOrderActions({ order, onCancel }: { order: PurchaseOrder; onCancel: (order: PurchaseOrder) => void }) {
+function PurchaseOrderActions({ order, busy, onCancel }: { order: PurchaseOrder; busy?: boolean; onCancel: (order: PurchaseOrder) => void }) {
+  const [open, setOpen] = React.useState(false)
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted">
-          <EllipsisVerticalIcon className="size-4" />
-          <span className="sr-only">Open purchase order menu</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem asChild>
-          <Link href={`/purchase-orders/${order.id}`}><ArrowRightIcon className="size-4" />View</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => onCancel(order)} disabled={order.status === "cancelled"}>
-          <ArchiveIcon className="size-4" />Cancel
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8 text-muted-foreground data-[state=open]:bg-muted" disabled={busy}>
+            <EllipsisVerticalIcon className="size-4" />
+            <span className="sr-only">Open purchase order menu</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem asChild>
+            <Link href={`/purchase-orders/${order.id}`}><ArrowRightIcon className="size-4" />View</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => setOpen(true)} disabled={order.status === "cancelled"}>
+            <ArchiveIcon className="size-4" />Cancel
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <RecordActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        busy={busy}
+        title="Cancel purchase order?"
+        description={`This will cancel purchase order ${order.poNumber}. It should only be used when the order is no longer expected or should not be received.`}
+        confirmLabel="Cancel order"
+        onConfirm={() => onCancel(order)}
+      />
+    </>
   )
 }
 
@@ -185,8 +198,8 @@ export function PurchaseOrdersContent() {
     { id: "subtotal", header: "Subtotal", cell: ({ row }) => <span className="font-medium">{formatMoney(row.original.subtotal, row.original.currency)}</span> },
     { id: "expectedAt", header: "Expected", cell: ({ row }) => formatDate(row.original.expectedAt) },
     { id: "createdAt", header: "Created", cell: ({ row }) => formatDate(row.original.createdAt) },
-    { id: "actions", header: "", cell: ({ row }) => <PurchaseOrderActions order={row.original} onCancel={cancelOrder} />, enableHiding: false },
-  ], [])
+    { id: "actions", header: "", cell: ({ row }) => <PurchaseOrderActions order={row.original} busy={running} onCancel={cancelOrder} />, enableHiding: false },
+  ], [running])
 
   const bulkActions = React.useMemo<RecordsTableBulkAction<PurchaseOrder>[]>(() => [{ label: "Cancel selected", variant: "destructive", onClick: bulkCancel }], [])
 
