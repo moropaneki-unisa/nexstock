@@ -431,7 +431,7 @@ export class ProductsService {
     for (const field of fields) {
       this.assertKnownLayoutType(field);
       const rawValue = values[field.key] ?? field.defaultValue;
-      const hasValue = !this.isEmptyLayoutValue(rawValue);
+      const hasValue = !this.isEmptyLayoutValue(field, rawValue);
       if (field.required && !hasValue) throw new BadRequestException(`Layout field "${field.label}" is required`);
       if (!hasValue) continue;
       output[field.key] = this.normalizeLayoutValue(field, rawValue);
@@ -550,8 +550,23 @@ export class ProductsService {
     return null;
   }
 
-  private isEmptyLayoutValue(value: unknown) {
-    return value === undefined || value === null || value === 'none' || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0);
+  private isEmptyLayoutValue(field: ProductTypeFieldRow, value: unknown) {
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string') {
+      const text = value.trim();
+      return text === '' || text === 'none' || text === '[]' || text === '{}';
+    }
+    if (Array.isArray(value)) return value.length === 0;
+    if ((field.type === 'attachment' || field.type === 'images') && !Array.isArray(value)) {
+      return !field.required;
+    }
+    if (field.type === 'lookup' && !this.isPlainObject(value)) {
+      return !field.required;
+    }
+    if (field.type === 'lookup' && this.isPlainObject(value)) {
+      return !String(value.id ?? '').trim() && !String(value.name ?? '').trim();
+    }
+    return false;
   }
 
   private isMissingLayoutMigrationError(error: unknown) {
