@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { PlanLimitsService } from '../plan-limits/plan-limits.service';
@@ -12,8 +12,11 @@ type UploadedSpreadsheetFile = {
 };
 
 type ProductImportRow = Record<string, unknown>;
+type ProductImportMapping = Record<string, string>;
 
 type ProductImportResult = {
+  logId?: string;
+  status?: 'completed' | 'completed_with_errors' | 'failed';
   created: number;
   updated: number;
   skipped: number;
@@ -32,6 +35,24 @@ type LayoutField = {
   label: string;
   type: string;
   layoutName: string;
+};
+
+type ProductImportLogRow = {
+  id: string;
+  fileName: string;
+  status: string;
+  totalRows: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errorCount: number;
+  mapping: Prisma.JsonValue | null;
+  errors: Prisma.JsonValue | null;
+  metadata: Prisma.JsonValue | null;
+  startedAt: Date;
+  finishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 const XLSX_CELL_TEXT_LIMIT = 32_767;
@@ -63,6 +84,28 @@ export class ProductsImportExportService {
     private readonly prisma: PrismaService,
     private readonly planLimits: PlanLimitsService,
   ) {}
+
+  async listImportLogs(organizationId: string) {
+    return this.prisma.$queryRaw<ProductImportLogRow[]>`
+      SELECT id, "fileName", status, "totalRows", "createdCount", "updatedCount", "skippedCount", "errorCount", mapping, errors, metadata, "startedAt", "finishedAt", "createdAt", "updatedAt"
+      FROM "ProductImportLog"
+      WHERE "organizationId" = ${organizationId}
+      ORDER BY "createdAt" DESC
+      LIMIT 50
+    `;
+  }
+
+  async getImportLog(organizationId: string, id: string) {
+    const rows = await this.prisma.$queryRaw<ProductImportLogRow[]>`
+      SELECT id, "fileName", status, "totalRows", "createdCount", "updatedCount", "skippedCount", "errorCount", mapping, errors, metadata, "startedAt", "finishedAt", "createdAt", "updatedAt"
+      FROM "ProductImportLog"
+      WHERE id = ${id} AND "organizationId" = ${organizationId}
+      LIMIT 1
+    `;
+    const log = rows[0];
+    if (!log) throw new NotFoundException('Import log not found');
+    return log;
+  }
 
   async exportProducts(organizationId: string, format: 'csv' | 'xlsx' = 'csv') {
     const [products, fields] = await Promise.all([
@@ -124,128 +167,179 @@ export class ProductsImportExportService {
     };
   }
 
-  async importProducts(organizationId: string, file: UploadedSpreadsheetFile): Promise<ProductImportResult> {
+  async importProducts(organizationId: string, file: UploadedSpreadsheetFile, mapping: ProductImportMapping = {}): Promise<ProductImportResult> {
     if (!file) throw new BadRequestException('CSV or XLSX file is required');
     if (file.size > 10 * 1024 * 1024) throw new BadRequestException('Import file must be 10MB or smaller');
 
-    const rows = this.parseFile(file);
-    await this.planLimits.assertCanImportRows(organizationId, rows.length);
-    const result: ProductImportResult = { created: 0, updated: 0, skipped: 0, total: rows.length, errors: [] };
+    const logId = await this.createImportLog(organizationId, file, mapping);
+    const result: ProductImportResult = { logId, status: 'completed', created: 0, updated: 0, skipped: 0, total: 0, errors: [] };
 
-    if (!rows.length) return result;
+    try {
+      const rows = this.parseFile(file);
+      result.total = rows.length;
+      await this.updateImportLog(organizationId, logId, { totalRows: rows.length });
+      await this.planLimits.assertCanImportRows(organizationId, rows.length);
 
-    const [organization, activeFields, existingProductCount] = await Promise.all([
-      this.prisma.organization.findUnique({ where: { id: organizationId } }),
-      this.layoutFields(organizationId),
-      this.prisma.product.count({ where: { organizationId, deletedAt: null } }),
-    ]);
-
-    await this.planLimits.assertWithinLimit(organizationId, 'products', existingProductCount + rows.length);
-
-    if (!organization) throw new BadRequestException('Organization not found');
-    const currencySettings = this.organizationCurrencySettings(organization);
-
-    for (const [index, row] of rows.entries()) {
-      const rowNumber = index + 2;
-
-      try {
-        const mapped = this.mapImportRow(row, activeFields, currencySettings);
-        if (!mapped.name) {
-          result.skipped++;
-          result.errors.push({ row: rowNumber, message: 'Missing product name' });
-          continue;
-        }
-
-        const sku = mapped.sku || this.generateSku(organization.skuPrefix ?? this.generateSkuPrefix(organization.name), organization.nextSkuNumber + result.created);
-        const existing = await this.prisma.product.findFirst({ where: { organizationId, sku, deletedAt: null }, select: { id: true, quantity: true } });
-
-        if (existing) {
-          await this.prisma.product.update({
-            where: { id_organizationId: { id: existing.id, organizationId } },
-            data: {
-              name: mapped.name,
-              description: mapped.description,
-              price: mapped.price,
-              priceCurrency: mapped.priceCurrency,
-              cost: mapped.cost,
-              costCurrency: mapped.costCurrency,
-              exchangeRateToBase: mapped.exchangeRateToBase,
-              convertedCost: mapped.convertedCost,
-              quantity: mapped.quantity,
-              lowStockLevel: mapped.lowStockLevel,
-              category: mapped.category,
-              status: mapped.status,
-              images: mapped.images,
-              metadata: mapped.metadata,
-            },
-          });
-
-          if (existing.quantity !== mapped.quantity) {
-            await this.prisma.inventoryLog.create({
-              data: {
-                organizationId,
-                productId: existing.id,
-                type: 'sync',
-                quantityBefore: existing.quantity,
-                quantityAfter: mapped.quantity,
-                delta: mapped.quantity - existing.quantity,
-                reason: 'Spreadsheet import',
-                source: 'file_import',
-              },
-            });
-          }
-
-          result.updated++;
-        } else {
-          const created = await this.prisma.product.create({
-            data: {
-              organizationId,
-              sku,
-              name: mapped.name,
-              description: mapped.description,
-              price: mapped.price,
-              priceCurrency: mapped.priceCurrency,
-              cost: mapped.cost,
-              costCurrency: mapped.costCurrency,
-              exchangeRateToBase: mapped.exchangeRateToBase,
-              convertedCost: mapped.convertedCost,
-              quantity: mapped.quantity,
-              lowStockLevel: mapped.lowStockLevel,
-              category: mapped.category,
-              status: mapped.status,
-              images: mapped.images,
-              metadata: mapped.metadata,
-            },
-          });
-
-          if (mapped.quantity > 0) {
-            await this.prisma.inventoryLog.create({
-              data: {
-                organizationId,
-                productId: created.id,
-                type: 'sync',
-                quantityBefore: 0,
-                quantityAfter: mapped.quantity,
-                delta: mapped.quantity,
-                reason: 'Spreadsheet import',
-                source: 'file_import',
-              },
-            });
-          }
-
-          result.created++;
-        }
-      } catch (error) {
-        result.skipped++;
-        result.errors.push({ row: rowNumber, message: error instanceof Error ? error.message : 'Import failed for this row' });
+      if (!rows.length) {
+        await this.finishImportLog(organizationId, logId, result);
+        return result;
       }
-    }
 
-    if (result.created > 0) {
-      await this.prisma.organization.update({ where: { id: organizationId }, data: { nextSkuNumber: { increment: result.created } } });
-    }
+      const [organization, activeFields, existingProductCount] = await Promise.all([
+        this.prisma.organization.findUnique({ where: { id: organizationId } }),
+        this.layoutFields(organizationId),
+        this.prisma.product.count({ where: { organizationId, deletedAt: null } }),
+      ]);
 
-    return result;
+      await this.planLimits.assertWithinLimit(organizationId, 'products', existingProductCount + rows.length);
+
+      if (!organization) throw new BadRequestException('Organization not found');
+      const currencySettings = this.organizationCurrencySettings(organization);
+
+      for (const [index, row] of rows.entries()) {
+        const rowNumber = index + 2;
+
+        try {
+          const mapped = this.mapImportRow(row, activeFields, currencySettings, mapping);
+          if (!mapped.name) {
+            result.skipped++;
+            result.errors.push({ row: rowNumber, message: 'Missing product name' });
+            continue;
+          }
+
+          const sku = mapped.sku || this.generateSku(organization.skuPrefix ?? this.generateSkuPrefix(organization.name), organization.nextSkuNumber + result.created);
+          const existing = await this.prisma.product.findFirst({ where: { organizationId, sku, deletedAt: null }, select: { id: true, quantity: true } });
+
+          if (existing) {
+            await this.prisma.product.update({
+              where: { id_organizationId: { id: existing.id, organizationId } },
+              data: {
+                name: mapped.name,
+                description: mapped.description,
+                price: mapped.price,
+                priceCurrency: mapped.priceCurrency,
+                cost: mapped.cost,
+                costCurrency: mapped.costCurrency,
+                exchangeRateToBase: mapped.exchangeRateToBase,
+                convertedCost: mapped.convertedCost,
+                quantity: mapped.quantity,
+                lowStockLevel: mapped.lowStockLevel,
+                category: mapped.category,
+                status: mapped.status,
+                images: mapped.images,
+                metadata: mapped.metadata,
+              },
+            });
+
+            if (existing.quantity !== mapped.quantity) {
+              await this.prisma.inventoryLog.create({
+                data: {
+                  organizationId,
+                  productId: existing.id,
+                  type: 'sync',
+                  quantityBefore: existing.quantity,
+                  quantityAfter: mapped.quantity,
+                  delta: mapped.quantity - existing.quantity,
+                  reason: 'Spreadsheet import',
+                  source: 'file_import',
+                  referenceId: logId,
+                },
+              });
+            }
+
+            result.updated++;
+          } else {
+            const created = await this.prisma.product.create({
+              data: {
+                organizationId,
+                sku,
+                name: mapped.name,
+                description: mapped.description,
+                price: mapped.price,
+                priceCurrency: mapped.priceCurrency,
+                cost: mapped.cost,
+                costCurrency: mapped.costCurrency,
+                exchangeRateToBase: mapped.exchangeRateToBase,
+                convertedCost: mapped.convertedCost,
+                quantity: mapped.quantity,
+                lowStockLevel: mapped.lowStockLevel,
+                category: mapped.category,
+                status: mapped.status,
+                images: mapped.images,
+                metadata: mapped.metadata,
+              },
+            });
+
+            if (mapped.quantity > 0) {
+              await this.prisma.inventoryLog.create({
+                data: {
+                  organizationId,
+                  productId: created.id,
+                  type: 'sync',
+                  quantityBefore: 0,
+                  quantityAfter: mapped.quantity,
+                  delta: mapped.quantity,
+                  reason: 'Spreadsheet import',
+                  source: 'file_import',
+                  referenceId: logId,
+                },
+              });
+            }
+
+            result.created++;
+          }
+        } catch (error) {
+          result.skipped++;
+          result.errors.push({ row: rowNumber, message: error instanceof Error ? error.message : 'Import failed for this row' });
+        }
+      }
+
+      if (result.created > 0) {
+        await this.prisma.organization.update({ where: { id: organizationId }, data: { nextSkuNumber: { increment: result.created } } });
+      }
+
+      result.status = result.errors.length ? 'completed_with_errors' : 'completed';
+      await this.finishImportLog(organizationId, logId, result);
+      return result;
+    } catch (error) {
+      result.status = 'failed';
+      result.errors.push({ row: 0, message: error instanceof Error ? error.message : 'Import failed' });
+      await this.finishImportLog(organizationId, logId, result);
+      throw error;
+    }
+  }
+
+  private async createImportLog(organizationId: string, file: UploadedSpreadsheetFile, mapping: ProductImportMapping) {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO "ProductImportLog" ("organizationId", "fileName", status, mapping, metadata)
+      VALUES (${organizationId}, ${file.originalname}, 'processing', ${JSON.stringify(mapping)}::jsonb, ${JSON.stringify({ size: file.size, mimetype: file.mimetype })}::jsonb)
+      RETURNING id
+    `;
+    return rows[0]?.id;
+  }
+
+  private updateImportLog(organizationId: string, id: string, data: { totalRows?: number }) {
+    return this.prisma.$executeRaw`
+      UPDATE "ProductImportLog"
+      SET "totalRows" = COALESCE(${data.totalRows ?? null}, "totalRows"), "updatedAt" = CURRENT_TIMESTAMP
+      WHERE id = ${id} AND "organizationId" = ${organizationId}
+    `;
+  }
+
+  private finishImportLog(organizationId: string, id: string, result: ProductImportResult) {
+    return this.prisma.$executeRaw`
+      UPDATE "ProductImportLog"
+      SET status = ${result.status ?? 'completed'},
+          "createdCount" = ${result.created},
+          "updatedCount" = ${result.updated},
+          "skippedCount" = ${result.skipped},
+          "errorCount" = ${result.errors.length},
+          "totalRows" = ${result.total},
+          errors = ${JSON.stringify(result.errors)}::jsonb,
+          "finishedAt" = CURRENT_TIMESTAMP,
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE id = ${id} AND "organizationId" = ${organizationId}
+    `;
   }
 
   private parseFile(file: UploadedSpreadsheetFile) {
@@ -262,21 +356,25 @@ export class ProductsImportExportService {
     throw new BadRequestException('Only CSV, XLS, and XLSX files are supported');
   }
 
-  private mapImportRow(row: ProductImportRow, fields: LayoutField[], currencySettings: CurrencySettings) {
+  private mapImportRow(row: ProductImportRow, fields: LayoutField[], currencySettings: CurrencySettings, mapping: ProductImportMapping = {}) {
     const normalized = new Map<string, unknown>();
     for (const [key, value] of Object.entries(row)) normalized.set(this.normalizeHeader(key), value);
 
     const get = (...keys: string[]) => {
       for (const key of keys) {
-        const value = normalized.get(this.normalizeHeader(key));
-        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+        const mappedColumn = mapping[key] || mapping[this.normalizeHeader(key)];
+        const candidates = mappedColumn ? [mappedColumn, key] : [key];
+        for (const candidate of candidates) {
+          const value = normalized.get(this.normalizeHeader(candidate));
+          if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+        }
       }
       return undefined;
     };
 
     const customFields: Record<string, unknown> = {};
     for (const field of fields) {
-      const value = get(this.customHeader(field), field.label, field.key, `custom:${field.key}`, `custom:${field.label}`);
+      const value = get(`custom:${field.key}`, this.customHeader(field), field.label, field.key, `custom:${field.label}`);
       if (value !== undefined) customFields[field.key] = this.convertLayoutValue(field, value, currencySettings.baseCurrency);
     }
 
