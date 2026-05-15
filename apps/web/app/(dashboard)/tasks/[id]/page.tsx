@@ -2,7 +2,7 @@ import type { CSSProperties } from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-import { TaskDetailContent } from "@/components/tasks/tasks-content"
+import { TaskDetailContent } from "@/components/tasks/task-detail-content"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 const sidebarStyle = {
