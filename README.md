@@ -267,6 +267,7 @@ These changes were applied directly to the `main-v2` branch.
    - Added task summary cards for total, to-do, in-progress, blocked, done, due today, and overdue counts.
    - Added task status filtering, inline status updates, delete actions, mark-done action, reminder fields, priority/category fields, and launch checklist generation.
    - Added Tasks to the main sidebar and the user dropdown menu.
+   - Simplified `/tasks/[id]` so the detail page is no longer wrapped in heavy cards: it now uses a plain title/content area, inline action bar, description section, separators, and a compact bordered metadata sidebar.
 
 ## Current known follow-up items
 
