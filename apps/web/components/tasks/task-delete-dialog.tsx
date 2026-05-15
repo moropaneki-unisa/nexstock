@@ -2,16 +2,17 @@
 
 import { Trash2Icon } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type TaskDeleteDialogProps = {
   open: boolean
@@ -29,24 +30,24 @@ export function TaskDeleteDialog({
   onConfirm,
 }: TaskDeleteDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={!deleting}>
-        <DialogHeader>
-          <DialogTitle>Delete task?</DialogTitle>
-          <DialogDescription>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogMedia className="text-destructive">
+            <Trash2Icon className="size-5" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Delete task?</AlertDialogTitle>
+          <AlertDialogDescription>
             This will permanently remove {title ? `"${title}"` : "this task"}. This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={deleting}>Cancel</Button>
-          </DialogClose>
-          <Button type="button" variant="destructive" disabled={deleting} onClick={onConfirm}>
-            <Trash2Icon className="size-4" />
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" disabled={deleting} onClick={onConfirm}>
             {deleting ? "Deleting..." : "Delete task"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
