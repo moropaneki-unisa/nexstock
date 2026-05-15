@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation"
 import { AlertCircleIcon, ArrowLeftIcon, CheckCircle2Icon, Loader2Icon, SaveIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { AppSelectContent, AppSelectItem, AppSelectTrigger } from "@/components/core/app-select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
@@ -383,11 +384,11 @@ function FormSection({ title, description, children }: { title: string; descript
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return <label className="grid gap-2"><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</label>
+  return <label className="grid min-w-0 gap-2"><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</label>
 }
 
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
-  return <Field label={label}><Select value={value} onValueChange={onChange}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{options.map((option) => <SelectItem key={option.value || option.label} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></Field>
+  return <Field label={label}><Select value={value} onValueChange={onChange}><AppSelectTrigger><SelectValue /></AppSelectTrigger><AppSelectContent>{options.map((option) => <AppSelectItem key={option.value || option.label} value={option.value}>{option.label}</AppSelectItem>)}</AppSelectContent></Select></Field>
 }
 
 function ReviewLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
