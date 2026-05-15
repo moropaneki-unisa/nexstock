@@ -6,15 +6,12 @@ import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  Building2Icon,
   EditIcon,
   EllipsisVerticalIcon,
   Loader2Icon,
   PlusIcon,
   RefreshCwIcon,
   RotateCcwIcon,
-  TruckIcon,
-  WalletCardsIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -25,13 +22,6 @@ import {
 } from "@/components/records/records-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,23 +74,24 @@ function titleCase(value?: string | null) {
 
 function SuppliersLoading() {
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+    <div className="flex flex-col gap-4 py-4 md:gap-5 md:py-6">
+      <div className="grid grid-cols-2 gap-2 px-4 sm:flex sm:flex-wrap lg:px-6">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index}>
-            <CardHeader>
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-8 w-32" />
-            </CardHeader>
-            <CardFooter>
-              <Skeleton className="h-4 w-40" />
-            </CardFooter>
-          </Card>
+          <Skeleton key={index} className="h-8 min-w-28 rounded-md" />
         ))}
       </div>
       <div className="px-4 lg:px-6">
-        <Skeleton className="h-[420px] rounded-xl" />
+        <Skeleton className="h-[46rem] rounded-xl" />
       </div>
+    </div>
+  )
+}
+
+function CompactStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex h-8 min-w-0 items-center justify-between gap-2 rounded-md border bg-background px-2.5 sm:justify-start">
+      <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   )
 }
@@ -318,7 +309,7 @@ export function SuppliersContent() {
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="flex flex-col gap-4 py-4 md:gap-5 md:py-6">
         <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div>
             <p className="text-sm text-muted-foreground">Supply operations</p>
@@ -341,11 +332,12 @@ export function SuppliersContent() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
-          <SupplierMetricCard title="Total suppliers" value={suppliers.length} detail={`${activeSuppliers.length} active`} icon={TruckIcon} />
-          <SupplierMetricCard title="Preferred" value={preferredSuppliers.length} detail="Approved primary sources" icon={Building2Icon} />
-          <SupplierMetricCard title="Product links" value={productLinks} detail="Supplier-product sources" icon={WalletCardsIcon} />
-          <SupplierMetricCard title="Archived" value={archivedSuppliers.length} detail="Hidden from active purchasing" icon={ArchiveIcon} />
+        <div className="grid grid-cols-2 gap-2 px-4 sm:flex sm:flex-wrap lg:px-6">
+          <CompactStat label="Total" value={suppliers.length} />
+          <CompactStat label="Active" value={activeSuppliers.length} />
+          <CompactStat label="Preferred" value={preferredSuppliers.length} />
+          <CompactStat label="Product links" value={productLinks} />
+          <CompactStat label="Archived" value={archivedSuppliers.length} />
         </div>
 
         <RecordsTable
@@ -359,32 +351,5 @@ export function SuppliersContent() {
         />
       </div>
     </div>
-  )
-}
-
-function SupplierMetricCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-}: {
-  title: string
-  value: string | number
-  detail: string
-  icon: React.ComponentType<{ className?: string }>
-}) {
-  return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-          {value}
-        </CardTitle>
-      </CardHeader>
-      <CardFooter className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{detail}</span>
-        <Icon className="size-4 text-muted-foreground" />
-      </CardFooter>
-    </Card>
   )
 }
