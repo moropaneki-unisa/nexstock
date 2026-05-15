@@ -161,8 +161,8 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
 
 function CompactStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex h-8 items-center gap-2 rounded-md border bg-background px-2.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+    <div className="flex h-8 min-w-0 items-center justify-between gap-2 rounded-md border bg-background px-2.5 sm:justify-start">
+      <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
       <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   )
@@ -171,7 +171,7 @@ function CompactStat({ label, value }: { label: string; value: number }) {
 function TableSkeleton({ rows }: { rows: number }) {
   return Array.from({ length: rows }).map((_, index) => (
     <TableRow key={index} className="h-14">
-      <TableCell><Skeleton className="h-5 w-64" /></TableCell>
+      <TableCell><Skeleton className="h-5 w-48 sm:w-64" /></TableCell>
       <TableCell><Skeleton className="h-6 w-24" /></TableCell>
       <TableCell><Skeleton className="h-6 w-20" /></TableCell>
       <TableCell><Skeleton className="h-5 w-28" /></TableCell>
@@ -339,25 +339,25 @@ export function TasksTableContent() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-var(--header-height))] flex-1 flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="flex min-h-[calc(100svh-var(--header-height))] flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 md:p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Workspace</p>
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Tasks</h1>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">Tasks</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Manage all tasks from one table. Filters stay in the table header and only the task rows scroll.</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" variant="outline" onClick={createChecklist} disabled={busy === "launch-checklist"}>
+        <div className="grid gap-2 sm:flex sm:flex-row">
+          <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={createChecklist} disabled={busy === "launch-checklist"}>
             {busy === "launch-checklist" ? <Loader2Icon className="size-4 animate-spin" /> : <RocketIcon className="size-4" />}
             Launch checklist
           </Button>
-          <Button asChild><Link href="/tasks/new"><PlusIcon className="size-4" />New task</Link></Button>
+          <Button asChild className="w-full sm:w-auto"><Link href="/tasks/new"><PlusIcon className="size-4" />New task</Link></Button>
         </div>
       </div>
 
-      {error ? <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><AlertCircleIcon className="size-4" />{error}</div> : null}
+      {error ? <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive sm:p-4"><AlertCircleIcon className="size-4 shrink-0" />{error}</div> : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <CompactStat label="Open" value={summary.todo + summary.inProgress + summary.blocked} />
         <CompactStat label="Today" value={summary.dueToday} />
         <CompactStat label="Overdue" value={summary.overdue} />
@@ -365,10 +365,10 @@ export function TasksTableContent() {
         <CompactStat label="Done" value={summary.done} />
       </div>
 
-      <div className="flex h-[46rem] min-h-[46rem] flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+      <div className="flex h-[calc(100svh-18rem)] min-h-[34rem] flex-1 flex-col overflow-hidden rounded-xl border bg-background sm:h-[calc(100svh-17rem)] md:h-[46rem]">
         <Tabs value={view} onValueChange={(value) => setView(value as TaskView)} className="shrink-0 gap-0">
-          <div className="p-3">
-            <TabsList variant="line" className="w-full justify-start overflow-x-auto">
+          <div className="overflow-x-auto p-2 sm:p-3">
+            <TabsList variant="line" className="w-max min-w-full justify-start">
               {views.map((item) => (
                 <TabsTrigger key={item.id} value={item.id} className="min-w-fit gap-2 px-3">
                   {item.label}<Badge variant="outline" className="rounded-full px-1.5 py-0 text-[10px]">{viewCounts[item.id]}</Badge>
@@ -377,13 +377,13 @@ export function TasksTableContent() {
             </TabsList>
           </div>
           <Separator />
-          <div className="grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem_9rem]">
-            <div className="relative min-w-0">
+          <div className="grid gap-2 p-2 sm:grid-cols-2 sm:p-3 lg:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem_9rem]">
+            <div className="relative min-w-0 sm:col-span-2 lg:col-span-1">
               <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, description, prompt, category..." className="pl-9" />
             </div>
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TaskStatus | "all")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All status</SelectItem>
                 <SelectItem value="todo">To do</SelectItem>
@@ -393,7 +393,7 @@ export function TasksTableContent() {
               </SelectContent>
             </Select>
             <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as TaskPriority | "all")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All priority</SelectItem>
                 <SelectItem value="urgent">Urgent</SelectItem>
@@ -403,14 +403,14 @@ export function TasksTableContent() {
               </SelectContent>
             </Select>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All categories</SelectItem>
                 {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={sort} onValueChange={(value) => setSort(value as TaskSort)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="smart">Smart sort</SelectItem>
                 <SelectItem value="due">Due date</SelectItem>
@@ -419,17 +419,17 @@ export function TasksTableContent() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t p-3 text-sm text-muted-foreground">
+          <div className="flex flex-col gap-2 border-t p-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:p-3">
             <span>Showing <span className="font-medium text-foreground">{startIndex}-{endIndex}</span> of <span className="font-medium text-foreground">{visibleTasks.length}</span> filtered tasks</span>
-            <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>
+            <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={resetFilters}>Clear filters</Button>
           </div>
         </Tabs>
 
         <div className="min-w-0 flex-1 overflow-auto border-t">
-          <Table>
+          <Table className="min-w-[760px]">
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <TableHead>Task</TableHead>
+                <TableHead className="min-w-[18rem]">Task</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Due</TableHead>
@@ -442,10 +442,10 @@ export function TasksTableContent() {
               {!loading && visibleTasks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6}>
-                    <div className="flex h-[28rem] flex-col items-center justify-center gap-3 p-8 text-center">
+                    <div className="flex h-[20rem] flex-col items-center justify-center gap-3 p-6 text-center sm:h-[28rem] sm:p-8">
                       <p className="font-medium">{tasks.length ? "No tasks match these filters" : "No tasks yet"}</p>
                       <p className="max-w-md text-sm text-muted-foreground">{tasks.length ? "Change the filters or clear them to see more tasks." : "Create your first task or generate the launch checklist."}</p>
-                      <div className="flex flex-wrap justify-center gap-2">
+                      <div className="grid w-full max-w-xs gap-2 sm:flex sm:max-w-none sm:flex-wrap sm:justify-center">
                         {tasks.length ? <Button type="button" variant="outline" onClick={resetFilters}>Clear filters</Button> : null}
                         <Button asChild><Link href="/tasks/new"><PlusIcon className="size-4" />New task</Link></Button>
                       </div>
@@ -479,14 +479,14 @@ export function TasksTableContent() {
           </Table>
         </div>
 
-        <div className="shrink-0 border-t bg-background px-3 py-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="shrink-0 border-t bg-background px-2 py-2 sm:px-3 sm:py-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-muted-foreground">
               Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="grid grid-cols-[1fr_1fr_1fr] items-center gap-2 sm:flex sm:flex-wrap">
               <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="5">5 / page</SelectItem>
                   <SelectItem value="10">10 / page</SelectItem>
