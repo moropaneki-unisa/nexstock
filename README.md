@@ -246,6 +246,12 @@ These changes were applied directly to the `main-v2` branch.
    - Every mapping select defaults to `None`; users explicitly map spreadsheet columns to NexStock fields.
    - The mapping page still submits the backend-supported `file`, `mapping`, and `productTypeId` multipart payload to `POST /api/products/import`, so the backend contract is unchanged.
 
+15. **Product supplier section overflow cleanup**
+   - Fixed supplier/costing UI overflow in product create/update forms.
+   - Supplier costing cards now use responsive `auto-fit` columns instead of forcing four fixed columns that can collide with the right summary panel.
+   - Supplier links now render as compact cards on smaller layouts and as a horizontally scroll-safe table on large layouts.
+   - Added `min-w-0`, truncation, and bounded dialog scrolling so long supplier names, SKUs, and rows do not push into or hide behind the summary panel.
+
 ## Current known follow-up items
 
 - Add import preview/validation before final upload.
