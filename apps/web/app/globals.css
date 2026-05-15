@@ -141,6 +141,14 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   html {
@@ -152,9 +160,21 @@
     background: var(--background);
   }
 
+  body > div,
+  #__next,
+  [data-slot="sidebar-wrapper"],
+  [data-slot="sidebar-inset"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   form,
   fieldset,
   label,
+  main,
+  section,
+  article,
+  aside,
   [data-slot="card"],
   [data-slot="card-header"],
   [data-slot="card-content"],
@@ -163,6 +183,12 @@
   [data-slot="select-trigger"],
   [data-slot="select-content"] {
     min-width: 0;
+  }
+
+  [data-slot="sidebar-inset"] {
+    width: 100%;
+    min-inline-size: 0;
+    overflow-x: clip;
   }
 
   [data-slot="card"] {
@@ -175,6 +201,10 @@
 
   [data-slot="card-footer"] {
     padding: var(--app-card-padding);
+  }
+
+  [data-slot="table-container"] {
+    max-width: 100%;
   }
 
   [data-slot="table-head"],
@@ -193,13 +223,24 @@
 
 @layer utilities {
   .app-page {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: var(--app-page-padding);
+    overflow-x: clip;
   }
 
   @media (width >= 48rem) {
     .app-page {
       padding: var(--app-page-padding-md);
     }
+  }
+
+  .app-responsive-shell {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
   }
 
   .app-section-gap {
