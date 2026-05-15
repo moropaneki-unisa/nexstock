@@ -181,6 +181,11 @@ These changes were applied directly to the `main-v2` branch.
    - Cost value uses `convertedCost`, then `cost`, then falls back to selling price when no cost is available.
    - Dashboard cards now display retail value and cost value together so the backend valuation work is visible in the UI.
 
+6. **Purchase order receiving stock accuracy**
+   - Receiving now rejects line IDs that do not belong to the selected purchase order instead of silently ignoring them.
+   - Receiving now tracks product quantity inside the transaction per product so inventory logs keep correct before/after quantities even when multiple lines reference the same product.
+   - Existing protections remain in place for duplicate submitted lines, negative received quantities, receiving beyond ordered quantity, and cancelled purchase orders.
+
 ## Current known follow-up items
 
 - Signup frontend auth persistence cleanup is still recommended: signup should return verification state only and should not attempt to persist auth data until OTP verification succeeds.
