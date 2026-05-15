@@ -3,20 +3,22 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react"
+import { AlertCircleIcon, ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon, Trash2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 import { getCachedSuppliers } from "@/lib/cached-api"
 import { formatMoney, normalizeCurrencyCode, numberValue } from "@/lib/money"
+import { cn } from "@/lib/utils"
 
 type Supplier = { id: string; supplierCode: string; name: string; currency?: string | null; status?: string | null }
 type Product = { id: string; name: string; sku?: string | null; cost?: string | number | null; costPrice?: string | number | null; price?: string | number | null }
@@ -25,7 +27,6 @@ type PurchaseOrderStatus = "draft" | "ordered" | "partially_received" | "receive
 type PurchaseOrderLine = { id: string; productId: string; productSupplierId?: string | null; supplierSku?: string | null; description?: string | null; quantityOrdered: number; unitCost: string | number; notes?: string | null; product?: Product | null }
 type PurchaseOrder = { id: string; poNumber: string; supplierId: string; status: PurchaseOrderStatus; expectedAt?: string | null; notes?: string | null; lines?: PurchaseOrderLine[] }
 type Paginated<T> = { items?: T[]; data?: T[] }
-
 type LineForm = { productId: string; productSupplierId: string; supplierSku: string; description: string; quantityOrdered: string; unitCost: string; notes: string }
 type FormState = { supplierId: string; status: PurchaseOrderStatus; expectedAt: string; notes: string; lines: LineForm[] }
 
@@ -42,6 +43,7 @@ function productLabel(product?: Product | null) { if (!product) return "Unknown 
 
 export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?: string }) {
   const router = useRouter()
+  const editing = Boolean(purchaseOrderId)
   const [form, setForm] = React.useState<FormState>(emptyForm)
   const [order, setOrder] = React.useState<PurchaseOrder | null>(null)
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([])
@@ -72,13 +74,7 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
         setProducts(normalizeList<Product>(productList))
         if (existing) {
           setOrder(existing)
-          setForm({
-            supplierId: existing.supplierId,
-            status: existing.status,
-            expectedAt: toDateInput(existing.expectedAt),
-            notes: existing.notes || "",
-            lines: existing.lines?.length ? existing.lines.map((line) => ({ productId: line.productId, productSupplierId: line.productSupplierId || "", supplierSku: line.supplierSku || "", description: line.description || line.product?.name || "", quantityOrdered: String(line.quantityOrdered || 1), unitCost: String(line.unitCost ?? 0), notes: line.notes || "" })) : [{ ...emptyLine }],
-          })
+          setForm({ supplierId: existing.supplierId, status: existing.status, expectedAt: toDateInput(existing.expectedAt), notes: existing.notes || "", lines: existing.lines?.length ? existing.lines.map((line) => ({ productId: line.productId, productSupplierId: line.productSupplierId || "", supplierSku: line.supplierSku || "", description: line.description || line.product?.name || "", quantityOrdered: String(line.quantityOrdered || 1), unitCost: String(line.unitCost ?? 0), notes: line.notes || "" })) : [{ ...emptyLine }] })
         } else {
           setForm((current) => ({ ...current, supplierId: activeSuppliers[0]?.id || "" }))
         }
@@ -96,10 +92,7 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
   React.useEffect(() => {
     let active = true
     async function loadLinks() {
-      if (!form.supplierId) {
-        setSupplierLinks([])
-        return
-      }
+      if (!form.supplierId) { setSupplierLinks([]); return }
       setLinksLoading(true)
       try {
         const links = await apiFetch<ProductSupplierLink[]>(`/api/suppliers/${form.supplierId}/products`).catch(() => [])
@@ -112,52 +105,31 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
     return () => { active = false }
   }, [form.supplierId, loading, purchaseOrderId])
 
-  function changeSupplier(supplierId: string) {
-    setForm((current) => ({ ...current, supplierId, lines: current.lines.map((line) => ({ ...line, productId: "", productSupplierId: "", supplierSku: "", unitCost: "0" })) }))
-  }
-
-  function updateLine(index: number, patch: Partial<LineForm>) {
-    setForm((current) => ({ ...current, lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line) }))
-  }
-
-  function selectProduct(index: number, productId: string) {
-    const link = supplierLinks.find((item) => item.productId === productId)
-    const product = link?.product || products.find((item) => item.id === productId)
-    const fallbackCost = link?.cost ?? product?.cost ?? product?.costPrice ?? product?.price ?? 0
-    updateLine(index, { productId, productSupplierId: link?.id || "", supplierSku: link?.supplierSku || "", description: product?.name || "", unitCost: String(fallbackCost) })
-  }
-
+  function changeSupplier(supplierId: string) { setForm((current) => ({ ...current, supplierId, lines: current.lines.map((line) => ({ ...line, productId: "", productSupplierId: "", supplierSku: "", unitCost: "0" })) })) }
+  function updateLine(index: number, patch: Partial<LineForm>) { setForm((current) => ({ ...current, lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line) })) }
+  function selectProduct(index: number, productId: string) { const link = supplierLinks.find((item) => item.productId === productId); const product = link?.product || products.find((item) => item.id === productId); const fallbackCost = link?.cost ?? product?.cost ?? product?.costPrice ?? product?.price ?? 0; updateLine(index, { productId, productSupplierId: link?.id || "", supplierSku: link?.supplierSku || "", description: product?.name || "", unitCost: String(fallbackCost) }) }
   function addLine() { setForm((current) => ({ ...current, lines: [...current.lines, { ...emptyLine }] })) }
   function removeLine(index: number) { setForm((current) => ({ ...current, lines: current.lines.length === 1 ? current.lines : current.lines.filter((_, lineIndex) => lineIndex !== index) })) }
 
-  async function saveOrder() {
-    if (!form.supplierId) return toast.error("Choose a supplier")
+  async function saveOrder(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
+    if (!form.supplierId) { setError("Choose a supplier before saving."); return toast.error("Choose a supplier") }
     const validLines = form.lines.filter((line) => line.productId && numberValue(line.quantityOrdered) > 0)
-    if (!validLines.length) return toast.error("Add at least one product line")
+    if (!editing && !validLines.length) { setError("Add at least one product line before saving."); return toast.error("Add at least one product line") }
 
     setSaving(true)
     setError(null)
     try {
       if (purchaseOrderId) {
-        const result = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${purchaseOrderId}`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: form.status, expectedAt: form.expectedAt ? new Date(form.expectedAt).toISOString() : null, notes: form.notes }),
-        })
+        const result = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${purchaseOrderId}`, { method: "PATCH", body: JSON.stringify({ status: form.status, expectedAt: form.expectedAt ? new Date(form.expectedAt).toISOString() : null, notes: form.notes }) })
         toast.success("Purchase order updated", { description: result.poNumber })
         router.push(`/purchase-orders/${result.id}`)
       } else {
-        const result = await apiFetch<PurchaseOrder>("/api/purchase-orders", {
-          method: "POST",
-          body: JSON.stringify({
-            supplierId: form.supplierId,
-            expectedAt: form.expectedAt ? new Date(form.expectedAt).toISOString() : undefined,
-            notes: clean(form.notes),
-            lines: validLines.map((line) => ({ productId: line.productId, productSupplierId: clean(line.productSupplierId), supplierSku: clean(line.supplierSku), description: clean(line.description), quantityOrdered: Number(line.quantityOrdered), unitCost: Number(line.unitCost), notes: clean(line.notes) })),
-          }),
-        })
+        const result = await apiFetch<PurchaseOrder>("/api/purchase-orders", { method: "POST", body: JSON.stringify({ supplierId: form.supplierId, expectedAt: form.expectedAt ? new Date(form.expectedAt).toISOString() : undefined, notes: clean(form.notes), lines: validLines.map((line) => ({ productId: line.productId, productSupplierId: clean(line.productSupplierId), supplierSku: clean(line.supplierSku), description: clean(line.description), quantityOrdered: Number(line.quantityOrdered), unitCost: Number(line.unitCost), notes: clean(line.notes) })) }) })
         toast.success("Purchase order created", { description: result.poNumber })
         router.push(`/purchase-orders/${result.id}`)
       }
+      router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Purchase order could not be saved"
       setError(message)
@@ -167,70 +139,85 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
     }
   }
 
-  if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[640px] rounded-xl" /></div>
+  if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[620px] rounded-xl" /></div>
 
   return (
-    <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
+    <form onSubmit={saveOrder} className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/purchase-orders"><ArrowLeftIcon className="size-4" />Purchase orders</Link></Button>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">{purchaseOrderId ? "Edit purchase order" : "New purchase order"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{order ? `${order.poNumber} · update status, expected date, and notes.` : "Create a purchase order from supplier-linked product costs."}</p>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">{editing ? "Edit purchase order" : "New purchase order"}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{order ? `${order.poNumber} · update status, expected date, and notes.` : "Choose a supplier, add product lines, and review totals before creating the order."}</p>
         </div>
-        <Button onClick={saveOrder} disabled={saving} size="sm">{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{purchaseOrderId ? "Save changes" : "Create purchase order"}</Button>
       </div>
 
-      {error ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><TriangleAlertIcon className="size-4" />Purchase order error</CardTitle><CardDescription>{error}</CardDescription></CardHeader></Card> : null}
+      {error ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><div className="flex gap-2"><AlertCircleIcon className="mt-0.5 size-4 shrink-0" />{error}</div></div> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
-        <div className="grid gap-4">
-          <Card>
-            <CardHeader><CardTitle>Order information</CardTitle><CardDescription>Supplier, status, expected date, and internal notes.</CardDescription></CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2"><Label>Supplier</Label><Select value={form.supplierId} onValueChange={changeSupplier} disabled={Boolean(purchaseOrderId)}><SelectTrigger className="w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></label>
-              {purchaseOrderId ? <label className="grid gap-2"><Label>Status</Label><Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as PurchaseOrderStatus }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{statuses.map((status) => <SelectItem key={status} value={status}>{titleCase(status)}</SelectItem>)}</SelectContent></Select></label> : null}
-              <label className="grid gap-2"><Label>Expected date</Label><Input type="date" value={form.expectedAt} onChange={(event) => setForm((current) => ({ ...current, expectedAt: event.target.value }))} /></label>
-              <label className="grid gap-2 md:col-span-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-24" /></label>
-            </CardContent>
-          </Card>
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <main className="min-w-0 overflow-hidden rounded-xl border bg-card">
+          <section className="grid gap-4 border-b p-4 md:grid-cols-2 lg:grid-cols-4">
+            <Field label="Supplier" required><Select value={form.supplierId || "none"} onValueChange={(value) => changeSupplier(value === "none" ? "" : value)} disabled={editing}><SelectTrigger className="w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent><SelectItem value="none">Choose supplier</SelectItem>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></Field>
+            {editing ? <Field label="Status"><Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as PurchaseOrderStatus }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{statuses.map((status) => <SelectItem key={status} value={status}>{titleCase(status)}</SelectItem>)}</SelectContent></Select></Field> : null}
+            <Field label="Expected date"><Input type="date" value={form.expectedAt} onChange={(event) => setForm((current) => ({ ...current, expectedAt: event.target.value }))} /></Field>
+            <div className={cn("grid gap-2", editing ? "md:col-span-2 lg:col-span-2" : "md:col-span-2 lg:col-span-2")}><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-10 resize-y" placeholder="Optional internal notes" /></div>
+          </section>
 
-          <Card>
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>Order lines</CardTitle><CardDescription>{purchaseOrderId ? "Lines are locked after creation by the current API. Create a new PO to change product lines." : linksLoading ? "Loading supplier-linked products..." : supplierLinks.length ? "Products are filtered by the selected supplier link." : "No supplier links found. Showing all products as fallback."}</CardDescription></div>{!purchaseOrderId ? <Button type="button" variant="outline" size="sm" onClick={addLine}><PlusIcon className="size-4" />Add line</Button> : null}</CardHeader>
-            <CardContent>
-              <div className="overflow-hidden rounded-xl border">
-                <Table>
-                  <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Description</TableHead><TableHead className="w-28">Qty</TableHead><TableHead className="w-32">Unit cost</TableHead><TableHead className="w-32 text-right">Total</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
-                  <TableBody>
-                    {form.lines.map((line, index) => <TableRow key={index}>
-                      <TableCell className="min-w-56"><Select value={line.productId} onValueChange={(value) => selectProduct(index, value)} disabled={Boolean(purchaseOrderId) || linksLoading}><SelectTrigger className="w-full"><SelectValue placeholder={linksLoading ? "Loading..." : "Choose product"} /></SelectTrigger><SelectContent>{availableProducts.map((product) => <SelectItem key={product.id} value={product.id}>{productLabel(product)}</SelectItem>)}</SelectContent></Select></TableCell>
-                      <TableCell className="min-w-36"><Input value={line.supplierSku} onChange={(event) => updateLine(index, { supplierSku: event.target.value })} disabled={Boolean(purchaseOrderId)} /></TableCell>
-                      <TableCell><Input value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} disabled={Boolean(purchaseOrderId)} /></TableCell>
-                      <TableCell><Input type="number" min="1" value={line.quantityOrdered} onChange={(event) => updateLine(index, { quantityOrdered: event.target.value })} disabled={Boolean(purchaseOrderId)} /></TableCell>
-                      <TableCell><Input type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(index, { unitCost: event.target.value })} disabled={Boolean(purchaseOrderId)} /></TableCell>
-                      <TableCell className="text-right font-medium">{formatMoney(numberValue(line.quantityOrdered) * numberValue(line.unitCost), currency)}</TableCell>
-                      <TableCell>{!purchaseOrderId ? <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(index)} disabled={form.lines.length === 1}><Trash2Icon className="size-4" /></Button> : null}</TableCell>
-                    </TableRow>)}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <section className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold">Order lines</h2>
+              <p className="text-sm text-muted-foreground">{editing ? "Lines are locked by the current API. Use a new PO for changed product lines." : linksLoading ? "Loading supplier-linked products..." : supplierLinks.length ? "Products are filtered by the selected supplier link." : "No supplier links found. Showing all products as fallback."}</p>
+            </div>
+            {!editing ? <Button type="button" variant="outline" size="sm" onClick={addLine} className="w-full sm:w-auto"><PlusIcon className="size-4" />Add line</Button> : null}
+          </section>
 
-        <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
-          <CardHeader><CardTitle>Review</CardTitle><CardDescription>Confirm the purchase order before saving.</CardDescription></CardHeader>
-          <CardContent className="grid gap-3 text-sm">
+          <section className="min-w-0 overflow-x-auto">
+            <Table className="min-w-[980px]">
+              <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Description</TableHead><TableHead className="w-28">Qty</TableHead><TableHead className="w-36">Unit cost</TableHead><TableHead className="w-36 text-right">Total</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+              <TableBody>
+                {form.lines.map((line, index) => <TableRow key={index}>
+                  <TableCell className="min-w-64"><Select value={line.productId || "none"} onValueChange={(value) => selectProduct(index, value === "none" ? "" : value)} disabled={editing || linksLoading}><SelectTrigger className="w-full"><SelectValue placeholder={linksLoading ? "Loading..." : "Choose product"} /></SelectTrigger><SelectContent><SelectItem value="none">Choose product</SelectItem>{availableProducts.map((product) => <SelectItem key={product.id} value={product.id}>{productLabel(product)}</SelectItem>)}</SelectContent></Select></TableCell>
+                  <TableCell className="min-w-36"><Input value={line.supplierSku} onChange={(event) => updateLine(index, { supplierSku: event.target.value })} disabled={editing} /></TableCell>
+                  <TableCell className="min-w-56"><Input value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} disabled={editing} /></TableCell>
+                  <TableCell><Input type="number" min="1" value={line.quantityOrdered} onChange={(event) => updateLine(index, { quantityOrdered: event.target.value })} disabled={editing} /></TableCell>
+                  <TableCell><Input type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(index, { unitCost: event.target.value })} disabled={editing} /></TableCell>
+                  <TableCell className="text-right font-medium">{formatMoney(numberValue(line.quantityOrdered) * numberValue(line.unitCost), currency)}</TableCell>
+                  <TableCell>{!editing ? <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(index)} disabled={form.lines.length === 1}><Trash2Icon className="size-4" /></Button> : null}</TableCell>
+                </TableRow>)}
+              </TableBody>
+            </Table>
+          </section>
+
+          <section className="sticky bottom-0 z-10 border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => router.push(editing && order ? `/purchase-orders/${order.id}` : "/purchase-orders")} disabled={saving}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{saving ? "Saving..." : editing ? "Save changes" : "Create purchase order"}</Button>
+            </div>
+          </section>
+        </main>
+
+        <aside className="h-fit rounded-xl border bg-card p-4 xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
+          <div>
+            <h2 className="font-semibold">Review</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Confirm supplier, lines, and subtotal before saving.</p>
+          </div>
+          <Separator className="my-4" />
+          <div className="grid gap-3 text-sm">
             <ReviewLine label="Supplier" value={selectedSupplier?.name || "Not set"} />
             <ReviewLine label="Currency" value={currency} />
-            <ReviewLine label="Linked products" value={linksLoading ? "Loading" : String(supplierLinks.length)} />
+            <ReviewLine label="Supplier links" value={linksLoading ? "Loading" : String(supplierLinks.length)} />
             <ReviewLine label="Lines" value={String(form.lines.length)} />
             <ReviewLine label="Subtotal" value={formatMoney(subtotal, currency)} />
             {order ? <ReviewLine label="PO number" value={order.poNumber} mono /> : null}
-          </CardContent>
-        </Card>
+          </div>
+          {supplierLinks.length ? <Badge variant="secondary" className="mt-4">Supplier-linked products available</Badge> : null}
+        </aside>
       </div>
-    </div>
+    </form>
   )
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return <label className="grid gap-2"><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</label>
 }
 
 function ReviewLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
