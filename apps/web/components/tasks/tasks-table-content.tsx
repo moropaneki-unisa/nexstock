@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { TaskDeleteDialog } from "@/components/tasks/task-delete-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -39,7 +40,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TaskDeleteDialog } from "@/components/tasks/task-delete-dialog"
 import { apiFetch } from "@/lib/api"
 
 type TaskStatus = "todo" | "in_progress" | "blocked" | "done"
@@ -73,23 +73,8 @@ type TasksResponse = {
   summary: TaskSummary
 }
 
-const emptySummary: TaskSummary = {
-  total: 0,
-  todo: 0,
-  inProgress: 0,
-  blocked: 0,
-  done: 0,
-  dueToday: 0,
-  overdue: 0,
-}
-
-const priorityRank: Record<TaskPriority, number> = {
-  urgent: 4,
-  high: 3,
-  medium: 2,
-  low: 1,
-}
-
+const emptySummary: TaskSummary = { total: 0, todo: 0, inProgress: 0, blocked: 0, done: 0, dueToday: 0, overdue: 0 }
+const priorityRank: Record<TaskPriority, number> = { urgent: 4, high: 3, medium: 2, low: 1 }
 const views: Array<{ id: TaskView; label: string }> = [
   { id: "focus", label: "Focus" },
   { id: "today", label: "Today" },
@@ -157,11 +142,9 @@ function sortTasks(tasks: Task[], sort: TaskSort) {
   return [...tasks].sort((a, b) => {
     if (sort === "priority") return priorityRank[b.priority] - priorityRank[a.priority]
     if (sort === "created") return (dateValue(b.createdAt)?.getTime() ?? 0) - (dateValue(a.createdAt)?.getTime() ?? 0)
-
     const aDue = dateValue(a.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER
     const bDue = dateValue(b.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER
     if (sort === "due") return aDue - bDue
-
     const aScore = (isOverdue(a) ? 100 : 0) + (isToday(a.dueAt) ? 50 : 0) + priorityRank[a.priority] * 10 + (a.status === "in_progress" ? 5 : 0)
     const bScore = (isOverdue(b) ? 100 : 0) + (isToday(b.dueAt) ? 50 : 0) + priorityRank[b.priority] * 10 + (b.status === "in_progress" ? 5 : 0)
     return bScore === aScore ? aDue - bDue : bScore - aScore
@@ -178,14 +161,14 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
 
 function CompactStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex h-9 items-center gap-2 rounded-lg border bg-background px-3">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="font-semibold tabular-nums">{value}</span>
+    <div className="flex h-8 items-center gap-2 rounded-md border bg-background px-2.5">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   )
 }
 
-function TableSkeleton({ rows = 10 }: { rows?: number }) {
+function TableSkeleton({ rows }: { rows: number }) {
   return Array.from({ length: rows }).map((_, index) => (
     <TableRow key={index} className="h-14">
       <TableCell><Skeleton className="h-5 w-64" /></TableCell>
@@ -300,6 +283,10 @@ export function TasksTableContent() {
     setPage(1)
   }, [view, query, statusFilter, priorityFilter, categoryFilter, sort, pageSize])
 
+  React.useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
   function resetFilters() {
     setQuery("")
     setStatusFilter("all")
@@ -357,7 +344,7 @@ export function TasksTableContent() {
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Workspace</p>
           <h1 className="font-heading text-3xl font-semibold tracking-tight">Tasks</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Manage all tasks from one table. Use tabs and filters to change the table results.</p>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Manage all tasks from one table. Filters stay in the table header and only the task rows scroll.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" onClick={createChecklist} disabled={busy === "launch-checklist"}>
@@ -378,8 +365,8 @@ export function TasksTableContent() {
         <CompactStat label="Done" value={summary.done} />
       </div>
 
-      <Tabs value={view} onValueChange={(value) => setView(value as TaskView)} className="gap-4">
-        <div className="rounded-xl border bg-background">
+      <div className="flex h-[46rem] min-h-[46rem] flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+        <Tabs value={view} onValueChange={(value) => setView(value as TaskView)} className="shrink-0 gap-0">
           <div className="p-3">
             <TabsList variant="line" className="w-full justify-start overflow-x-auto">
               {views.map((item) => (
@@ -436,13 +423,11 @@ export function TasksTableContent() {
             <span>Showing <span className="font-medium text-foreground">{startIndex}-{endIndex}</span> of <span className="font-medium text-foreground">{visibleTasks.length}</span> filtered tasks</span>
             <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>
           </div>
-        </div>
-      </Tabs>
+        </Tabs>
 
-      <div className="flex min-h-[44rem] flex-1 flex-col overflow-hidden rounded-xl border bg-background">
-        <div className="min-w-0 overflow-x-auto">
+        <div className="min-w-0 flex-1 overflow-auto border-t">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead>Task</TableHead>
                 <TableHead>Status</TableHead>
@@ -457,7 +442,7 @@ export function TasksTableContent() {
               {!loading && visibleTasks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6}>
-                    <div className="flex min-h-[35rem] flex-col items-center justify-center gap-3 p-8 text-center">
+                    <div className="flex h-[28rem] flex-col items-center justify-center gap-3 p-8 text-center">
                       <p className="font-medium">{tasks.length ? "No tasks match these filters" : "No tasks yet"}</p>
                       <p className="max-w-md text-sm text-muted-foreground">{tasks.length ? "Change the filters or clear them to see more tasks." : "Create your first task or generate the launch checklist."}</p>
                       <div className="flex flex-wrap justify-center gap-2">
@@ -493,22 +478,25 @@ export function TasksTableContent() {
             </TableBody>
           </Table>
         </div>
-        <div className="mt-auto flex flex-col gap-3 border-t px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-muted-foreground">
-            Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">5 / page</SelectItem>
-                <SelectItem value="10">10 / page</SelectItem>
-                <SelectItem value="20">20 / page</SelectItem>
-                <SelectItem value="50">50 / page</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</Button>
-            <Button type="button" variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</Button>
+
+        <div className="shrink-0 border-t bg-background px-3 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 / page</SelectItem>
+                  <SelectItem value="10">10 / page</SelectItem>
+                  <SelectItem value="20">20 / page</SelectItem>
+                  <SelectItem value="50">50 / page</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</Button>
+              <Button type="button" variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</Button>
+            </div>
           </div>
         </div>
       </div>
