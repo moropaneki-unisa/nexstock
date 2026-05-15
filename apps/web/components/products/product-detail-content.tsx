@@ -7,9 +7,6 @@ import {
   ArchiveIcon,
   ArrowLeftIcon,
   BoxesIcon,
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   EditIcon,
   ExternalLinkIcon,
   FileTextIcon,
@@ -26,8 +23,6 @@ import { ProductSuppliersSection } from "@/components/products/product-suppliers
 import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -60,27 +55,11 @@ function formatCustomValue(value: unknown) { if (value === null || value === und
 function formatLayoutValue(field: LayoutField, value: unknown, fallbackCurrency: string): ProductDataField {
   const type = String(field.type || "text").toLowerCase()
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return { id: field.key, label: field.label || productKindLabel(field.key), value: "-", type }
-  if (type === "currency" && isRecord(value)) {
-    const amount = value.amount ?? value.value ?? 0
-    const currency = normalizeCurrency(String(value.currency || fallbackCurrency), fallbackCurrency)
-    return { id: field.key, label: field.label, value: formatMoney(amount, currency), type, kind: "currency", raw: value }
-  }
-  if (type === "images" && Array.isArray(value)) {
-    const images = value.map((item) => String(item || "").trim()).filter(Boolean)
-    return { id: field.key, label: field.label, value: `${images.length} image${images.length === 1 ? "" : "s"}`, type, kind: "images", raw: images }
-  }
-  if (type === "attachment" && Array.isArray(value)) {
-    const attachments = value.filter(isAttachment)
-    return { id: field.key, label: field.label, value: `${attachments.length} file${attachments.length === 1 ? "" : "s"}`, type, kind: "attachments", raw: attachments }
-  }
-  if (type === "lookup" && isRecord(value)) {
-    const name = String(value.name || value.id || "-")
-    return { id: field.key, label: field.label, value: name, type, kind: "lookup", raw: value }
-  }
-  if (type === "boolean") {
-    const bool = value === true || value === "true"
-    return { id: field.key, label: field.label, value: bool ? "Yes" : "No", type, kind: "boolean", raw: bool }
-  }
+  if (type === "currency" && isRecord(value)) return { id: field.key, label: field.label, value: formatMoney(value.amount ?? value.value ?? 0, normalizeCurrency(String(value.currency || fallbackCurrency), fallbackCurrency)), type, kind: "currency", raw: value }
+  if (type === "images" && Array.isArray(value)) { const images = value.map((item) => String(item || "").trim()).filter(Boolean); return { id: field.key, label: field.label, value: `${images.length} image${images.length === 1 ? "" : "s"}`, type, kind: "images", raw: images } }
+  if (type === "attachment" && Array.isArray(value)) { const attachments = value.filter(isAttachment); return { id: field.key, label: field.label, value: `${attachments.length} file${attachments.length === 1 ? "" : "s"}`, type, kind: "attachments", raw: attachments } }
+  if (type === "lookup" && isRecord(value)) return { id: field.key, label: field.label, value: String(value.name || value.id || "-"), type, kind: "lookup", raw: value }
+  if (type === "boolean") { const bool = value === true || value === "true"; return { id: field.key, label: field.label, value: bool ? "Yes" : "No", type, kind: "boolean", raw: bool } }
   if (type === "date") return { id: field.key, label: field.label, value: formatDate(String(value)), type }
   if (type === "number") return { id: field.key, label: field.label, value: Number(value).toLocaleString(), type }
   if (type === "decimal") return { id: field.key, label: field.label, value: String(numberValue(value)), type }
@@ -96,9 +75,6 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [selectedImage, setSelectedImage] = React.useState<string | null>(null)
-  const [layoutOpen, setLayoutOpen] = React.useState(true)
-  const [logsOpen, setLogsOpen] = React.useState(true)
   const [adjustOpen, setAdjustOpen] = React.useState(false)
   const [archiveOpen, setArchiveOpen] = React.useState(false)
   const [delta, setDelta] = React.useState("")
@@ -106,42 +82,62 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const [adjustError, setAdjustError] = React.useState<string | null>(null)
 
   async function loadProduct() {
-    setLoading(true); setError(null)
+    setLoading(true)
+    setError(null)
     try {
       const [result, org] = await Promise.all([apiFetch<Product>(`/api/products/${productId}`), apiFetch<OrganizationSummary>("/api/organization").catch(() => null)])
       const productLayoutId = result.metadata?.productTypeId || result.productTypeId
       const nextLayout = productLayoutId ? await apiFetch<ProductLayout>(`/api/products/types/${productLayoutId}`).catch(() => null) : null
-      setProduct(result); setOrganization(org); setLayout(nextLayout)
+      setProduct(result)
+      setOrganization(org)
+      setLayout(nextLayout)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not load product"; setError(message); toast.error("Product could not load", { description: message })
-    } finally { setLoading(false) }
+      const message = err instanceof Error ? err.message : "Could not load product"
+      setError(message)
+      toast.error("Product could not load", { description: message })
+    } finally {
+      setLoading(false)
+    }
   }
 
   React.useEffect(() => { void loadProduct() }, [productId])
-  React.useEffect(() => { const images = product?.images ?? []; if (!images.length) { setSelectedImage(null); return } setSelectedImage((current) => (current && images.includes(current) ? current : images[0])) }, [product?.images])
 
   async function archiveProduct() {
     if (!product) return
     setRunning(true)
-    try { await apiFetch(`/api/products/${product.id}`, { method: "DELETE" }); toast.success("Product archived", { description: product.name }); router.push("/products") }
-    catch (err) { toast.error("Could not archive product", { description: err instanceof Error ? err.message : "Archive failed" }) }
-    finally { setRunning(false) }
+    try {
+      await apiFetch(`/api/products/${product.id}`, { method: "DELETE" })
+      toast.success("Product archived", { description: product.name })
+      router.push("/products")
+    } catch (err) {
+      toast.error("Could not archive product", { description: err instanceof Error ? err.message : "Archive failed" })
+    } finally {
+      setRunning(false)
+    }
   }
 
   async function submitStockAdjustment() {
     if (!product) return
-    const numericDelta = Number(delta); setAdjustError(null)
+    const numericDelta = Number(delta)
+    setAdjustError(null)
     if (!Number.isInteger(numericDelta) || numericDelta === 0) return setAdjustError("Enter a whole number above or below zero. Example: 10 or -3.")
     if (numberValue(product.quantity) + numericDelta < 0) return setAdjustError("Stock cannot go below zero.")
     setRunning(true)
     try {
       await apiFetch(`/api/products/${product.id}/adjust`, { method: "POST", body: JSON.stringify({ delta: numericDelta, reason: reason.trim() || "Manual stock adjustment", source: "app" }) })
-      setDelta(""); setReason(""); setAdjustOpen(false); toast.success("Stock adjusted"); await loadProduct()
-    } catch (err) { setAdjustError(err instanceof Error ? err.message : "Failed to adjust stock") }
-    finally { setRunning(false) }
+      setDelta("")
+      setReason("")
+      setAdjustOpen(false)
+      toast.success("Stock adjusted")
+      await loadProduct()
+    } catch (err) {
+      setAdjustError(err instanceof Error ? err.message : "Failed to adjust stock")
+    } finally {
+      setRunning(false)
+    }
   }
 
-  if (loading) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72 max-w-full" /><Skeleton className="h-[680px] rounded-xl" /></div>
+  if (loading) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72 max-w-full" /><Skeleton className="h-[680px] rounded-3xl" /></div>
   if (!product || error) return <div className="grid min-w-0 gap-4 p-4 md:p-6"><Button asChild variant="outline" size="sm" className="w-fit"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button><div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5"><h2 className="flex items-center gap-2 font-semibold text-destructive"><TriangleAlertIcon className="size-4" />Product not available</h2><p className="mt-1 text-sm text-muted-foreground">{error || "The product could not be found."}</p></div></div>
 
   const baseCurrency = normalizeCurrency(organization?.baseCurrency || product.currency || product.priceCurrency || "ZAR")
@@ -149,8 +145,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const costCurrency = normalizeCurrency(product.costCurrency || product.currency || priceCurrency)
   const costValue = product.cost ?? product.costPrice
   const images = product.images ?? []
-  const primaryImage = selectedImage || images[0]
-  const currentImageIndex = Math.max(0, images.findIndex((image) => image === primaryImage))
+  const primaryImage = images[0]
   const cleanDescription = cleanText(product.description)
   const productMetadata = product.metadata || {}
   const layoutName = productMetadata.productTypeName || layout?.name || "General product"
@@ -159,79 +154,87 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const layoutCustomFields = product.customFields || productMetadata.customFields || {}
   const activeLayoutFields = [...(layout?.fields || [])].filter((field) => field.isActive !== false).sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0))
 
-  function showPreviousImage() { if (images.length < 2) return; setSelectedImage(images[(currentImageIndex - 1 + images.length) % images.length]) }
-  function showNextImage() { if (images.length < 2) return; setSelectedImage(images[(currentImageIndex + 1) % images.length]) }
-
-  const defaultFields: ProductDataField[] = [
-    { id: "name", label: "Product name", value: cleanText(product.name) || "-" },
+  const infoFields: ProductDataField[] = [
     { id: "sku", label: "SKU", value: product.sku || "-", mono: true },
-    { id: "status", label: "Status", value: productState(product).replace("out", "Out of stock") },
     { id: "category", label: "Category", value: cleanText(product.category) || "Uncategorized" },
-    { id: "description", label: "Description", value: cleanDescription || "No description", multiline: true },
-    { id: "price", label: `Selling price (${priceCurrency})`, value: formatMoney(product.price, priceCurrency) },
-    { id: "cost", label: `Supplier/fallback cost (${costCurrency})`, value: costValue == null ? "Not set" : formatMoney(costValue, costCurrency) },
-    { id: "convertedCost", label: `Converted cost (${baseCurrency})`, value: product.convertedCost == null ? "Not set" : formatMoney(product.convertedCost, baseCurrency) },
-    { id: "quantity", label: "Current stock", value: `${numberValue(product.quantity).toLocaleString()} units` },
-    { id: "lowStockLevel", label: "Low-stock level", value: `${numberValue(product.lowStockLevel).toLocaleString()} units` },
-    { id: "createdAt", label: "Created", value: formatDate(product.createdAt) },
-    { id: "updatedAt", label: "Updated", value: formatDate(product.updatedAt) },
+    { id: "layout", label: "Layout", value: layoutName },
+    { id: "kind", label: "Kind", value: productKindLabel(layoutKind) },
+    { id: "inventory", label: "Inventory", value: layoutTrackInventory ? "Tracked" : "Not tracked" },
+    { id: "created", label: "Created", value: formatDate(product.createdAt) },
+    { id: "updated", label: "Updated", value: formatDate(product.updatedAt) },
   ]
-  const layoutFields: ProductDataField[] = [
-    { id: "layout-name", label: "Product layout", value: layoutName },
-    { id: "layout-kind", label: "Item kind", value: productKindLabel(layoutKind) },
-    { id: "layout-inventory", label: "Inventory tracking", value: layoutTrackInventory ? "Tracked" : "Not tracked" },
-    { id: "layout-type-id", label: "Product type ID", value: productMetadata.productTypeId || product.productTypeId || "Not assigned", mono: true },
-  ]
+  const descriptionField: ProductDataField = { id: "description", label: "Description", value: cleanDescription || "No description", multiline: true }
   const layoutAttributeFields: ProductDataField[] = activeLayoutFields.length
     ? activeLayoutFields.map((field) => formatLayoutValue(field, layoutCustomFields[field.key], baseCurrency))
     : Object.entries(layoutCustomFields).map(([key, value]) => ({ id: `layout-${key}`, label: productKindLabel(key), value: formatCustomValue(value), multiline: typeof value === "object" }))
 
   return (
-    <div className="grid min-w-0 gap-5 p-4 md:p-6">
-      <header className="grid min-w-0 gap-3 border-b pb-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-        <div className="min-w-0">
-          <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/products"><ArrowLeftIcon className="size-4" />Products</Link></Button>
-          <div className="flex min-w-0 flex-wrap items-center gap-2"><h1 className="min-w-0 break-words font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1><ProductBadge product={product} /><Badge variant="outline">{layoutName}</Badge></div>
-          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Readable product profile with identity, pricing, layout values, suppliers, and stock movement.</p>
+    <div className="min-w-0 p-4 md:p-6">
+      <div className="mx-auto grid min-w-0 max-w-7xl gap-5 rounded-3xl bg-muted/35 p-4 md:p-6">
+        <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/products"><ArrowLeftIcon className="size-4" />Back to products</Link></Button>
+            <h1 className="min-w-0 break-words font-heading text-2xl font-semibold tracking-tight">Current Product</h1>
+          </div>
+          <div className="flex min-w-0 flex-wrap gap-2 sm:justify-end"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={() => setArchiveOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
+        </header>
+
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          <aside className="grid min-w-0 gap-4">
+            <section className="grid min-w-0 justify-items-center rounded-2xl bg-background p-5 text-center shadow-sm">
+              <div className="mb-4 size-24 overflow-hidden rounded-2xl bg-muted">
+                {primaryImage ? <img src={primaryImage} alt={cleanText(product.name) || "Product image"} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-muted-foreground"><ImageIcon className="size-8" /></div>}
+              </div>
+              <h2 className="max-w-full break-words font-semibold">{cleanText(product.name) || "Product"}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{product.sku || "No SKU"}</p>
+              <div className="mt-3"><ProductBadge product={product} /></div>
+              <Button className="mt-4 w-full" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button>
+            </section>
+
+            <section className="rounded-2xl bg-background p-5 shadow-sm">
+              <h3 className="font-semibold">Information:</h3>
+              <div className="mt-4 grid gap-3">{infoFields.map((field) => <InfoLine key={field.id} field={field} />)}</div>
+            </section>
+          </aside>
+
+          <main className="grid min-w-0 gap-5">
+            <section className="grid min-w-0 gap-4 sm:grid-cols-3">
+              <MetricCard icon="💰" label="Selling Price" value={formatMoney(product.price, priceCurrency)} />
+              <MetricCard icon="📦" label="Stock" value={`${numberValue(product.quantity).toLocaleString()} units`} tone={productState(product) === "low" || productState(product) === "out" ? "danger" : "default"} />
+              <MetricCard icon="🏷️" label="Cost" value={costValue == null ? "Not set" : formatMoney(costValue, costCurrency)} />
+            </section>
+
+            <section className="rounded-2xl bg-background p-5 shadow-sm">
+              <div className="mb-4 flex min-w-0 items-center justify-between gap-3"><div className="min-w-0"><h3 className="font-semibold">Product Reports</h3><p className="mt-1 text-sm text-muted-foreground">Layout, files, and inventory status.</p></div><Badge variant="outline">{layoutName}</Badge></div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <ReportItem icon={<BoxesIcon className="size-4" />} title={layoutName} subtitle={productKindLabel(layoutKind)} />
+                <ReportItem icon={<ImageIcon className="size-4" />} title={`${images.length} image${images.length === 1 ? "" : "s"}`} subtitle="Product gallery" />
+                <ReportItem icon={<WarehouseIcon className="size-4" />} title={layoutTrackInventory ? "Tracked" : "Not tracked"} subtitle="Inventory mode" />
+              </div>
+            </section>
+
+            <section className="rounded-2xl bg-background p-5 shadow-sm">
+              <h3 className="font-semibold">Product Details</h3>
+              <div className="mt-4"><FieldValue field={descriptionField} /></div>
+            </section>
+
+            {layoutAttributeFields.length ? (
+              <section className="rounded-2xl bg-background p-5 shadow-sm">
+                <h3 className="font-semibold">Layout Fields</h3>
+                <div className="mt-4"><FieldList fields={layoutAttributeFields} /></div>
+              </section>
+            ) : null}
+
+            <section className="min-w-0 rounded-2xl bg-background p-5 shadow-sm">
+              <ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} />
+            </section>
+
+            <section className="rounded-2xl bg-background p-5 shadow-sm">
+              <div className="mb-3 flex items-center gap-2"><HistoryIcon className="size-4" /><h3 className="font-semibold">Inventory Movement</h3></div>
+              <div className="grid gap-3">{product.inventoryLogs?.length ? product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />) : <EmptyLine>No inventory movement yet.</EmptyLine>}</div>
+            </section>
+          </main>
         </div>
-        <div className="flex min-w-0 flex-wrap gap-2 lg:justify-end"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={() => setArchiveOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
-      </header>
-
-      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <main className="grid min-w-0 gap-6">
-          <section className="grid min-w-0 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
-            <ProductImagePanel productName={cleanText(product.name)} images={images} primaryImage={primaryImage} currentImageIndex={currentImageIndex} onPrevious={showPreviousImage} onNext={showNextImage} />
-            <DetailSection icon={<FileTextIcon className="size-4" />} title="Product details" description="Core fields stored on this product record."><FieldList fields={defaultFields} /></DetailSection>
-          </section>
-
-          <Collapsible open={layoutOpen} onOpenChange={setLayoutOpen}>
-            <DetailSection
-              icon={<BoxesIcon className="size-4" />}
-              title="Product layout"
-              description="Assigned product layout and layout-specific values."
-              action={<CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm"><Badge variant="secondary">{layoutAttributeFields.length} values</Badge><ChevronDownIcon className={cn("size-4 transition-transform", layoutOpen && "rotate-180")} /></Button></CollapsibleTrigger>}
-            >
-              <CollapsibleContent className="grid gap-4"><FieldList fields={layoutFields} />{layoutAttributeFields.length ? <FieldList fields={layoutAttributeFields} /> : <EmptyLine>No layout-specific values have been saved for this product yet.</EmptyLine>}</CollapsibleContent>
-            </DetailSection>
-          </Collapsible>
-
-          <section className="min-w-0"><ProductSuppliersSection productId={product.id} baseCurrency={baseCurrency} /></section>
-
-          <Collapsible open={logsOpen} onOpenChange={setLogsOpen}>
-            <DetailSection
-              icon={<HistoryIcon className="size-4" />}
-              title="Inventory movement"
-              description="Stock adjustments with before/after quantity and reason."
-              action={<CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm"><Badge variant="secondary">{product.inventoryLogs?.length ?? 0} logs</Badge><ChevronDownIcon className={cn("size-4 transition-transform", logsOpen && "rotate-180")} /></Button></CollapsibleTrigger>}
-            >
-              <CollapsibleContent className="grid gap-3">{product.inventoryLogs?.length ? product.inventoryLogs.map((log) => <InventoryLogRow key={log.id} log={log} />) : <EmptyLine>No inventory movement yet.</EmptyLine>}</CollapsibleContent>
-            </DetailSection>
-          </Collapsible>
-        </main>
-
-        <aside className="min-w-0 xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
-          <FloatingSummary product={product} layoutName={layoutName} layoutKind={layoutKind} layoutTrackInventory={layoutTrackInventory} baseCurrency={baseCurrency} priceCurrency={priceCurrency} />
-        </aside>
       </div>
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}><DialogContent><DialogHeader><DialogTitle>Adjust stock</DialogTitle><DialogDescription>Current stock is {numberValue(product.quantity).toLocaleString()} units. Add stock with a positive number or reduce stock with a negative number.</DialogDescription></DialogHeader><div className="grid gap-4">{adjustError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{adjustError}</div> : null}<div className="grid gap-2"><Label htmlFor="delta">Adjustment quantity</Label><Input id="delta" value={delta} onChange={(event) => setDelta(event.target.value)} type="number" step="1" placeholder="Example: 10 or -3" /></div><div className="grid gap-2"><Label htmlFor="reason">Reason</Label><Textarea id="reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Stock count correction, supplier delivery, damaged goods..." className="min-h-24" /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={submitStockAdjustment} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}Save adjustment</Button></DialogFooter></DialogContent></Dialog>
@@ -240,16 +243,9 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   )
 }
 
-function DetailSection({ icon, title, description, action, children }: { icon: React.ReactNode; title: string; description?: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <section className="grid min-w-0 gap-4 border-b pb-6 last:border-b-0"><div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0"><h2 className="flex min-w-0 items-center gap-2 font-semibold">{icon}<span className="min-w-0 break-words">{title}</span></h2>{description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}</div>{action ? <div className="shrink-0">{action}</div> : null}</div>{children}</section>
-}
-function ProductImagePanel({ productName, images, primaryImage, currentImageIndex, onPrevious, onNext }: { productName: string; images: string[]; primaryImage?: string; currentImageIndex: number; onPrevious: () => void; onNext: () => void }) {
-  return <section className="min-w-0"><div className="relative aspect-square overflow-hidden rounded-xl border bg-muted">{primaryImage ? <img src={primaryImage} alt={productName || "Product image"} className="block h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center text-muted-foreground"><ImageIcon className="size-10" /><p className="mt-3 text-sm font-medium">No image</p></div>}{images.length ? <div className="absolute bottom-3 right-3"><ButtonGroup className="rounded-lg bg-background/90 shadow-sm backdrop-blur"><Button type="button" variant="outline" size="icon" onClick={onPrevious} disabled={images.length < 2} aria-label="Previous product image" className="size-8"><ChevronLeftIcon className="size-4" /></Button><ButtonGroupText className="h-8 min-w-16 justify-center px-2 text-xs font-medium tabular-nums">{currentImageIndex + 1} / {images.length}</ButtonGroupText><Button type="button" variant="outline" size="icon" onClick={onNext} disabled={images.length < 2} aria-label="Next product image" className="size-8"><ChevronRightIcon className="size-4" /></Button></ButtonGroup></div> : null}</div></section>
-}
-function FloatingSummary({ product, layoutName, layoutKind, layoutTrackInventory, baseCurrency, priceCurrency }: { product: Product; layoutName: string; layoutKind: string; layoutTrackInventory: boolean; baseCurrency: string; priceCurrency: string }) {
-  return <div className="grid min-w-0 gap-3 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur"><div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Summary</p><h2 className="mt-1 break-words font-semibold">{cleanText(product.name) || "Product"}</h2></div><Separator /><SummaryLine label="SKU" value={product.sku || "No SKU"} mono /><SummaryLine label="Status" value={productState(product).replace("out", "Out of stock")} /><SummaryLine label="Layout" value={layoutName} /><SummaryLine label="Kind" value={productKindLabel(layoutKind)} /><SummaryLine label="Inventory" value={layoutTrackInventory ? "Tracked" : "Not tracked"} /><SummaryLine label={`Price (${priceCurrency})`} value={formatMoney(product.price, priceCurrency)} /><SummaryLine label="Base currency" value={baseCurrency} /><SummaryLine label="Stock" value={`${numberValue(product.quantity).toLocaleString()} units`} /><SummaryLine label="Updated" value={formatDate(product.updatedAt)} /></div>
-}
-function SummaryLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="grid min-w-0 gap-1 text-sm"><span className="text-xs text-muted-foreground">{label}</span><span className={cn("min-w-0 break-words font-medium", mono && "font-mono text-xs")}>{value}</span></div> }
+function MetricCard({ icon, label, value, tone = "default" }: { icon: string; label: string; value: string; tone?: "default" | "danger" }) { return <div className="grid min-w-0 place-items-center rounded-2xl bg-background p-5 text-center shadow-sm"><div className="text-2xl">{icon}</div><p className="mt-2 text-xs text-muted-foreground">{label}</p><p className={cn("mt-1 break-words text-xl font-semibold", tone === "danger" && "text-destructive")}>{value}</p></div> }
+function ReportItem({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) { return <div className="flex min-w-0 items-center gap-3 rounded-xl bg-muted/30 p-3"><div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background text-primary shadow-sm">{icon}</div><div className="min-w-0"><p className="truncate text-sm font-medium">{title}</p><p className="truncate text-xs text-muted-foreground">{subtitle}</p></div></div> }
+function InfoLine({ field }: { field: ProductDataField }) { return <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3 text-sm"><span className="font-medium">{field.label}:</span><span className={cn("min-w-0 break-words text-muted-foreground", field.mono && "font-mono text-xs")}>{field.value}</span></div> }
 function FieldList({ fields }: { fields: ProductDataField[] }) { return <dl className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2">{fields.map((field) => <div key={field.id} className={cn("min-w-0 border-t pt-3", field.multiline && "sm:col-span-2")}><dt className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground"><span>{field.label}</span>{field.type ? <Badge variant="outline">{field.type}</Badge> : null}</dt><dd className="min-w-0"><FieldValue field={field} /></dd></div>)}</dl> }
 function FieldValue({ field }: { field: ProductDataField }) {
   if (field.kind === "images" && Array.isArray(field.raw)) return <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{field.raw.map((url) => <a key={String(url)} href={String(url)} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-lg border bg-muted"><img src={String(url)} alt={field.label} className="aspect-square w-full object-cover transition group-hover:scale-105" /></a>)}</div>
