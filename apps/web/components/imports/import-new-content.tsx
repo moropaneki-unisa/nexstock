@@ -3,10 +3,11 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, ArrowRightIcon, DownloadIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowRightIcon, CheckCircle2Icon, DownloadIcon, FileSpreadsheetIcon, LayoutTemplateIcon } from "lucide-react"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -128,6 +129,8 @@ export function ImportNewContent() {
 
   const selectedLayout = layouts.find((layout) => layout.id === selectedLayoutId) ?? null
   const selectedFields = selectedLayout?.fields ?? []
+  const requiredFields = selectedFields.filter((field) => field.required)
+  const fieldCount = coreFieldDefinitions.length + selectedFields.length
 
   function exportTemplate(format: "csv" | "xlsx" | "json") {
     const fileBase = `nexstock-import-template-${safeFilePart(selectedLayout?.name || "no-layout")}`
@@ -168,54 +171,92 @@ export function ImportNewContent() {
         <div>
           <p className="text-sm text-muted-foreground">Imports</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">New import</h1>
-          <p className="text-sm text-muted-foreground">Choose a layout and download templates, then continue to the mapping page.</p>
+          <p className="text-sm text-muted-foreground">Prepare your product import, then continue to column mapping.</p>
         </div>
         <Button asChild variant="outline" size="sm"><Link href="/imports"><ArrowLeftIcon className="size-4" />Back to imports</Link></Button>
       </div>
 
-      <div className="grid gap-4 px-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
-        <Card>
+      <div className="grid gap-4 px-4 lg:px-6 @5xl/main:grid-cols-[minmax(0,1fr)_320px]">
+        <Card className="min-h-[430px]">
           <CardHeader>
             <CardTitle>Import setup</CardTitle>
-            <CardDescription>Set the layout context before opening the dedicated mapping page.</CardDescription>
+            <CardDescription>Choose a layout, export a template if needed, then move to mapping.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Product layout</label>
+          <CardContent className="grid gap-4 @3xl/main:grid-cols-3">
+            <StepCard
+              step="1"
+              title="Choose layout"
+              description="Default is None. Choose a layout only when imported products must follow layout fields and required rules."
+              icon={LayoutTemplateIcon}
+            >
               <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId} disabled={loadingLayouts}>
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent><SelectItem value={noneValue}>None</SelectItem>{layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value={noneValue}>None</SelectItem>
+                  {layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}
+                </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Default is None. Choose a layout only when this import should follow that layout's fields and required rules.</p>
-            </div>
-
-            <div className="rounded-md border bg-muted/20 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div><p className="text-sm font-medium">Export data structure</p><p className="text-xs text-muted-foreground">CSV/XLSX are importable. JSON Schema is reference only.</p></div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("csv")}><DownloadIcon className="size-4" />CSV template</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("xlsx")}><DownloadIcon className="size-4" />XLSX workbook</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("json")}><DownloadIcon className="size-4" />Schema JSON</Button>
-                </div>
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <Badge variant="secondary">{fieldCount} fields</Badge>
+                <Badge variant={requiredFields.length ? "destructive" : "outline"}>{requiredFields.length} required</Badge>
               </div>
-            </div>
+            </StepCard>
 
-            <div className="flex justify-end">
-              <Button type="button" onClick={continueToMapping}>
+            <StepCard
+              step="2"
+              title="Download template"
+              description="Templates match the selected layout. CSV/XLSX can be imported; JSON is reference only."
+              icon={DownloadIcon}
+            >
+              <div className="grid gap-2">
+                <Button type="button" variant="outline" className="justify-start" onClick={() => exportTemplate("csv")}><DownloadIcon className="size-4" />CSV template</Button>
+                <Button type="button" variant="outline" className="justify-start" onClick={() => exportTemplate("xlsx")}><DownloadIcon className="size-4" />XLSX workbook</Button>
+                <Button type="button" variant="outline" className="justify-start" onClick={() => exportTemplate("json")}><DownloadIcon className="size-4" />Schema JSON</Button>
+              </div>
+            </StepCard>
+
+            <StepCard
+              step="3"
+              title="Map columns"
+              description="Upload the completed CSV/XLSX and map spreadsheet columns on the next page."
+              icon={FileSpreadsheetIcon}
+            >
+              <Button type="button" className="w-full justify-between" onClick={continueToMapping}>
                 Continue to mapping
                 <ArrowRightIcon className="size-4" />
               </Button>
-            </div>
+            </StepCard>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader><CardTitle>Setup rules</CardTitle><CardDescription>How this page affects the import.</CardDescription></CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <FieldHint label="Layout default" description="The layout starts as None. The chosen layout is passed to the mapping page." />
-            <FieldHint label="Dedicated mapping page" description="CSV/XLSX upload, header detection, column mapping, and Start Import happen on /imports/new/mapping." />
-            <FieldHint label="Templates" description="Templates use the selected layout. XLSX guide sheets are reference-only; the first sheet is importable." />
-            {selectedLayout ? <div className="rounded-md border p-3"><p className="font-medium">Selected layout: {selectedLayout.name}</p><p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p><div className="mt-3 space-y-2">{selectedFields.slice(0, 8).map((field) => <div key={field.key} className="rounded border p-2 text-xs"><p className="font-mono">custom:{field.key}</p><p className="text-muted-foreground">{field.label} · {normalizeFieldType(field.type)}{field.required ? " · required" : ""}</p></div>)}</div></div> : null}
+        <Card className="min-h-[430px]">
+          <CardHeader>
+            <CardTitle>Import summary</CardTitle>
+            <CardDescription>Stable setup overview.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <SummaryRow label="Selected layout" value={selectedLayout?.name || "None"} />
+            <SummaryRow label="Core fields" value={String(coreFieldDefinitions.length)} />
+            <SummaryRow label="Layout fields" value={String(selectedFields.length)} />
+            <SummaryRow label="Required layout fields" value={String(requiredFields.length)} />
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="flex items-center gap-2 font-medium"><CheckCircle2Icon className="size-4" />Next step</p>
+              <p className="mt-1 text-xs text-muted-foreground">The mapping page handles file upload, header detection, column mapping, validation, and Start Import.</p>
+            </div>
+            <div className="max-h-36 overflow-auto rounded-md border p-3">
+              {selectedFields.length ? (
+                <div className="space-y-2">
+                  {selectedFields.slice(0, 10).map((field) => (
+                    <div key={field.key} className="flex items-center justify-between gap-3 text-xs">
+                      <span className="truncate font-medium">{field.label}</span>
+                      <span className="shrink-0 text-muted-foreground">{normalizeFieldType(field.type)}{field.required ? " · required" : ""}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">No layout fields selected. The import will use core product fields only.</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -223,6 +264,24 @@ export function ImportNewContent() {
   )
 }
 
-function FieldHint({ label, description }: { label: string; description: string }) {
-  return <div className="rounded-md border p-3"><p className="font-mono text-xs font-medium">{label}</p><p className="text-xs text-muted-foreground">{description}</p></div>
+function StepCard({ step, title, description, icon: Icon, children }: { step: string; title: string; description: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-[300px] flex-col rounded-xl border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold">{step}</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Icon className="size-4 text-muted-foreground" />
+            <p className="font-medium">{title}</p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div className="mt-auto space-y-3 pt-5">{children}</div>
+    </div>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-3 rounded-md border p-3"><span className="text-muted-foreground">{label}</span><span className="font-medium text-right">{value}</span></div>
 }
