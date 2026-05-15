@@ -6,22 +6,17 @@ import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  ClipboardListIcon,
   EditIcon,
   EllipsisVerticalIcon,
   Loader2Icon,
-  PackageCheckIcon,
   PlusIcon,
   RefreshCwIcon,
-  TruckIcon,
-  WalletCardsIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
 import { RecordsTable, createSelectColumn, type RecordsTableBulkAction } from "@/components/records/records-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiFetch } from "@/lib/api"
@@ -63,16 +58,21 @@ function formatDate(value?: string | null) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
-function titleCase(value: string) {
-  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
 function StatusBadge({ status }: { status: PurchaseOrderStatus }) {
   if (status === "cancelled") return <Badge variant="destructive">Cancelled</Badge>
   if (status === "received") return <Badge>Received</Badge>
   if (status === "ordered") return <Badge variant="secondary">Ordered</Badge>
   if (status === "partially_received") return <Badge variant="outline">Partially received</Badge>
   return <Badge variant="outline">Draft</Badge>
+}
+
+function CompactStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex h-8 min-w-0 items-center justify-between gap-2 rounded-md border bg-background px-2.5 sm:justify-start">
+      <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
+    </div>
+  )
 }
 
 function PurchaseOrderActions({ order, onCancel }: { order: PurchaseOrder; onCancel: (order: PurchaseOrder) => void }) {
@@ -102,13 +102,11 @@ function PurchaseOrderActions({ order, onCancel }: { order: PurchaseOrder; onCan
 
 function PurchaseOrdersLoading() {
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index}><CardHeader><Skeleton className="h-4 w-24" /><Skeleton className="h-8 w-32" /></CardHeader><CardFooter><Skeleton className="h-4 w-40" /></CardFooter></Card>
-        ))}
+    <div className="flex flex-col gap-4 py-4 md:gap-5 md:py-6">
+      <div className="grid grid-cols-2 gap-2 px-4 sm:flex sm:flex-wrap lg:px-6">
+        {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-8 min-w-28 rounded-md" />)}
       </div>
-      <div className="px-4 lg:px-6"><Skeleton className="h-[420px] rounded-xl" /></div>
+      <div className="px-4 lg:px-6"><Skeleton className="h-[46rem] rounded-xl" /></div>
     </div>
   )
 }
@@ -160,6 +158,7 @@ export function PurchaseOrdersContent() {
   const draft = orders.filter((order) => order.status === "draft").length
   const ordered = orders.filter((order) => order.status === "ordered" || order.status === "partially_received").length
   const received = orders.filter((order) => order.status === "received").length
+  const cancelled = orders.filter((order) => order.status === "cancelled").length
   const totalValue = orders.reduce((sum, order) => sum + numberValue(order.subtotal), 0)
   const currency = normalizeCurrency(orders[0]?.currency)
 
@@ -195,7 +194,7 @@ export function PurchaseOrdersContent() {
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="flex flex-col gap-4 py-4 md:gap-5 md:py-6">
         <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div>
             <p className="text-sm text-muted-foreground">Purchasing</p>
@@ -208,24 +207,17 @@ export function PurchaseOrdersContent() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
-          <MetricCard title="Total POs" value={orders.length} detail={`${draft} draft`} icon={ClipboardListIcon} />
-          <MetricCard title="On order" value={ordered} detail="Ordered or partial" icon={TruckIcon} />
-          <MetricCard title="Received" value={received} detail="Completed orders" icon={PackageCheckIcon} />
-          <MetricCard title="Total value" value={formatMoney(totalValue, currency)} detail="Visible order subtotal" icon={WalletCardsIcon} />
+        <div className="grid grid-cols-2 gap-2 px-4 sm:flex sm:flex-wrap lg:px-6">
+          <CompactStat label="Total" value={orders.length} />
+          <CompactStat label="Draft" value={draft} />
+          <CompactStat label="On order" value={ordered} />
+          <CompactStat label="Received" value={received} />
+          <CompactStat label="Cancelled" value={cancelled} />
+          <CompactStat label="Value" value={formatMoney(totalValue, currency)} />
         </div>
 
         <RecordsTable data={orders} columns={columns} title="Purchase order directory" description="Purchase orders generated by the API." searchPlaceholder="Search PO number, supplier, status..." getRowId={(row) => row.id} bulkActions={bulkActions} />
       </div>
     </div>
-  )
-}
-
-function MetricCard({ title, value, detail, icon: Icon }: { title: string; value: string | number; detail: string; icon: React.ComponentType<{ className?: string }> }) {
-  return (
-    <Card className="@container/card">
-      <CardHeader><CardDescription>{title}</CardDescription><CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">{value}</CardTitle></CardHeader>
-      <CardFooter className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{detail}</span><Icon className="size-4 text-muted-foreground" /></CardFooter>
-    </Card>
   )
 }
