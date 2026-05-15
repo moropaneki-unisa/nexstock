@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiFetch } from "@/lib/api"
 import { getCachedLayouts } from "@/lib/cached-api"
 
@@ -140,6 +141,7 @@ export function ImportNewContent() {
   const [mappings, setMappings] = React.useState<Record<string, string>>({})
   const [loadingLayouts, setLoadingLayouts] = React.useState(true)
   const [uploading, setUploading] = React.useState(false)
+  const [activeTab, setActiveTab] = React.useState("setup")
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
 
   React.useEffect(() => {
@@ -157,11 +159,13 @@ export function ImportNewContent() {
   const selectedFields = selectedLayout?.fields ?? []
   const requiredMissing = fields.filter((field) => field.required && (!mappings[field.key] || mappings[field.key] === noneValue))
   const visualMapping = React.useMemo(() => buildMapping(fields, mappings), [fields, mappings])
+  const mappedCount = Object.keys(visualMapping).length
 
   React.useEffect(() => { setMappings(emptyMappings(fields)) }, [fields])
 
   function handleLayoutChange(value: string) {
     setSelectedLayoutId(value)
+    setActiveTab("setup")
   }
 
   async function handleFileSelected(file: File) {
@@ -172,7 +176,10 @@ export function ImportNewContent() {
       const parsedHeaders = await readSpreadsheetHeaders(file)
       setHeaders(parsedHeaders)
       if (!parsedHeaders.length) toast.warning("No headers found", { description: "The first row must contain column names." })
-      else toast.success("Spreadsheet headers loaded", { description: `${parsedHeaders.length} column${parsedHeaders.length === 1 ? "" : "s"} found. Map fields below.` })
+      else {
+        toast.success("Spreadsheet headers loaded", { description: `${parsedHeaders.length} column${parsedHeaders.length === 1 ? "" : "s"} found. Open Mapping to continue.` })
+        setActiveTab("mapping")
+      }
     } catch (error) {
       toast.error("Could not read spreadsheet headers", { description: error instanceof Error ? error.message : "File parsing failed" })
     }
@@ -221,10 +228,12 @@ export function ImportNewContent() {
   async function uploadImport() {
     if (!selectedFile) {
       toast.error("Choose a CSV/XLSX file first")
+      setActiveTab("setup")
       return
     }
     if (requiredMissing.length) {
       toast.error("Required mappings missing", { description: requiredMissing.map((field) => field.column).join(", ") })
+      setActiveTab("mapping")
       return
     }
 
@@ -253,113 +262,158 @@ export function ImportNewContent() {
         <div>
           <p className="text-sm text-muted-foreground">Imports</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">New import</h1>
-          <p className="text-sm text-muted-foreground">Upload a product spreadsheet, choose a layout, and map spreadsheet columns visually.</p>
+          <p className="text-sm text-muted-foreground">Set up the import, then map spreadsheet columns in a dedicated Mapping tab.</p>
         </div>
         <Button asChild variant="outline" size="sm"><Link href="/imports"><ArrowLeftIcon className="size-4" />Back to imports</Link></Button>
       </div>
 
       <div className="grid gap-4 px-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <Card>
-          <CardHeader><CardTitle>Upload and map spreadsheet</CardTitle><CardDescription>Every mapping defaults to None. Select only the spreadsheet columns you want to import.</CardDescription></CardHeader>
-          <CardContent className="space-y-5">
+          <CardHeader>
+            <CardTitle>Upload and map spreadsheet</CardTitle>
+            <CardDescription>Setup and mapping are split into tabs for a cleaner import workflow.</CardDescription>
+          </CardHeader>
+          <CardContent>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFileSelected(file) }} />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Product layout</label>
-              <Select value={selectedLayoutId} onValueChange={handleLayoutChange} disabled={loadingLayouts || uploading}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent><SelectItem value={noneValue}>None</SelectItem>{layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}</SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">Default is None. Choosing a layout updates available fields and required mapping rules.</p>
-            </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-5">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="setup">1. Setup</TabsTrigger>
+                <TabsTrigger value="mapping">2. Mapping</TabsTrigger>
+              </TabsList>
 
-            <div className="rounded-md border bg-muted/20 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div><p className="text-sm font-medium">Export data structure</p><p className="text-xs text-muted-foreground">CSV/XLSX are importable. JSON Schema is reference only.</p></div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("csv")}><DownloadIcon className="size-4" />CSV template</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("xlsx")}><DownloadIcon className="size-4" />XLSX workbook</Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("json")}><DownloadIcon className="size-4" />Schema JSON</Button>
+              <TabsContent value="setup" className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Product layout</label>
+                  <Select value={selectedLayoutId} onValueChange={handleLayoutChange} disabled={loadingLayouts || uploading}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent><SelectItem value={noneValue}>None</SelectItem>{layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Default is None. Choosing a layout updates available fields and required mapping rules.</p>
                 </div>
-              </div>
-            </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                <UploadIcon className="size-4" />
-                {selectedFile ? "Change file" : "Choose CSV/XLSX"}
-              </Button>
-              <Button type="button" variant="outline" onClick={autoMap} disabled={!headers.length || uploading}>Auto-match columns</Button>
-              <Button type="button" onClick={() => void uploadImport()} disabled={!selectedFile || uploading}>
-                {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-                Start import
-              </Button>
-            </div>
-
-            {selectedFile ? <p className="text-sm text-muted-foreground">Selected file: <span className="font-medium text-foreground">{selectedFile.name}</span> · {headers.length} header{headers.length === 1 ? "" : "s"} found</p> : null}
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-medium">Column mapper</h3>
-                  <p className="text-xs text-muted-foreground">Each select defaults to None. Required fields must be mapped before import.</p>
+                <div className="rounded-md border bg-muted/20 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div><p className="text-sm font-medium">Export data structure</p><p className="text-xs text-muted-foreground">CSV/XLSX are importable. JSON Schema is reference only.</p></div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("csv")}><DownloadIcon className="size-4" />CSV template</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("xlsx")}><DownloadIcon className="size-4" />XLSX workbook</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("json")}><DownloadIcon className="size-4" />Schema JSON</Button>
+                    </div>
+                  </div>
                 </div>
-                {requiredMissing.length ? <Badge variant="destructive">{requiredMissing.length} required missing</Badge> : <Badge variant="secondary">Ready when file selected</Badge>}
-              </div>
 
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="border-b bg-muted/40 text-left text-muted-foreground">
-                    <tr>
-                      <th className="p-3 font-medium">NexStock field</th>
-                      <th className="p-3 font-medium">Type</th>
-                      <th className="p-3 font-medium">Spreadsheet column</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fields.map((field) => (
-                      <tr key={field.key} className="border-b last:border-0">
-                        <td className="p-3 align-top">
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{field.column}</span>
-                              {field.required ? <Badge variant="destructive">Required</Badge> : null}
-                              {field.source === "layout" ? <Badge variant="outline">Layout</Badge> : null}
-                            </div>
-                            <p className="font-mono text-xs text-muted-foreground">{field.key}</p>
-                            <p className="text-xs text-muted-foreground">{field.importFormat}</p>
-                          </div>
-                        </td>
-                        <td className="p-3 align-top text-muted-foreground">{field.dataType}</td>
-                        <td className="p-3 align-top">
-                          <Select value={mappings[field.key] ?? noneValue} onValueChange={(value) => setMappings((current) => ({ ...current, [field.key]: value }))} disabled={!headers.length || uploading}>
-                            <SelectTrigger className="min-w-56"><SelectValue placeholder="None" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={noneValue}>None</SelectItem>
-                              {headers.map((header) => <SelectItem key={`${field.key}-${header}`} value={header}>{header}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                <div className="rounded-md border p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Import file</p>
+                      <p className="text-xs text-muted-foreground">Choose a CSV/XLSX file. Headers are read from the first row of the first worksheet.</p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      <UploadIcon className="size-4" />
+                      {selectedFile ? "Change file" : "Choose CSV/XLSX"}
+                    </Button>
+                  </div>
+                  {selectedFile ? (
+                    <div className="mt-4 rounded-md bg-muted/40 p-3 text-sm">
+                      <p><span className="font-medium">Selected file:</span> {selectedFile.name}</p>
+                      <p className="text-muted-foreground">{headers.length} header{headers.length === 1 ? "" : "s"} found</p>
+                    </div>
+                  ) : null}
+                </div>
 
-            <details className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm font-medium">Generated backend mapping preview</summary>
-              <pre className="mt-3 max-h-60 overflow-auto rounded-md bg-muted/40 p-3 text-xs">{mappingPreview(fields, mappings)}</pre>
-            </details>
+                <div className="flex justify-end">
+                  <Button type="button" onClick={() => setActiveTab("mapping")} disabled={!selectedFile || !headers.length}>
+                    Continue to Mapping
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="mapping" className="space-y-5">
+                <div className="flex flex-col gap-3 rounded-md border p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Column mapper</p>
+                    <p className="text-xs text-muted-foreground">Each select defaults to None. Required fields must be mapped before import.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" onClick={() => setActiveTab("setup")}>Back to Setup</Button>
+                    <Button type="button" variant="outline" onClick={autoMap} disabled={!headers.length || uploading}>Auto-match columns</Button>
+                    <Button type="button" onClick={() => void uploadImport()} disabled={!selectedFile || uploading}>
+                      {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+                      Start import
+                    </Button>
+                  </div>
+                </div>
+
+                {!selectedFile || !headers.length ? (
+                  <div className="rounded-md border border-dashed p-8 text-center">
+                    <p className="font-medium">Choose a file first</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Go to Setup and choose a CSV/XLSX file so headers can be mapped.</p>
+                    <Button className="mt-4" variant="outline" onClick={() => setActiveTab("setup")}>Go to Setup</Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">{mappedCount} mapped · {headers.length} spreadsheet header{headers.length === 1 ? "" : "s"}</p>
+                      {requiredMissing.length ? <Badge variant="destructive">{requiredMissing.length} required missing</Badge> : <Badge variant="secondary">Required fields mapped</Badge>}
+                    </div>
+
+                    <div className="overflow-x-auto rounded-md border">
+                      <table className="w-full text-sm">
+                        <thead className="border-b bg-muted/40 text-left text-muted-foreground">
+                          <tr>
+                            <th className="p-3 font-medium">NexStock field</th>
+                            <th className="p-3 font-medium">Type</th>
+                            <th className="p-3 font-medium">Spreadsheet column</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fields.map((field) => (
+                            <tr key={field.key} className="border-b last:border-0">
+                              <td className="p-3 align-top">
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-medium">{field.column}</span>
+                                    {field.required ? <Badge variant="destructive">Required</Badge> : null}
+                                    {field.source === "layout" ? <Badge variant="outline">Layout</Badge> : null}
+                                  </div>
+                                  <p className="font-mono text-xs text-muted-foreground">{field.key}</p>
+                                  <p className="text-xs text-muted-foreground">{field.importFormat}</p>
+                                </div>
+                              </td>
+                              <td className="p-3 align-top text-muted-foreground">{field.dataType}</td>
+                              <td className="p-3 align-top">
+                                <Select value={mappings[field.key] ?? noneValue} onValueChange={(value) => setMappings((current) => ({ ...current, [field.key]: value }))} disabled={!headers.length || uploading}>
+                                  <SelectTrigger className="min-w-56"><SelectValue placeholder="None" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={noneValue}>None</SelectItem>
+                                    {headers.map((header) => <SelectItem key={`${field.key}-${header}`} value={header}>{header}</SelectItem>)}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <details className="rounded-md border p-3">
+                      <summary className="cursor-pointer text-sm font-medium">Generated backend mapping preview</summary>
+                      <pre className="mt-3 max-h-60 overflow-auto rounded-md bg-muted/40 p-3 text-xs">{mappingPreview(fields, mappings)}</pre>
+                    </details>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader><CardTitle>Import rules</CardTitle><CardDescription>Rules verified against the backend import service.</CardDescription></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <FieldHint label="Visual mapping" description="Each mapping select defaults to None; the user explicitly chooses spreadsheet columns before import." />
+            <FieldHint label="Setup tab" description="Choose the product layout, export templates, and upload the CSV/XLSX file." />
+            <FieldHint label="Mapping tab" description="Map spreadsheet columns to NexStock fields. Every select defaults to None." />
             <FieldHint label="Upload formats" description="Only CSV and XLSX are importable by the backend. JSON is schema/reference only." />
-            <FieldHint label="XLSX first sheet" description="The backend imports only the first worksheet. Extra guide sheets are ignored." />
             <FieldHint label="Required fields" description="Product Name and selected layout required fields must be mapped before import starts." />
             {selectedLayout ? <div className="rounded-md border p-3"><p className="font-medium">Selected layout: {selectedLayout.name}</p><p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p><div className="mt-3 space-y-2">{selectedFields.slice(0, 8).map((field) => <div key={field.key} className="rounded border p-2 text-xs"><p className="font-mono">custom:{field.key}</p><p className="text-muted-foreground">{field.label} · {normalizeFieldType(field.type)}{field.required ? " · required" : ""}</p>{normalizeFieldType(field.type) === "select" && field.options?.length ? <p className="text-muted-foreground">Options: {field.options.join(", ")}</p> : null}</div>)}</div></div> : null}
           </CardContent>
