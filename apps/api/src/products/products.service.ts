@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProductStatus } from '@prisma/client';
 import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WebhookEventsService } from '../webhooks/webhook-events.service';
@@ -35,6 +35,8 @@ const LAYOUT_FIELD_TYPES = new Set([
 const LOOKUP_SOURCES = new Set(['suppliers', 'products', 'customers']);
 
 type PrismaTransaction = Omit<PrismaService, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
+
+type ProductUpdateInput = UpdateProductDto & { status?: ProductStatus };
 
 type CurrencySettings = {
   baseCurrency: string;
@@ -265,7 +267,7 @@ export class ProductsService {
     return product;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateProductDto) {
+  async update(organizationId: string, id: string, dto: ProductUpdateInput) {
     const existing = await this.get(organizationId, id);
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -297,6 +299,7 @@ export class ProductsService {
       if (dto.quantity !== undefined) data.quantity = dto.quantity;
       if (dto.lowStockLevel !== undefined) data.lowStockLevel = dto.lowStockLevel;
       if (dto.category !== undefined) data.category = dto.category?.trim();
+      if (dto.status !== undefined) data.status = dto.status;
       if (dto.images !== undefined) data.images = dto.images;
 
       if (dto.metadata !== undefined || dto.customFields !== undefined || dto.productTypeId !== undefined || dto.kind !== undefined || dto.trackInventory !== undefined) {
