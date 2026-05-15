@@ -473,10 +473,6 @@ export function ProductsContent() {
                 if (file) void importProducts(file)
               }}
             />
-            <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()} disabled={running || loading || importing}>
-              {importing ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-              Import
-            </Button>
             <Button variant="outline" size="sm" onClick={() => void exportProducts("csv")} disabled={running || loading || exporting !== null}>
               {exporting === "csv" ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
               CSV
@@ -489,12 +485,28 @@ export function ProductsContent() {
               {running ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
               Refresh
             </Button>
-            <Button asChild size="sm">
-              <Link href="/products/new">
-                <PlusIcon className="size-4" />
-                New product
-              </Link>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <PlusIcon className="size-4" />
+                  New product
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href="/products/new">
+                    <PlusIcon className="size-4" />
+                    Add new product
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/imports">
+                    <UploadIcon className="size-4" />
+                    Import products
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
