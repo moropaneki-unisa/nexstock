@@ -6,13 +6,10 @@ import type { ColumnDef } from "@tanstack/react-table"
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  BoxesIcon,
   DownloadIcon,
   EditIcon,
   EllipsisVerticalIcon,
-  FilterIcon,
   Loader2Icon,
-  PackageIcon,
   PlusIcon,
   RefreshCwIcon,
   TriangleAlertIcon,
@@ -187,22 +184,23 @@ function ProductActions({ product, onArchive }: { product: Product; onArchive: (
 function ProductsLoading() {
   return (
     <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 px-4 sm:flex sm:flex-wrap lg:px-6">
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index}>
-            <CardHeader>
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-8 w-32" />
-            </CardHeader>
-            <CardFooter>
-              <Skeleton className="h-4 w-40" />
-            </CardFooter>
-          </Card>
+          <Skeleton key={index} className="h-8 min-w-28 rounded-md" />
         ))}
       </div>
       <div className="px-4 lg:px-6">
-        <Skeleton className="h-[420px] rounded-xl" />
+        <Skeleton className="h-[46rem] rounded-xl" />
       </div>
+    </div>
+  )
+}
+
+function CompactStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex h-8 min-w-0 items-center justify-between gap-2 rounded-md border bg-background px-2.5 sm:justify-start">
+      <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   )
 }
@@ -456,7 +454,7 @@ export function ProductsContent() {
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <div className="flex flex-col gap-4 py-4 md:gap-5 md:py-6">
         <div className="flex flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div>
             <p className="text-sm text-muted-foreground">Catalog</p>
@@ -524,82 +522,51 @@ export function ProductsContent() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
-          <ProductMetricCard title="Total products" value={filteredProducts.length} detail={`${activeProducts.length} active · ${draftProducts.length} draft`} icon={BoxesIcon} />
-          <ProductMetricCard title="Stock on hand" value={totalStock.toLocaleString()} detail="Quantity in current filter" icon={PackageIcon} />
-          <ProductMetricCard title="Low stock" value={lowStockProducts.length} detail={`${outOfStockProducts.length} out of stock`} icon={TriangleAlertIcon} />
-          <ProductMetricCard title="Archived" value={archivedProducts.length} detail="Hidden from active operations" icon={ArchiveIcon} />
-        </div>
-
-        <div className="mx-4 flex flex-col gap-3 rounded-xl border bg-card p-3 shadow-xs lg:mx-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-medium"><FilterIcon className="size-4" />Product filters</p>
-            <p className="text-xs text-muted-foreground">Showing {filteredProducts.length} of {products.length} products · {selectedLayoutName}</p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId}>
-              <SelectTrigger className="min-w-48"><SelectValue placeholder="Filter by layout" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All layouts</SelectItem>
-                <SelectItem value="none">No layout</SelectItem>
-                {layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={selectedKind} onValueChange={setSelectedKind}>
-              <SelectTrigger className="min-w-40"><SelectValue placeholder="Filter by kind" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All kinds</SelectItem>
-                {kinds.map((kind) => <SelectItem key={kind} value={kind} className="capitalize">{kind}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="grid grid-cols-2 gap-2 px-4 sm:flex sm:flex-wrap lg:px-6">
+          <CompactStat label="Total" value={filteredProducts.length} />
+          <CompactStat label="Active" value={activeProducts.length} />
+          <CompactStat label="Draft" value={draftProducts.length} />
+          <CompactStat label="Stock" value={totalStock.toLocaleString()} />
+          <CompactStat label="Low" value={lowStockProducts.length} />
+          <CompactStat label="Out" value={outOfStockProducts.length} />
+          <CompactStat label="Archived" value={archivedProducts.length} />
         </div>
 
         <RecordsTable
           data={filteredProducts}
           columns={columns}
           title="All products"
-          description="Manage product records, stock status, prices, categories, and product actions."
+          description={`Showing ${filteredProducts.length} of ${products.length} products · ${selectedLayoutName}`}
           searchPlaceholder="Search product name, SKU, category..."
           getRowId={(row) => row.id}
           actions={
-            <Button asChild variant="outline" size="sm">
-              <Link href="/settings/layout">
-                Layout settings
-                <ArrowRightIcon className="size-4" />
-              </Link>
-            </Button>
+            <>
+              <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId}>
+                <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Filter by layout" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All layouts</SelectItem>
+                  <SelectItem value="none">No layout</SelectItem>
+                  {layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedKind} onValueChange={setSelectedKind}>
+                <SelectTrigger className="w-full sm:w-36"><SelectValue placeholder="Filter by kind" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All kinds</SelectItem>
+                  {kinds.map((kind) => <SelectItem key={kind} value={kind} className="capitalize">{kind}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
+                <Link href="/settings/layout">
+                  Layout settings
+                  <ArrowRightIcon className="size-4" />
+                </Link>
+              </Button>
+            </>
           }
           bulkActions={bulkActions}
         />
       </div>
     </div>
-  )
-}
-
-function ProductMetricCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-}: {
-  title: string
-  value: string | number
-  detail: string
-  icon: React.ComponentType<{ className?: string }>
-}) {
-  return (
-    <Card className="@container/card">
-      <CardHeader>
-        <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-          {value}
-        </CardTitle>
-      </CardHeader>
-      <CardFooter className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{detail}</span>
-        <Icon className="size-4 text-muted-foreground" />
-      </CardFooter>
-    </Card>
   )
 }
