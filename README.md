@@ -247,12 +247,10 @@ These changes were applied directly to the `main-v2` branch.
    - The mapping page still submits the backend-supported `file`, `mapping`, and `productTypeId` multipart payload to `POST /api/products/import`, so the backend contract is unchanged.
 
 15. **Product supplier section overflow cleanup**
-   - Fixed supplier/costing UI overflow in product create/update forms.
-   - Supplier costing cards now use responsive `auto-fit` columns instead of forcing four fixed columns that can collide with the right summary panel.
-   - Supplier links now render as compact cards on smaller layouts and as a horizontally scroll-safe table on large layouts.
-   - Added `min-w-0`, truncation, and bounded dialog scrolling so long supplier names, SKUs, and rows do not push into or hide behind the summary panel.
-   - Corrected the active product form alignment scope so the CSS also targets the live `@container/main` form, not only the unused `.product-form-layout-scope` selector.
-   - The active supplier row editor now wraps into responsive `auto-fit` columns instead of forcing the 7-column supplier grid that was clipping content under the summary panel.
+   - Removed the product form global CSS/alignment shim because it conflicted with normal shadcn/Tailwind component behavior.
+   - Fixed the active product supplier row inside `product-layout-form.tsx` itself instead of applying page-wide CSS overrides.
+   - Supplier rows now use component-level shadcn/Tailwind structure: a card-like row, responsive field grid, a compact preferred badge/action, and a normal delete button in the row header.
+   - The product form grid now uses `minmax(0,1fr)` for the main content next to the summary panel, so the main form respects the available width without overlaying the summary.
 
 ## Current known follow-up items
 
