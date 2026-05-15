@@ -239,6 +239,8 @@ These changes were applied directly to the `main-v2` branch.
 
 14. **Dedicated import mapping page**
    - `/imports/new` is now a setup page only: choose layout context and export CSV/XLSX/JSON schema templates.
+   - `/imports/new` was cleaned up into fixed-height setup cards to reduce layout jumping and unused space.
+   - The setup page now presents a stable 3-step flow: choose layout, download template, and continue to mapping.
    - `/imports/new/mapping` is now the dedicated mapping page.
    - The mapping page handles CSV/XLSX file selection, first-row/first-worksheet header detection, visual column-to-field mapping, auto-match, required-field validation, backend mapping preview, and Start Import.
    - Every mapping select defaults to `None`; users explicitly map spreadsheet columns to NexStock fields.
