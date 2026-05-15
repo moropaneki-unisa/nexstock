@@ -13,7 +13,14 @@ export class DashboardController {
     const [products, recentLogs, apiKeyCount, webhookCount] = await Promise.all([
       this.prisma.product.findMany({
         where: { organizationId: user.organizationId, deletedAt: null },
-        select: { id: true, price: true, quantity: true, lowStockLevel: true },
+        select: {
+          id: true,
+          price: true,
+          cost: true,
+          convertedCost: true,
+          quantity: true,
+          lowStockLevel: true,
+        },
       }),
       this.prisma.inventoryLog.findMany({
         where: { organizationId: user.organizationId },
@@ -27,12 +34,18 @@ export class DashboardController {
 
     const totalProducts = products.length;
     const lowStock = products.filter((p) => p.quantity <= p.lowStockLevel).length;
-    const inventoryValue = products.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0);
+    const inventoryRetailValue = products.reduce((sum, p) => sum + Number(p.price) * p.quantity, 0);
+    const inventoryCostValue = products.reduce((sum, p) => {
+      const cost = p.convertedCost ?? p.cost ?? p.price;
+      return sum + Number(cost) * p.quantity;
+    }, 0);
 
     return {
       totalProducts,
       lowStock,
-      inventoryValue,
+      inventoryValue: inventoryRetailValue,
+      inventoryRetailValue,
+      inventoryCostValue,
       apiKeyCount,
       webhookCount,
       recentActivity: recentLogs.map((log) => ({
