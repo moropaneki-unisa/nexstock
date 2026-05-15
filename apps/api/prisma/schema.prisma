@@ -173,6 +173,8 @@ model Organization {
   nextPurchaseOrderNumber Int                 @default(1)
   memberships             Membership[]
   products                Product[]
+  productTypes            ProductType[]
+  productTypeFields       ProductTypeField[]
   suppliers               Supplier[]
   purchaseOrders          PurchaseOrder[]
   documentTemplates       DocumentTemplate[]
@@ -362,6 +364,51 @@ model Product {
   @@index([organizationId, createdAt])
   @@index([organizationId, priceCurrency])
   @@index([organizationId, costCurrency])
+}
+
+model ProductType {
+  id             String             @id @default(uuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  kind           String             @default("physical")
+  trackInventory Boolean            @default(true)
+  isDefault      Boolean            @default(false)
+  isActive       Boolean            @default(true)
+  sortOrder      Int                @default(0)
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fields         ProductTypeField[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @default(now()) @updatedAt
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, isActive])
+  @@index([organizationId, isDefault])
+}
+
+model ProductTypeField {
+  id             String       @id @default(uuid())
+  organizationId String
+  productTypeId  String
+  key            String
+  label          String
+  type           String       @default("text")
+  required       Boolean      @default(false)
+  options        String[]     @default([])
+  defaultValue   Json?
+  placeholder    String?
+  helpText       String?
+  order          Int          @default(0)
+  isActive       Boolean      @default(true)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productType    ProductType  @relation(fields: [productTypeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+
+  @@unique([productTypeId, key])
+  @@index([organizationId, productTypeId])
+  @@index([organizationId, isActive])
 }
 
 model PurchaseOrder {
@@ -603,7 +650,7 @@ model SyncLog {
   startedAt      DateTime            @default(now())
   finishedAt     DateTime?
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  integration    Integration        @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  integration    Integration         @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
