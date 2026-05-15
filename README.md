@@ -105,6 +105,7 @@ GET    /api/organization
 PATCH  /api/organization
 
 GET    /api/tasks
+GET    /api/tasks/:id
 POST   /api/tasks
 POST   /api/tasks/launch-checklist
 PATCH  /api/tasks/:id
@@ -269,9 +270,17 @@ These changes were applied directly to the `main-v2` branch.
    - Added Tasks to the main sidebar and the user dropdown menu.
    - Simplified `/tasks/[id]` so the detail page is no longer wrapped in heavy cards: it now uses a plain title/content area, inline action bar, description section, separators, and a compact bordered metadata sidebar.
 
+17. **Task creation and update flow hardening**
+   - Added `GET /api/tasks/:id` so detail and edit pages can load a single tenant-scoped task directly instead of loading all tasks and filtering on the client.
+   - Added safe DTO transforms for optional task fields so empty strings and `null` do not break validation for description, category, due date, and reminder date.
+   - Added a defensive Prisma migration `20260515170000_add_tasks_table` for `TaskStatus`, `TaskPriority`, and the `Task` table with indexes and foreign keys.
+   - Updated the task detail page to load through `GET /api/tasks/:id`.
+   - Task reminder links now point to `/tasks`.
+
 ## Current known follow-up items
 
 - Add import preview/validation before final upload.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
 - Verify or complete webhook management UI.
+- After pulling `main-v2`, run `npm run migrate -w @nexstock/api` before testing task creation in production.
