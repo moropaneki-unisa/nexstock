@@ -186,7 +186,16 @@ These changes were applied directly to the `main-v2` branch.
    - Receiving now tracks product quantity inside the transaction per product so inventory logs keep correct before/after quantities even when multiple lines reference the same product.
    - Existing protections remain in place for duplicate submitted lines, negative received quantities, receiving beyond ordered quantity, and cancelled purchase orders.
 
+7. **Signup auth persistence**
+   - Frontend signup no longer persists auth state before OTP verification.
+   - `signup()` now returns the signup response directly and leaves auth persistence to `login()` and `verifyEmail()`.
+   - This prevents pre-verification users from being written into the persisted auth store.
+
 ## Current known follow-up items
 
-- Signup frontend auth persistence cleanup is still recommended: signup should return verification state only and should not attempt to persist auth data until OTP verification succeeds.
+- Add Prisma models for `ProductType` and `ProductTypeField` or intentionally document them as raw SQL-only tables.
+- Verify or complete product import/export frontend actions.
+- Verify or complete purchase order receiving UI.
+- Verify or complete API key management UI.
+- Verify or complete webhook management UI.
 - After pulling `main-v2`, run `npm install`, `npm run prisma:generate -w @nexstock/api`, and `npm run migrate -w @nexstock/api` before testing layouts.
