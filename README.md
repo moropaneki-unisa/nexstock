@@ -224,6 +224,12 @@ These changes were applied directly to the `main-v2` branch.
    - Required layout fields are enforced during import.
    - Select layout fields treat `none` as an empty/default UI value and only save a value when the spreadsheet value matches a configured select option.
 
+13. **Import template exports**
+   - Selecting a layout on `/imports/new` now regenerates the mapping JSON example to include that layout's custom fields.
+   - Added export data structure buttons for CSV, XLSX, and JSON templates.
+   - Exported templates include core product columns plus selected layout fields, with example row values and select-field option examples.
+   - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
+
 ## Current known follow-up items
 
 - Improve `/imports/new` from JSON mapping to a visual column-to-field mapping UI.
