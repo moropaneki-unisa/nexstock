@@ -3,8 +3,9 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeftIcon, Loader2Icon, UploadIcon } from "lucide-react"
+import { ArrowLeftIcon, DownloadIcon, Loader2Icon, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
+import * as XLSX from "xlsx"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,13 +43,7 @@ type Paginated<T> = {
   data?: T[]
 }
 
-const defaultMapping = `{
-  "name": "Product Name",
-  "sku": "SKU",
-  "price": "Price",
-  "quantity": "Quantity",
-  "category": "Category"
-}`
+const coreColumns = ["Product Name", "SKU", "Description", "Price", "Quantity", "Low Stock Level", "Category", "Status", "Images"]
 
 function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
   if (!value) return []
@@ -72,9 +67,87 @@ function parseMapping(value: string) {
   return parsed as Record<string, string>
 }
 
+function mappingForLayout(layout: Layout | null) {
+  const mapping: Record<string, string> = {
+    name: "Product Name",
+    sku: "SKU",
+    description: "Description",
+    price: "Price",
+    quantity: "Quantity",
+    lowStockLevel: "Low Stock Level",
+    category: "Category",
+    status: "Status",
+    images: "Images",
+  }
+
+  for (const field of layout?.fields ?? []) {
+    mapping[`custom:${field.key}`] = field.label
+  }
+
+  return JSON.stringify(mapping, null, 2)
+}
+
+function templateColumns(layout: Layout | null) {
+  return [...coreColumns, ...(layout?.fields ?? []).map((field) => field.label)]
+}
+
+function exampleValueForField(field: NonNullable<Layout["fields"]>[number]) {
+  if (field.type === "select") return field.options?.[0] || ""
+  if (field.type === "number") return "10"
+  if (field.type === "decimal") return "10.50"
+  if (field.type === "currency") return "100 ZAR"
+  if (field.type === "boolean") return "Yes"
+  if (field.type === "date") return "2026-05-15"
+  if (field.type === "images") return "https://example.com/image.jpg"
+  if (field.type === "attachment") return "Spec Sheet=https://example.com/spec.pdf"
+  return ""
+}
+
+function templateRows(layout: Layout | null) {
+  const row: Record<string, string> = {
+    "Product Name": "Example Product",
+    SKU: "EXAMPLE-001",
+    Description: "Example product description",
+    Price: "100",
+    Quantity: "10",
+    "Low Stock Level": "2",
+    Category: "Example Category",
+    Status: "active",
+    Images: "https://example.com/image.jpg",
+  }
+
+  for (const field of layout?.fields ?? []) {
+    row[field.label] = exampleValueForField(field)
+  }
+
+  return [row]
+}
+
+function safeFilePart(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "products"
+}
+
+function downloadBlob(fileName: string, contentType: string, content: BlobPart) {
+  const blob = new Blob([content], { type: contentType })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+function csvEscape(value: unknown) {
+  const text = String(value ?? "")
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+  return text
+}
+
 export function ImportNewContent() {
   const router = useRouter()
-  const [mapping, setMapping] = React.useState(defaultMapping)
+  const [mapping, setMapping] = React.useState(() => mappingForLayout(null))
   const [layouts, setLayouts] = React.useState<Layout[]>([])
   const [selectedLayoutId, setSelectedLayoutId] = React.useState("none")
   const [loadingLayouts, setLoadingLayouts] = React.useState(true)
@@ -100,6 +173,38 @@ export function ImportNewContent() {
 
   const selectedLayout = layouts.find((layout) => layout.id === selectedLayoutId) ?? null
   const selectedFields = selectedLayout?.fields ?? []
+
+  function handleLayoutChange(value: string) {
+    const layout = layouts.find((item) => item.id === value) ?? null
+    setSelectedLayoutId(value)
+    setMapping(mappingForLayout(layout))
+  }
+
+  function exportTemplate(format: "csv" | "xlsx" | "json") {
+    const layoutName = selectedLayout?.name || "no-layout"
+    const fileBase = `nexstock-import-template-${safeFilePart(layoutName)}`
+    const columns = templateColumns(selectedLayout)
+    const rows = templateRows(selectedLayout)
+
+    if (format === "json") {
+      downloadBlob(`${fileBase}.json`, "application/json", JSON.stringify({ layout: selectedLayout ? { id: selectedLayout.id, name: selectedLayout.name } : null, mapping: parseMapping(mapping), columns, rows }, null, 2))
+      toast.success("JSON import structure exported")
+      return
+    }
+
+    if (format === "csv") {
+      const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n")
+      downloadBlob(`${fileBase}.csv`, "text/csv;charset=utf-8", csv)
+      toast.success("CSV import structure exported")
+      return
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(rows, { header: columns })
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Import Template")
+    XLSX.writeFile(workbook, `${fileBase}.xlsx`)
+    toast.success("XLSX import structure exported")
+  }
 
   async function uploadImport(file: File) {
     setUploading(true)
@@ -169,7 +274,7 @@ export function ImportNewContent() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Product layout</label>
-              <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId} disabled={loadingLayouts || uploading}>
+              <Select value={selectedLayoutId} onValueChange={handleLayoutChange} disabled={loadingLayouts || uploading}>
                 <SelectTrigger>
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
@@ -181,8 +286,31 @@ export function ImportNewContent() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Default is None. Choosing a layout applies its required fields, select options, kind, and stock-tracking rules to imported products.
+                Default is None. Choosing a layout updates the JSON mapping example and applies its fields/rules to imported products.
               </p>
+            </div>
+
+            <div className="rounded-md border bg-muted/20 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium">Export data structure</p>
+                  <p className="text-xs text-muted-foreground">Download a template matching the selected layout.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("csv")}>
+                    <DownloadIcon className="size-4" />
+                    CSV
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("xlsx")}>
+                    <DownloadIcon className="size-4" />
+                    XLSX
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("json")}>
+                    <DownloadIcon className="size-4" />
+                    JSON
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -212,9 +340,10 @@ export function ImportNewContent() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <FieldHint label="Layout default" description="Layout defaults to None until the user chooses one." />
+            <FieldHint label="Mapping example" description="Changing the selected layout regenerates the mapping JSON example with that layout's custom fields." />
+            <FieldHint label="Template export" description="Export CSV, XLSX, or JSON import structures for the selected layout." />
             <FieldHint label="Select defaults" description="Select fields are treated as None unless a spreadsheet value is provided and it matches a configured option." />
             <FieldHint label="Required layout fields" description="If a selected layout field is required, the import row must include a mapped value." />
-            <FieldHint label="custom:fieldKey" description="Maps spreadsheet columns to selected layout fields." />
             {selectedLayout ? (
               <div className="rounded-md border p-3">
                 <p className="font-medium">Selected layout: {selectedLayout.name}</p>
