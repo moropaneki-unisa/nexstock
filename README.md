@@ -277,6 +277,15 @@ These changes were applied directly to the `main-v2` branch.
    - Updated the task detail page to load through `GET /api/tasks/:id`.
    - Task reminder links now point to `/tasks`.
 
+18. **Responsive single-table task manager**
+   - Reworked `/tasks` around a single table instead of multiple grouped task sections.
+   - Combined task tabs, search, status filter, priority filter, category filter, sort, result count, clear filters, scrollable task rows, and pagination inside one unified table container.
+   - Added compact top stats for Open, Today, Overdue, Blocked, and Done instead of large cards.
+   - Added client-side pagination with 5, 10, 20, and 50 rows per page plus Previous/Next controls.
+   - Only the task table rows scroll; tabs, filters, count, and pagination stay fixed in the table container.
+   - Added responsive behavior: smaller mobile padding, full-width mobile actions, horizontal tabs, two-column mobile filters, a safe horizontal table scroll, stacked mobile pagination, and stable `svh` page height.
+   - Task row actions use shadcn DropdownMenu and delete uses shadcn AlertDialog through `TaskDeleteDialog`.
+
 ## Current known follow-up items
 
 - Add import preview/validation before final upload.
