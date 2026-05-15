@@ -2,7 +2,7 @@ import type { CSSProperties } from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
-import { TasksContent } from "@/components/tasks/tasks-content"
+import { TasksTableContent } from "@/components/tasks/tasks-table-content"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 const sidebarStyle = {
@@ -16,7 +16,7 @@ export default function Page() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <TasksContent />
+        <TasksTableContent />
       </SidebarInset>
     </SidebarProvider>
   )
