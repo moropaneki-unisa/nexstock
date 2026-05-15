@@ -12,6 +12,7 @@ import {
   FileSpreadsheetIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
+  ListTodoIcon,
   Settings2Icon,
   SparklesIcon,
   TruckIcon,
@@ -56,6 +57,7 @@ const data = {
     { title: "Products", url: "/products", icon: <BoxesIcon /> },
     { title: "Suppliers", url: "/suppliers", icon: <TruckIcon /> },
     { title: "Purchase Orders", url: "/purchase-orders", icon: <ClipboardListIcon /> },
+    { title: "Tasks", url: "/tasks", icon: <ListTodoIcon /> },
   ],
   dataTools: [
     { title: "Imports", url: "/imports", icon: <FileSpreadsheetIcon /> },
