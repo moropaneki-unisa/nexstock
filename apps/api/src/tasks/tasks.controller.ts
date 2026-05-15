@@ -14,6 +14,12 @@ export class TasksController {
     return this.tasks.list(user);
   }
 
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    return this.tasks.findOne(user, id);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateTaskDto) {
@@ -29,9 +35,7 @@ export class TasksController {
   @Post('reminders/run')
   runDueReminders(@Headers('x-task-reminder-secret') secret: string | undefined) {
     const expected = process.env.TASK_REMINDER_SECRET;
-    if (!expected || secret !== expected) {
-      throw new UnauthorizedException('Invalid task reminder secret');
-    }
+    if (!expected || secret !== expected) throw new UnauthorizedException('Invalid task reminder secret');
     return this.tasks.sendDueReminders();
   }
 
