@@ -237,13 +237,14 @@ These changes were applied directly to the `main-v2` branch.
    - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
 
 14. **Visual import column mapper**
-   - Replaced manual mapping JSON entry on `/imports/new` with a visual column-to-field mapping table.
+   - `/imports/new` now uses a two-tab workflow: `Setup` and `Mapping`.
+   - The `Setup` tab contains layout selection, template/schema exports, and CSV/XLSX file selection.
+   - The `Mapping` tab contains the visual column-to-field mapping table, auto-match action, generated backend mapping preview, and start-import action.
    - Users choose a CSV/XLSX file first; the browser reads the first worksheet/first row and extracts spreadsheet headers.
    - Every mapping select defaults to `None`; users explicitly map spreadsheet columns to NexStock fields.
    - Added an `Auto-match columns` action that suggests mappings by matching normalized column names to backend field names and layout field labels.
    - Required fields are highlighted and must be mapped before import can start.
    - The UI still submits the backend-supported `mapping` object to `POST /api/products/import`, so the backend contract is unchanged.
-   - A generated backend mapping preview is available for review/debugging.
 
 ## Current known follow-up items
 
