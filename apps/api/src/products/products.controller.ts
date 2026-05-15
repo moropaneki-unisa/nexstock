@@ -20,6 +20,7 @@ import {
   CurrentUserPayload,
 } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   AdjustInventoryDto,
   CreateProductDto,
@@ -45,6 +46,7 @@ export class ProductsController {
     private readonly importExport: ProductsImportExportService,
     private readonly productTypes: ProductTypesService,
     private readonly productSuppliers: ProductSuppliersService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('asset-image')
@@ -202,12 +204,22 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  update(
+  async update(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
     @Body() dto: ProductStatusPatch,
   ) {
-    return this.products.update(user.organizationId, id, dto);
+    const status = dto.status;
+    delete dto.status;
+    const updated = await this.products.update(user.organizationId, id, dto);
+
+    if (!status) return updated;
+
+    return this.prisma.product.update({
+      where: { id_organizationId: { id, organizationId: user.organizationId } },
+      data: { status },
+      include: { variants: true },
+    });
   }
 
   @Post(':id/adjust')
