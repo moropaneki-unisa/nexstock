@@ -7,7 +7,6 @@ import {
   CalendarClockIcon,
   CheckCircle2Icon,
   EditIcon,
-  FilterIcon,
   Loader2Icon,
   MoreHorizontalIcon,
   PlusIcon,
@@ -19,7 +18,6 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -178,20 +176,17 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
   return <Badge variant={priority === "urgent" || priority === "high" ? "destructive" : priority === "medium" ? "secondary" : "outline"}>{priorityLabel(priority)}</Badge>
 }
 
-function StatCard({ label, value, helper }: { label: string; value: number; helper: string }) {
+function CompactStat({ label, value }: { label: string; value: number }) {
   return (
-    <Card className="shadow-none">
-      <CardContent className="p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
-      </CardContent>
-    </Card>
+    <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="font-semibold tabular-nums">{value}</span>
+    </div>
   )
 }
 
-function TableSkeleton() {
-  return Array.from({ length: 8 }).map((_, index) => (
+function TableSkeleton({ rows = 10 }: { rows?: number }) {
+  return Array.from({ length: rows }).map((_, index) => (
     <TableRow key={index}>
       <TableCell><Skeleton className="h-5 w-64" /></TableCell>
       <TableCell><Skeleton className="h-6 w-24" /></TableCell>
@@ -238,6 +233,8 @@ export function TasksTableContent() {
   const [priorityFilter, setPriorityFilter] = React.useState<TaskPriority | "all">("all")
   const [categoryFilter, setCategoryFilter] = React.useState("all")
   const [sort, setSort] = React.useState<TaskSort>("smart")
+  const [page, setPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(10)
   const [loading, setLoading] = React.useState(true)
   const [busy, setBusy] = React.useState<string | null>(null)
   const [deleteTask, setDeleteTask] = React.useState<Task | null>(null)
@@ -280,12 +277,26 @@ export function TasksTableContent() {
     return sortTasks(filtered, sort)
   }, [tasks, view, statusFilter, priorityFilter, categoryFilter, query, sort])
 
+  const totalPages = Math.max(1, Math.ceil(visibleTasks.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const startIndex = visibleTasks.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
+  const endIndex = Math.min(currentPage * pageSize, visibleTasks.length)
+  const paginatedTasks = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return visibleTasks.slice(start, start + pageSize)
+  }, [visibleTasks, currentPage, pageSize])
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [view, query, statusFilter, priorityFilter, categoryFilter, sort, pageSize])
+
   function resetFilters() {
     setQuery("")
     setStatusFilter("all")
     setPriorityFilter("all")
     setCategoryFilter("all")
     setSort("smart")
+    setPage(1)
   }
 
   async function updateStatus(task: Task, status: TaskStatus) {
@@ -331,7 +342,7 @@ export function TasksTableContent() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+    <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Workspace</p>
@@ -349,12 +360,12 @@ export function TasksTableContent() {
 
       {error ? <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><AlertCircleIcon className="size-4" />{error}</div> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Open" value={summary.todo + summary.inProgress + summary.blocked} helper="Not completed" />
-        <StatCard label="Today" value={summary.dueToday} helper="Due now" />
-        <StatCard label="Overdue" value={summary.overdue} helper="Needs action" />
-        <StatCard label="Blocked" value={summary.blocked} helper="Waiting" />
-        <StatCard label="Done" value={summary.done} helper="Completed" />
+      <div className="flex flex-wrap gap-2">
+        <CompactStat label="Open" value={summary.todo + summary.inProgress + summary.blocked} />
+        <CompactStat label="Today" value={summary.dueToday} />
+        <CompactStat label="Overdue" value={summary.overdue} />
+        <CompactStat label="Blocked" value={summary.blocked} />
+        <CompactStat label="Done" value={summary.done} />
       </div>
 
       <Tabs value={view} onValueChange={(value) => setView(value as TaskView)} className="gap-4">
@@ -412,7 +423,7 @@ export function TasksTableContent() {
             </Select>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t p-3 text-sm text-muted-foreground">
-            <span>Showing <span className="font-medium text-foreground">{visibleTasks.length}</span> of <span className="font-medium text-foreground">{tasks.length}</span> tasks</span>
+            <span>Showing <span className="font-medium text-foreground">{startIndex}-{endIndex}</span> of <span className="font-medium text-foreground">{visibleTasks.length}</span> filtered tasks</span>
             <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>Clear filters</Button>
           </div>
         </div>
@@ -431,7 +442,7 @@ export function TasksTableContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? <TableSkeleton /> : null}
+            {loading ? <TableSkeleton rows={pageSize} /> : null}
             {!loading && visibleTasks.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6}>
@@ -446,7 +457,7 @@ export function TasksTableContent() {
                 </TableCell>
               </TableRow>
             ) : null}
-            {!loading && visibleTasks.map((task) => (
+            {!loading && paginatedTasks.map((task) => (
               <TableRow key={task.id}>
                 <TableCell className="min-w-[18rem] max-w-[34rem]">
                   <Link href={`/tasks/${task.id}`} className="font-medium hover:underline">{task.title}</Link>
@@ -469,6 +480,24 @@ export function TasksTableContent() {
             ))}
           </TableBody>
         </Table>
+        <div className="flex flex-col gap-3 border-t px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 / page</SelectItem>
+                <SelectItem value="10">10 / page</SelectItem>
+                <SelectItem value="20">20 / page</SelectItem>
+                <SelectItem value="50">50 / page</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="button" variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</Button>
+            <Button type="button" variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>Next</Button>
+          </div>
+        </div>
       </div>
 
       <TaskDeleteDialog open={Boolean(deleteTask)} title={deleteTask?.title} deleting={Boolean(deleteTask && busy === deleteTask.id)} onOpenChange={(open) => { if (!open) setDeleteTask(null) }} onConfirm={() => void removeTask()} />
