@@ -213,15 +213,15 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
   }
 
   return (
-    <Card className="overflow-hidden">
-      <button type="button" onClick={() => setExpanded((current) => !current)} className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40" aria-expanded={expanded}>
-        <div>
+    <Card className="w-full min-w-0 overflow-hidden">
+      <button type="button" onClick={() => setExpanded((current) => !current)} className="flex w-full min-w-0 items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40" aria-expanded={expanded}>
+        <div className="min-w-0 flex-1">
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Truck className="size-4" />
-            Suppliers & costing
+            <Truck className="size-4 shrink-0" />
+            <span className="truncate">Suppliers & costing</span>
           </CardTitle>
-          <CardDescription className="mt-1">Preferred supplier drives product cost. Purchase Orders update latest supplier cost and last purchase date when stock is received.</CardDescription>
-          {preferred ? <p className="mt-2 text-xs text-muted-foreground">Preferred source: <span className="font-medium text-foreground">{preferred.supplier.name}</span> <span className="font-mono">({preferred.supplier.supplierCode})</span>{latestPurchase ? <span> · Last purchase {formatDate(String(latestPurchase))}</span> : null}</p> : null}
+          <CardDescription className="mt-1 max-w-3xl">Preferred supplier drives product cost. Purchase Orders update latest supplier cost and last purchase date when stock is received.</CardDescription>
+          {preferred ? <p className="mt-2 truncate text-xs text-muted-foreground">Preferred source: <span className="font-medium text-foreground">{preferred.supplier.name}</span> <span className="font-mono">({preferred.supplier.supplierCode})</span>{latestPurchase ? <span> · Last purchase {formatDate(String(latestPurchase))}</span> : null}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="secondary">{links.length} linked</Badge>
@@ -231,15 +231,15 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
       </button>
 
       {expanded ? (
-        <CardContent className="grid gap-4 border-t p-4">
+        <CardContent className="grid min-w-0 gap-4 border-t p-4">
           <ProductCostingPanel product={product} preferred={preferred} links={links} baseCurrency={baseCurrency} />
 
-          <div className="flex items-center justify-between gap-3">
-            <div>
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-medium">Linked suppliers</p>
               <p className="text-xs text-muted-foreground">These links power Purchase Orders, supplier SKUs, received-cost updates, and preferred cost.</p>
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={openCreate} disabled={loading || availableSuppliers.length === 0}>
+            <Button type="button" variant="outline" size="sm" onClick={openCreate} disabled={loading || availableSuppliers.length === 0} className="shrink-0">
               <Plus className="size-4" />
               Link supplier
             </Button>
@@ -259,14 +259,14 @@ export function ProductSuppliersSection({ productId, baseCurrency }: ProductSupp
       ) : null}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader><DialogTitle>{editing ? "Update product supplier" : "Link supplier to product"}</DialogTitle><DialogDescription>Supplier code is automatically linked from the selected supplier and cannot be edited here.</DialogDescription></DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Supplier</Label><Select value={form.supplierId} onValueChange={selectSupplier} disabled={Boolean(editing)}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent>{availableSuppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></label><label className="space-y-2"><Label>Supplier code</Label><Input value={selectedSupplier?.supplierCode || ""} readOnly className="bg-muted font-mono" placeholder="Auto-linked" /></label></div>
-            <div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Supplier product SKU</Label><Input value={form.supplierSku} onChange={(event) => setForm((current) => ({ ...current, supplierSku: event.target.value }))} placeholder="Supplier product code" /></label><label className="space-y-2"><Label>Currency</Label><Select value={form.currency} onValueChange={(value) => setForm((current) => ({ ...current, currency: value }))}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose currency" /></SelectTrigger><SelectContent>{enabledCurrencies.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></label></div>
-            <div className="grid gap-4 md:grid-cols-3"><label className="space-y-2"><Label>Cost</Label><Input value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} type="number" min="0" step="0.01" placeholder="0.00" /></label><label className="space-y-2"><Label>MOQ</Label><Input value={form.minimumOrderQty} onChange={(event) => setForm((current) => ({ ...current, minimumOrderQty: event.target.value }))} type="number" min="0" placeholder="10" /></label><label className="space-y-2"><Label>Lead time days</Label><Input value={form.leadTimeDays} onChange={(event) => setForm((current) => ({ ...current, leadTimeDays: event.target.value }))} type="number" min="0" placeholder="7" /></label></div>
-            <div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><Label>Last purchase date</Label><Input value={form.lastPurchaseAt} onChange={(event) => setForm((current) => ({ ...current, lastPurchaseAt: event.target.value }))} type="date" /></label><label className="flex items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><input type="checkbox" checked={form.isPreferred} onChange={(event) => setForm((current) => ({ ...current, isPreferred: event.target.checked }))} /><span><span className="font-semibold">Preferred supplier</span><span className="block text-muted-foreground">Only one supplier should be preferred per product.</span></span></label></div>
-            <label className="space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-24" placeholder="Packaging rules, import notes, MOQ exceptions, supplier risks..." /></label>
+          <div className="grid min-w-0 gap-4 py-2">
+            <div className="grid min-w-0 gap-4 md:grid-cols-2"><label className="min-w-0 space-y-2"><Label>Supplier</Label><Select value={form.supplierId} onValueChange={selectSupplier} disabled={Boolean(editing)}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent>{availableSuppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></label><label className="min-w-0 space-y-2"><Label>Supplier code</Label><Input value={selectedSupplier?.supplierCode || ""} readOnly className="bg-muted font-mono" placeholder="Auto-linked" /></label></div>
+            <div className="grid min-w-0 gap-4 md:grid-cols-2"><label className="min-w-0 space-y-2"><Label>Supplier product SKU</Label><Input value={form.supplierSku} onChange={(event) => setForm((current) => ({ ...current, supplierSku: event.target.value }))} placeholder="Supplier product code" /></label><label className="min-w-0 space-y-2"><Label>Currency</Label><Select value={form.currency} onValueChange={(value) => setForm((current) => ({ ...current, currency: value }))}><SelectTrigger className="h-10 w-full"><SelectValue placeholder="Choose currency" /></SelectTrigger><SelectContent>{enabledCurrencies.map((currency) => <SelectItem key={currency} value={currency}>{currency}</SelectItem>)}</SelectContent></Select></label></div>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3"><label className="min-w-0 space-y-2"><Label>Cost</Label><Input value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} type="number" min="0" step="0.01" placeholder="0.00" /></label><label className="min-w-0 space-y-2"><Label>MOQ</Label><Input value={form.minimumOrderQty} onChange={(event) => setForm((current) => ({ ...current, minimumOrderQty: event.target.value }))} type="number" min="0" placeholder="10" /></label><label className="min-w-0 space-y-2"><Label>Lead time days</Label><Input value={form.leadTimeDays} onChange={(event) => setForm((current) => ({ ...current, leadTimeDays: event.target.value }))} type="number" min="0" placeholder="7" /></label></div>
+            <div className="grid min-w-0 gap-4 md:grid-cols-2"><label className="min-w-0 space-y-2"><Label>Last purchase date</Label><Input value={form.lastPurchaseAt} onChange={(event) => setForm((current) => ({ ...current, lastPurchaseAt: event.target.value }))} type="date" /></label><label className="flex min-w-0 items-center gap-3 rounded-lg border bg-muted/15 p-4 text-sm"><input type="checkbox" checked={form.isPreferred} onChange={(event) => setForm((current) => ({ ...current, isPreferred: event.target.checked }))} /><span><span className="font-semibold">Preferred supplier</span><span className="block text-muted-foreground">Only one supplier should be preferred per product.</span></span></label></div>
+            <label className="min-w-0 space-y-2"><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-24" placeholder="Packaging rules, import notes, MOQ exceptions, supplier risks..." /></label>
           </div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button type="button" onClick={saveLink} disabled={saving}>{saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}{editing ? "Save changes" : "Link supplier"}</Button></DialogFooter>
         </DialogContent>
@@ -284,12 +284,12 @@ function ProductCostingPanel({ product, preferred, links, baseCurrency }: { prod
   const margin = convertedCost == null || !sellingPrice ? undefined : Math.round(((sellingPrice - convertedCost) / sellingPrice) * 100);
 
   return (
-    <div className="rounded-xl border bg-muted/10 p-4">
-      <div className="mb-4">
-        <h3 className="flex items-center gap-2 text-sm font-medium"><Calculator className="size-4" />Costing summary</h3>
+    <div className="min-w-0 rounded-xl border bg-muted/10 p-4">
+      <div className="mb-4 min-w-0">
+        <h3 className="flex items-center gap-2 text-sm font-medium"><Calculator className="size-4 shrink-0" />Costing summary</h3>
         <p className="mt-1 text-sm text-muted-foreground">Preferred supplier cost is the source for product cost and purchase-order planning.</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
         <CostMetric label="Selling price" value={formatMoney(sellingPrice, sellingCurrency)} detail={`${sellingCurrency} base selling currency`} />
         <CostMetric label="Preferred supplier" value={preferred?.supplier?.supplierCode ?? "Not set"} detail={preferred?.supplier?.name ?? `${links.length} supplier alternative${links.length === 1 ? "" : "s"}`} />
         <CostMetric label="Supplier cost" value={supplierCost == null || Number.isNaN(supplierCost) ? "Not set" : formatMoney(supplierCost, supplierCurrency)} detail={`${supplierCurrency} supplier currency`} />
@@ -300,60 +300,94 @@ function ProductCostingPanel({ product, preferred, links, baseCurrency }: { prod
 }
 
 function CostMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <div className="rounded-lg border bg-background p-3"><p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 truncate text-base font-semibold">{value}</p><p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p></div>;
+  return <div className="min-w-0 rounded-lg border bg-background p-3"><p className="text-[0.7rem] font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 truncate text-base font-semibold">{value}</p><p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p></div>;
 }
 
 function SupplierLinksTable({ links, baseCurrency, onEdit, onRemove }: { links: ProductSupplierLink[]; baseCurrency: string; onEdit: (link: ProductSupplierLink) => void; onRemove: (link: ProductSupplierLink) => void }) {
   return (
-    <div className="overflow-hidden rounded-xl border bg-background">
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/40 hover:bg-muted/40">
-            <TableHead className="pl-4">Supplier</TableHead>
-            <TableHead>Supplier SKU</TableHead>
-            <TableHead>Cost</TableHead>
-            <TableHead>Purchase rules</TableHead>
-            <TableHead>Last purchase</TableHead>
-            <TableHead className="pr-4 text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {links.map((link) => {
-            const currency = normalizeCurrencyCode(link.currency || link.supplier.currency || baseCurrency);
-            const costNumber = link.cost == null ? null : Number(link.cost);
-            const purchaseRules = [
-              link.minimumOrderQty == null ? null : `MOQ ${link.minimumOrderQty}`,
-              link.leadTimeDays == null ? null : `${link.leadTimeDays} day lead`,
-            ].filter(Boolean).join(" · ") || "No rules";
-            return (
-              <TableRow key={link.id} className={cn("h-16", link.isPreferred && "bg-primary/5 hover:bg-primary/10")}>
-                <TableCell className="min-w-56 pl-4 align-middle">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium leading-none">{link.supplier.name}</span>
-                      <Badge variant="outline" className="font-mono">{link.supplier.supplierCode}</Badge>
-                      {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : <Badge variant="secondary">Alternative</Badge>}
+    <>
+      <div className="grid gap-3 lg:hidden">
+        {links.map((link) => {
+          const currency = normalizeCurrencyCode(link.currency || link.supplier.currency || baseCurrency);
+          const costNumber = link.cost == null ? null : Number(link.cost);
+          const purchaseRules = [link.minimumOrderQty == null ? null : `MOQ ${link.minimumOrderQty}`, link.leadTimeDays == null ? null : `${link.leadTimeDays} day lead`].filter(Boolean).join(" · ") || "No rules";
+          return (
+            <div key={link.id} className={cn("rounded-xl border bg-background p-4", link.isPreferred && "border-primary/40 bg-primary/5")}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{link.supplier.name}</p>
+                  <p className="font-mono text-xs text-muted-foreground">{link.supplier.supplierCode}</p>
+                </div>
+                {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : <Badge variant="secondary">Alternative</Badge>}
+              </div>
+              <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                <Info label="Supplier SKU" value={link.supplierSku || "-"} mono />
+                <Info label="Cost" value={costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)} />
+                <Info label="Purchase rules" value={purchaseRules} />
+                <Info label="Last purchase" value={formatDate(link.lastPurchaseAt)} />
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => onEdit(link)}><Pencil className="size-4" />Edit</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => onRemove(link)} className="text-muted-foreground hover:text-destructive"><Trash2 className="size-4" />Remove</Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="hidden min-w-0 overflow-x-auto rounded-xl border bg-background lg:block">
+        <Table className="min-w-[780px] table-fixed">
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="w-[28%] pl-4">Supplier</TableHead>
+              <TableHead className="w-[17%]">Supplier SKU</TableHead>
+              <TableHead className="w-[16%]">Cost</TableHead>
+              <TableHead className="w-[18%]">Purchase rules</TableHead>
+              <TableHead className="w-[13%]">Last purchase</TableHead>
+              <TableHead className="w-[8%] pr-4 text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {links.map((link) => {
+              const currency = normalizeCurrencyCode(link.currency || link.supplier.currency || baseCurrency);
+              const costNumber = link.cost == null ? null : Number(link.cost);
+              const purchaseRules = [
+                link.minimumOrderQty == null ? null : `MOQ ${link.minimumOrderQty}`,
+                link.leadTimeDays == null ? null : `${link.leadTimeDays} day lead`,
+              ].filter(Boolean).join(" · ") || "No rules";
+              return (
+                <TableRow key={link.id} className={cn("h-16", link.isPreferred && "bg-primary/5 hover:bg-primary/10")}>
+                  <TableCell className="pl-4 align-middle">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="max-w-[14rem] truncate font-medium leading-none">{link.supplier.name}</span>
+                        <Badge variant="outline" className="font-mono">{link.supplier.supplierCode}</Badge>
+                        {link.isPreferred ? <Badge className="gap-1"><Star className="size-3" />Preferred</Badge> : <Badge variant="secondary">Alternative</Badge>}
+                      </div>
+                      <span className="block truncate text-xs leading-none text-muted-foreground">{[link.supplier.city, link.supplier.country].filter(Boolean).join(", ") || titleCase(link.supplier.supplierType || "vendor")}</span>
                     </div>
-                    <span className="text-xs leading-none text-muted-foreground">{[link.supplier.city, link.supplier.country].filter(Boolean).join(", ") || titleCase(link.supplier.supplierType || "vendor")}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="align-middle font-mono text-xs">{link.supplierSku || "-"}</TableCell>
-                <TableCell className="align-middle"><div className="grid gap-1"><span className="font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</span><span className="text-xs text-muted-foreground">{currency}</span></div></TableCell>
-                <TableCell className="align-middle text-sm text-muted-foreground">{purchaseRules}</TableCell>
-                <TableCell className="align-middle">{formatDate(link.lastPurchaseAt)}</TableCell>
-                <TableCell className="pr-4 text-right align-middle">
-                  <div className="flex justify-end gap-1">
-                    <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(link)} className="size-8"><Pencil className="size-4" /></Button>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(link)} className="size-8 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  </TableCell>
+                  <TableCell className="truncate align-middle font-mono text-xs">{link.supplierSku || "-"}</TableCell>
+                  <TableCell className="align-middle"><div className="min-w-0 space-y-1"><span className="block truncate font-medium">{costNumber == null || Number.isNaN(costNumber) ? "Not set" : formatMoney(costNumber, currency)}</span><span className="block text-xs text-muted-foreground">{currency}</span></div></TableCell>
+                  <TableCell className="truncate align-middle text-sm text-muted-foreground">{purchaseRules}</TableCell>
+                  <TableCell className="truncate align-middle">{formatDate(link.lastPurchaseAt)}</TableCell>
+                  <TableCell className="pr-4 text-right align-middle">
+                    <div className="flex justify-end gap-1">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => onEdit(link)} className="size-8"><Pencil className="size-4" /></Button>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => onRemove(link)} className="size-8 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
+}
+
+function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return <div className="min-w-0 rounded-lg border bg-muted/10 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className={cn("mt-1 truncate text-sm font-medium", mono && "font-mono")}>{value}</p></div>;
 }
 
 function clean(value: string) { const text = value.trim(); return text || null; }
