@@ -7,6 +7,7 @@ import { ArchiveIcon, ArrowLeftIcon, BoxesIcon, ChevronDownIcon, ChevronLeftIcon
 import { toast } from "sonner"
 
 import { ProductSuppliersSection } from "@/components/products/product-suppliers-section"
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group"
@@ -43,33 +44,27 @@ function formatCustomValue(value: unknown) { if (value === null || value === und
 function formatLayoutValue(field: LayoutField, value: unknown, fallbackCurrency: string): ProductDataField {
   const type = String(field.type || "text").toLowerCase()
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return { id: field.key, label: field.label || productKindLabel(field.key), value: "-", type }
-
   if (type === "currency" && isRecord(value)) {
     const amount = value.amount ?? value.value ?? 0
     const currency = normalizeCurrency(String(value.currency || fallbackCurrency), fallbackCurrency)
     return { id: field.key, label: field.label, value: formatMoney(amount, currency), type, kind: "currency", raw: value }
   }
-
   if (type === "images" && Array.isArray(value)) {
     const images = value.map((item) => String(item || "").trim()).filter(Boolean)
     return { id: field.key, label: field.label, value: `${images.length} image${images.length === 1 ? "" : "s"}`, type, kind: "images", raw: images }
   }
-
   if (type === "attachment" && Array.isArray(value)) {
     const attachments = value.filter(isAttachment)
     return { id: field.key, label: field.label, value: `${attachments.length} file${attachments.length === 1 ? "" : "s"}`, type, kind: "attachments", raw: attachments }
   }
-
   if (type === "lookup" && isRecord(value)) {
     const name = String(value.name || value.id || "-")
     return { id: field.key, label: field.label, value: name, type, kind: "lookup", raw: value }
   }
-
   if (type === "boolean") {
     const bool = value === true || value === "true"
     return { id: field.key, label: field.label, value: bool ? "Yes" : "No", type, kind: "boolean", raw: bool }
   }
-
   if (type === "date") return { id: field.key, label: field.label, value: formatDate(String(value)), type }
   if (type === "number") return { id: field.key, label: field.label, value: Number(value).toLocaleString(), type }
   if (type === "decimal") return { id: field.key, label: field.label, value: String(numberValue(value)), type }
@@ -89,6 +84,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
   const [layoutOpen, setLayoutOpen] = React.useState(true)
   const [logsOpen, setLogsOpen] = React.useState(true)
   const [adjustOpen, setAdjustOpen] = React.useState(false)
+  const [archiveOpen, setArchiveOpen] = React.useState(false)
   const [delta, setDelta] = React.useState("")
   const [reason, setReason] = React.useState("")
   const [adjustError, setAdjustError] = React.useState<string | null>(null)
@@ -192,7 +188,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
           <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{cleanText(product.name) || "Product"}</h1><ProductBadge product={product} /><Badge variant="outline">{layoutName}</Badge></div>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Review identity, images, pricing, inventory, layout, attributes, suppliers, and stock movement from one profile.</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={archiveProduct} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadProduct()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button variant="outline" size="sm" onClick={() => setAdjustOpen(true)} disabled={running}><WarehouseIcon className="size-4" />Adjust stock</Button><Button asChild size="sm" variant="outline"><Link href={`/products/${product.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={() => setArchiveOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button></div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -224,6 +220,7 @@ export function ProductDetailContent({ productId }: { productId: string }) {
       </div>
 
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}><DialogContent><DialogHeader><DialogTitle>Adjust stock</DialogTitle><DialogDescription>Current stock is {numberValue(product.quantity).toLocaleString()} units. Add stock with a positive number or reduce stock with a negative number.</DialogDescription></DialogHeader><div className="grid gap-4">{adjustError ? <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{adjustError}</div> : null}<div className="grid gap-2"><Label htmlFor="delta">Adjustment quantity</Label><Input id="delta" value={delta} onChange={(event) => setDelta(event.target.value)} type="number" step="1" placeholder="Example: 10 or -3" /></div><div className="grid gap-2"><Label htmlFor="reason">Reason</Label><Textarea id="reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Stock count correction, supplier delivery, damaged goods..." className="min-h-24" /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={submitStockAdjustment} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}Save adjustment</Button></DialogFooter></DialogContent></Dialog>
+      <RecordActionDialog open={archiveOpen} onOpenChange={setArchiveOpen} busy={running} title="Archive product?" description={`This will archive "${cleanText(product.name) || "this product"}" and remove it from active inventory workflows. Historical data remains available.`} confirmLabel="Archive product" onConfirm={() => void archiveProduct()} />
     </div>
   )
 }
