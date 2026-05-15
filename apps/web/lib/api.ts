@@ -166,9 +166,7 @@ export async function signup(payload: Record<string, unknown>) {
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw new Error(await parseError(response, "Signup failed"))
-  const data = await response.json()
-  persistLoginData(data)
-  return data
+  return response.json()
 }
 
 export async function verifyEmail(payload: { email: string; otp: string }) {
