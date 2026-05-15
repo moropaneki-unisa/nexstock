@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -92,6 +93,8 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
   const [supplier, setSupplier] = React.useState<Supplier | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [running, setRunning] = React.useState(false)
+  const [archiveOpen, setArchiveOpen] = React.useState(false)
+  const [reactivateOpen, setReactivateOpen] = React.useState(false)
   const [detailsOpen, setDetailsOpen] = React.useState(true)
   const [contactOpen, setContactOpen] = React.useState(true)
   const [notesOpen, setNotesOpen] = React.useState(true)
@@ -120,6 +123,7 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
     try {
       await apiFetch(`/api/suppliers/${supplier.id}`, { method: "DELETE" })
       toast.success("Supplier archived", { description: supplier.name })
+      setArchiveOpen(false)
       await loadSupplier()
     } catch (err) {
       toast.error("Could not archive supplier", {
@@ -136,6 +140,7 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
     try {
       await apiFetch(`/api/suppliers/${supplier.id}/reactivate`, { method: "PATCH" })
       toast.success("Supplier reactivated", { description: supplier.name })
+      setReactivateOpen(false)
       await loadSupplier()
     } catch (err) {
       toast.error("Could not reactivate supplier", {
@@ -181,9 +186,9 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
           <Button variant="outline" size="sm" onClick={() => void loadSupplier()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button>
           <Button asChild size="sm" variant="outline"><Link href={`/suppliers/${supplier.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button>
           {supplier.status === "archived" ? (
-            <Button size="sm" onClick={reactivateSupplier} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <RotateCcwIcon className="size-4" />}Reactivate</Button>
+            <Button size="sm" onClick={() => setReactivateOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <RotateCcwIcon className="size-4" />}Reactivate</Button>
           ) : (
-            <Button size="sm" variant="destructive" onClick={archiveSupplier} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button>
+            <Button size="sm" variant="destructive" onClick={() => setArchiveOpen(true)} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Archive</Button>
           )}
         </div>
       </div>
@@ -197,62 +202,15 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
 
       <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
         <div className="grid gap-4">
-          <DetailSection
-            title="Supplier details"
-            description="Core fields and purchasing settings for this supplier."
-            open={detailsOpen}
-            onOpenChange={setDetailsOpen}
-            badge={`${17} fields`}
-          >
-            <FieldGrid fields={[
-              ["Name", supplier.name],
-              ["Supplier code", supplier.supplierCode],
-              ["Type", titleCase(supplier.supplierType || "vendor")],
-              ["Category", cleanValue(supplier.category)],
-              ["Rating", titleCase(supplier.rating || "unrated")],
-              ["Status", titleCase(supplier.status)],
-              ["Currency", cleanValue(supplier.currency)],
-              ["Payment terms", cleanValue(supplier.paymentTerms)],
-              ["Payment method", cleanValue(supplier.paymentMethod)],
-              ["Tax status", titleCase(supplier.taxStatus || "unknown")],
-              ["Tax number", cleanValue(supplier.taxNumber)],
-              ["Shipping terms", cleanValue(supplier.shippingTerms)],
-              ["Incoterm", cleanValue(supplier.incoterm)],
-              ["Account number", cleanValue(supplier.accountNumber)],
-              ["Lead time", supplier.leadTimeDays == null ? "Not set" : `${supplier.leadTimeDays} days`],
-              ["Minimum order qty", cleanValue(supplier.minimumOrderQty)],
-              ["Last order", formatDate(supplier.lastOrderAt)],
-            ]} />
+          <DetailSection title="Supplier details" description="Core fields and purchasing settings for this supplier." open={detailsOpen} onOpenChange={setDetailsOpen} badge="17 fields">
+            <FieldGrid fields={[["Name", supplier.name], ["Supplier code", supplier.supplierCode], ["Type", titleCase(supplier.supplierType || "vendor")], ["Category", cleanValue(supplier.category)], ["Rating", titleCase(supplier.rating || "unrated")], ["Status", titleCase(supplier.status)], ["Currency", cleanValue(supplier.currency)], ["Payment terms", cleanValue(supplier.paymentTerms)], ["Payment method", cleanValue(supplier.paymentMethod)], ["Tax status", titleCase(supplier.taxStatus || "unknown")], ["Tax number", cleanValue(supplier.taxNumber)], ["Shipping terms", cleanValue(supplier.shippingTerms)], ["Incoterm", cleanValue(supplier.incoterm)], ["Account number", cleanValue(supplier.accountNumber)], ["Lead time", supplier.leadTimeDays == null ? "Not set" : `${supplier.leadTimeDays} days`], ["Minimum order qty", cleanValue(supplier.minimumOrderQty)], ["Last order", formatDate(supplier.lastOrderAt)]]} />
           </DetailSection>
 
-          <DetailSection
-            title="Contact and address"
-            description="Communication and supplier location details."
-            open={contactOpen}
-            onOpenChange={setContactOpen}
-            badge="10 fields"
-          >
-            <FieldGrid fields={[
-              ["Contact person", cleanValue(supplier.contactName)],
-              ["Email", cleanValue(supplier.email)],
-              ["Phone", cleanValue(supplier.phone)],
-              ["Website", cleanValue(supplier.website)],
-              ["Address line 1", cleanValue(supplier.addressLine1)],
-              ["Address line 2", cleanValue(supplier.addressLine2)],
-              ["City", cleanValue(supplier.city)],
-              ["Province", cleanValue(supplier.province)],
-              ["Country", cleanValue(supplier.country)],
-              ["Postal code", cleanValue(supplier.postalCode)],
-            ]} />
+          <DetailSection title="Contact and address" description="Communication and supplier location details." open={contactOpen} onOpenChange={setContactOpen} badge="10 fields">
+            <FieldGrid fields={[["Contact person", cleanValue(supplier.contactName)], ["Email", cleanValue(supplier.email)], ["Phone", cleanValue(supplier.phone)], ["Website", cleanValue(supplier.website)], ["Address line 1", cleanValue(supplier.addressLine1)], ["Address line 2", cleanValue(supplier.addressLine2)], ["City", cleanValue(supplier.city)], ["Province", cleanValue(supplier.province)], ["Country", cleanValue(supplier.country)], ["Postal code", cleanValue(supplier.postalCode)]]} />
           </DetailSection>
 
-          <DetailSection
-            title="Notes"
-            description="Internal supplier notes and reminders."
-            open={notesOpen}
-            onOpenChange={setNotesOpen}
-            badge={supplier.notes ? "Saved" : "Empty"}
-          >
+          <DetailSection title="Notes" description="Internal supplier notes and reminders." open={notesOpen} onOpenChange={setNotesOpen} badge={supplier.notes ? "Saved" : "Empty"}>
             <p className="whitespace-pre-wrap rounded-xl border bg-muted/10 p-4 text-sm leading-6 text-muted-foreground">
               {supplier.notes || "No notes saved for this supplier."}
             </p>
@@ -270,6 +228,26 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
           </CardContent>
         </Card>
       </div>
+
+      <RecordActionDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        busy={running}
+        title="Archive supplier?"
+        description={`This will archive "${supplier.name}" and remove it from active supplier workflows. Existing purchase history remains available.`}
+        confirmLabel="Archive supplier"
+        onConfirm={() => void archiveSupplier()}
+      />
+      <RecordActionDialog
+        open={reactivateOpen}
+        onOpenChange={setReactivateOpen}
+        busy={running}
+        variant="default"
+        title="Reactivate supplier?"
+        description={`This will make "${supplier.name}" available again for purchasing workflows.`}
+        confirmLabel="Reactivate supplier"
+        onConfirm={() => void reactivateSupplier()}
+      />
     </div>
   )
 }
@@ -283,41 +261,17 @@ function MetricCard({ title, value, detail, icon: Icon, mono }: { title: string;
   )
 }
 
-function DetailSection({
-  title,
-  description,
-  badge,
-  open,
-  onOpenChange,
-  children,
-}: {
-  title: string
-  description: string
-  badge: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  children: React.ReactNode
-}) {
+function DetailSection({ title, description, badge, open, onOpenChange, children }: { title: string; description: string; badge: string; open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode }) {
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <Card>
         <CollapsibleTrigger asChild>
           <button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40">
-            <div>
-              <CardTitle>{title}</CardTitle>
-              <CardDescription className="mt-1">{description}</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{badge}</Badge>
-              <ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
-            </div>
+            <div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div>
+            <div className="flex items-center gap-2"><Badge variant="secondary">{badge}</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} /></div>
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="pt-0">
-            {children}
-          </CardContent>
-        </CollapsibleContent>
+        <CollapsibleContent><CardContent className="pt-0">{children}</CardContent></CollapsibleContent>
       </Card>
     </Collapsible>
   )
