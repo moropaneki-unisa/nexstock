@@ -22,6 +22,8 @@ type Product = {
   quantity?: number | string | null
   lowStockLevel?: number | string | null
   price?: number | string | null
+  cost?: number | string | null
+  convertedCost?: number | string | null
   createdAt?: string | null
   updatedAt?: string | null
 }
@@ -80,6 +82,14 @@ function normalizeList<T>(value: T[] | Paginated<T> | null | undefined): T[] {
 function numberValue(value: unknown) {
   const next = Number(value ?? 0)
   return Number.isFinite(next) ? next : 0
+}
+
+function firstPositiveNumber(...values: unknown[]) {
+  for (const value of values) {
+    const next = numberValue(value)
+    if (next > 0) return next
+  }
+  return 0
 }
 
 function formatMoney(value: number, currency = "USD") {
@@ -155,9 +165,14 @@ export function DashboardContent() {
   })
   const outOfStockProducts = products.filter((product) => numberValue(product.quantity) <= 0)
   const inventoryValue = activeProducts.reduce((sum, product) => sum + numberValue(product.quantity) * numberValue(product.price), 0)
+  const inventoryCostValue = activeProducts.reduce((sum, product) => {
+    const unitCost = firstPositiveNumber(product.convertedCost, product.cost, product.price)
+    return sum + numberValue(product.quantity) * unitCost
+  }, 0)
 
   const metrics: SectionCardMetrics = {
     inventoryValue: formatMoney(inventoryValue, baseCurrency),
+    inventoryCostValue: formatMoney(inventoryCostValue, baseCurrency),
     activeProducts: activeProducts.length,
     activeSuppliers: activeSuppliers.length,
     openPurchaseOrders: openPurchaseOrders.length,
