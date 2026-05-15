@@ -109,6 +109,8 @@ POST   /api/products
 GET    /api/products/export?format=csv
 GET    /api/products/export?format=xlsx
 POST   /api/products/import
+GET    /api/products/import-logs
+GET    /api/products/import-logs/:logId
 GET    /api/products/types
 POST   /api/products/types
 GET    /api/products/:id
@@ -201,9 +203,17 @@ These changes were applied directly to the `main-v2` branch.
    - Export uses the authenticated backend file endpoints and downloads the returned file.
    - Import uploads a spreadsheet through `POST /api/products/import`, shows success/warning/error toasts, and refreshes the products list after completion.
 
+10. **Product import logs and backend mapping support**
+   - Added `ProductImportLog` migration for organization-scoped import history.
+   - Product imports now create/update persistent logs with file name, status, totals, created/updated/skipped counts, row errors, mapping, and metadata.
+   - Added `GET /api/products/import-logs` and `GET /api/products/import-logs/:logId`.
+   - `POST /api/products/import` now accepts an optional `mapping` payload so spreadsheet columns can be mapped to product fields.
+   - Inventory logs created during imports now reference the import log ID.
+
 ## Current known follow-up items
 
+- Complete frontend import mapping modal and import history/error log UI.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
 - Verify or complete webhook management UI.
-- After pulling `main-v2`, run `npm install`, `npm run prisma:generate -w @nexstock/api`, and `npm run migrate -w @nexstock/api` before testing layouts.
+- After pulling `main-v2`, run `npm install`, `npm run prisma:generate -w @nexstock/api`, and `npm run migrate -w @nexstock/api` before testing layouts/import logs.
