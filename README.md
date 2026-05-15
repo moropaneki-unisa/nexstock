@@ -212,7 +212,8 @@ These changes were applied directly to the `main-v2` branch.
 
 11. **Imports CRUD pages and product action dropdown**
    - The sidebar `Imports` item now opens `/imports`, a previous-imports dashboard focused on import history, totals, logs, review status, and links to import details.
-   - Added `/imports/new` as the dedicated create/import flow for uploading CSV/XLSX files and submitting column mapping.
+   - Added `/imports/new` as the dedicated setup page for selecting layout context and exporting templates/schema.
+   - Added `/imports/new/mapping` as the dedicated mapping/import page for uploading CSV/XLSX, reading headers, mapping columns, and starting the import.
    - Added `/imports/[id]` as the import detail/read page for one import log, including status, row totals, mapping used, metadata, and row-level errors.
    - Changed the Products page primary action into a dropdown with `Add new product` and `Import products` options.
    - The `Import products` option now routes users to `/imports/new`.
@@ -236,15 +237,12 @@ These changes were applied directly to the `main-v2` branch.
    - Templates include backend-supported core fields: price currency, cost, cost currency, exchange rate, quantity, low stock level, status, images, and selected layout fields.
    - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
 
-14. **Visual import column mapper**
-   - `/imports/new` now uses a two-tab workflow: `Setup` and `Mapping`.
-   - The `Setup` tab contains layout selection, template/schema exports, and CSV/XLSX file selection.
-   - The `Mapping` tab contains the visual column-to-field mapping table, auto-match action, generated backend mapping preview, and start-import action.
-   - Users choose a CSV/XLSX file first; the browser reads the first worksheet/first row and extracts spreadsheet headers.
+14. **Dedicated import mapping page**
+   - `/imports/new` is now a setup page only: choose layout context and export CSV/XLSX/JSON schema templates.
+   - `/imports/new/mapping` is now the dedicated mapping page.
+   - The mapping page handles CSV/XLSX file selection, first-row/first-worksheet header detection, visual column-to-field mapping, auto-match, required-field validation, backend mapping preview, and Start Import.
    - Every mapping select defaults to `None`; users explicitly map spreadsheet columns to NexStock fields.
-   - Added an `Auto-match columns` action that suggests mappings by matching normalized column names to backend field names and layout field labels.
-   - Required fields are highlighted and must be mapped before import can start.
-   - The UI still submits the backend-supported `mapping` object to `POST /api/products/import`, so the backend contract is unchanged.
+   - The mapping page still submits the backend-supported `file`, `mapping`, and `productTypeId` multipart payload to `POST /api/products/import`, so the backend contract is unchanged.
 
 ## Current known follow-up items
 
