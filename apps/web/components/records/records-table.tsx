@@ -22,6 +22,7 @@ import {
   SearchIcon,
 } from "lucide-react"
 
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -45,6 +46,10 @@ export type RecordsTableBulkAction<TData> = {
   label: string
   variant?: React.ComponentProps<typeof Button>["variant"]
   onClick: (rows: TData[]) => void | Promise<void>
+  confirmTitle?: string
+  confirmDescription?: string | ((selectedCount: number) => string)
+  confirmLabel?: string
+  confirmVariant?: "default" | "destructive"
 }
 
 export function createSelectColumn<TData>(): ColumnDef<TData> {
@@ -85,6 +90,12 @@ function EmptyRows({ rows, colSpan }: { rows: number; colSpan: number }) {
   ))
 }
 
+function getConfirmDescription<TData>(action: RecordsTableBulkAction<TData>, selectedCount: number) {
+  if (typeof action.confirmDescription === "function") return action.confirmDescription(selectedCount)
+  if (action.confirmDescription) return action.confirmDescription
+  return `This action will affect ${selectedCount} selected record${selectedCount === 1 ? "" : "s"}.`
+}
+
 export function RecordsTable<TData>({
   data,
   columns,
@@ -109,6 +120,8 @@ export function RecordsTable<TData>({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 })
+  const [confirmAction, setConfirmAction] = React.useState<RecordsTableBulkAction<TData> | null>(null)
+  const [bulkRunning, setBulkRunning] = React.useState(false)
 
   const table = useReactTable({
     data,
@@ -142,10 +155,31 @@ export function RecordsTable<TData>({
   const startIndex = filteredRows.length === 0 ? 0 : pageIndex * pageSize + 1
   const endIndex = Math.min((pageIndex + 1) * pageSize, filteredRows.length)
   const emptyRowCount = filteredRows.length > 0 ? Math.max(0, pageSize - pageRows.length) : 0
+  const selectedCount = selectedRows.length
 
   React.useEffect(() => {
     table.setPageIndex(0)
   }, [globalFilter, pageSize, table])
+
+  async function runBulkAction(action: RecordsTableBulkAction<TData>) {
+    if (!selectedRows.length) return
+    setBulkRunning(true)
+    try {
+      await action.onClick(selectedRows)
+      table.resetRowSelection()
+      setConfirmAction(null)
+    } finally {
+      setBulkRunning(false)
+    }
+  }
+
+  function handleBulkAction(action: RecordsTableBulkAction<TData>) {
+    if (action.confirmTitle || action.confirmDescription || action.confirmLabel) {
+      setConfirmAction(action)
+      return
+    }
+    void runBulkAction(action)
+  }
 
   return (
     <div className="px-3 sm:px-4 lg:px-6">
@@ -203,7 +237,7 @@ export function RecordsTable<TData>({
                 {selectedRows.length === 1 ? "" : "s"} selected.
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => table.resetRowSelection()}>
+                <Button variant="outline" size="sm" onClick={() => table.resetRowSelection()} disabled={bulkRunning}>
                   Clear selection
                 </Button>
                 {bulkActions.map((action) => (
@@ -211,7 +245,8 @@ export function RecordsTable<TData>({
                     key={action.label}
                     variant={action.variant || "outline"}
                     size="sm"
-                    onClick={() => void action.onClick(selectedRows)}
+                    disabled={bulkRunning}
+                    onClick={() => handleBulkAction(action)}
                   >
                     {action.label}
                   </Button>
@@ -340,6 +375,21 @@ export function RecordsTable<TData>({
           </div>
         </div>
       </div>
+
+      <RecordActionDialog
+        open={Boolean(confirmAction)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null)
+        }}
+        busy={bulkRunning}
+        variant={confirmAction?.confirmVariant || (confirmAction?.variant === "destructive" ? "destructive" : "default")}
+        title={confirmAction?.confirmTitle || "Confirm bulk action"}
+        description={confirmAction ? getConfirmDescription(confirmAction, selectedCount) : "Confirm this bulk action."}
+        confirmLabel={confirmAction?.confirmLabel || confirmAction?.label || "Confirm"}
+        onConfirm={() => {
+          if (confirmAction) void runBulkAction(confirmAction)
+        }}
+      />
     </div>
   )
 }
