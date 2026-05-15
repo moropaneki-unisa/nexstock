@@ -50,14 +50,6 @@ type Layout = {
   fields?: LayoutField[] | null
 }
 
-type ProductMetadata = {
-  productTypeId?: string | null
-  productTypeName?: string | null
-  kind?: string | null
-  trackInventory?: boolean | null
-  customFields?: Record<string, unknown> | null
-}
-
 type Product = {
   id: string
   name: string
@@ -74,38 +66,167 @@ type Product = {
   exchangeRateToBase?: number | string | null
   convertedCost?: number | string | null
   images?: string[] | null
-  metadata?: ProductMetadata | null
+  metadata?: {
+    productTypeId?: string | null
+    productTypeName?: string | null
+    kind?: string | null
+    trackInventory?: boolean | null
+    customFields?: Record<string, unknown> | null
+  } | null
 }
 
-type Organization = { baseCurrency?: string | null; exchangeRates?: Array<{ code: string; rateToBase: number }> | null }
-type Supplier = { id: string; supplierCode?: string | null; name: string; currency?: string | null; leadTimeDays?: number | null; minimumOrderQty?: number | null; status?: string | null }
-type ProductSupplierLink = { id: string; supplierId: string; supplierSku?: string | null; cost?: string | number | null; currency?: string | null; minimumOrderQty?: number | null; leadTimeDays?: number | null; isPreferred?: boolean | null; notes?: string | null; supplier?: Supplier | null }
-type SupplierRow = { rowId: string; linkId?: string; supplierId: string; supplierSku: string; cost: string; currency: string; minimumOrderQty: string; leadTimeDays: string; isPreferred: boolean; notes: string }
+type Organization = {
+  baseCurrency?: string | null
+  exchangeRates?: Array<{ code: string; rateToBase: number }> | null
+}
+
+type Supplier = {
+  id: string
+  supplierCode?: string | null
+  name: string
+  currency?: string | null
+  leadTimeDays?: number | null
+  minimumOrderQty?: number | null
+  status?: string | null
+}
+
+type ProductSupplierLink = {
+  id: string
+  supplierId: string
+  supplierSku?: string | null
+  cost?: string | number | null
+  currency?: string | null
+  minimumOrderQty?: number | null
+  leadTimeDays?: number | null
+  isPreferred?: boolean | null
+  notes?: string | null
+  supplier?: Supplier | null
+}
+
+type SupplierRow = {
+  rowId: string
+  linkId?: string
+  supplierId: string
+  supplierSku: string
+  cost: string
+  currency: string
+  minimumOrderQty: string
+  leadTimeDays: string
+  isPreferred: boolean
+  notes: string
+}
+
 type AssetResponse = { url: string; name?: string }
 type LookupOption = { id: string; name: string; subtitle?: string }
-type FormState = { name: string; sku: string; category: string; description: string; status: string; price: string; quantity: string; lowStockLevel: string }
+type FormState = {
+  name: string
+  sku: string
+  category: string
+  description: string
+  status: string
+  price: string
+  quantity: string
+  lowStockLevel: string
+}
 
-const emptyForm: FormState = { name: "", sku: "", category: "", description: "", status: "active", price: "0", quantity: "0", lowStockLevel: "5" }
-const SYSTEM_TYPES = ["text", "richtext", "number", "decimal", "currency", "attachment", "images", "lookup", "boolean", "select", "date"]
+const emptyForm: FormState = {
+  name: "",
+  sku: "",
+  category: "",
+  description: "",
+  status: "active",
+  price: "0",
+  quantity: "0",
+  lowStockLevel: "5",
+}
 
-function rowId() { return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `row-${Date.now()}-${Math.random()}` }
-function normalizeCurrency(value?: string | null, fallback = "ZAR") { return String(value || fallback).trim().toUpperCase() || fallback }
-function numberValue(value: unknown) { const next = Number(value ?? 0); return Number.isFinite(next) ? next : 0 }
-function money(value: unknown, currency = "ZAR") { return new Intl.NumberFormat("en-ZA", { style: "currency", currency: normalizeCurrency(currency), maximumFractionDigits: 2 }).format(numberValue(value)) }
-function cleanFileName(value?: string, fallback = "attachment") { const raw = String(value || fallback || "attachment").trim().replace(/\s+/g, " "); return raw.replace(/\.[^./\\]+$/, "").trim() || "attachment" }
-function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value && typeof value === "object" && !Array.isArray(value)) }
-function fieldType(field: LayoutField) { const type = String(field.type || "text").toLowerCase(); return SYSTEM_TYPES.includes(type) ? type : "text" }
-function activeFields(layout: Layout | null) { return [...(layout?.fields || [])].filter((field) => field.isActive !== false).sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0)) }
-function normalizeList<T>(value: unknown): T[] { if (Array.isArray(value)) return value as T[]; if (isRecord(value)) return (value.items || value.data || []) as T[]; return [] }
-function productToForm(product: Product): FormState { return { name: product.name || "", sku: product.sku || "", category: product.category || "", description: product.description || "", status: product.status || "active", price: String(product.price ?? 0), quantity: String(product.quantity ?? 0), lowStockLevel: String(product.lowStockLevel ?? 5) } }
-function lookupSource(field: LayoutField) { return String(field.options?.[0] || "suppliers").trim().toLowerCase() }
-function lookupLabel(source: string) { if (source.startsWith("product")) return "product"; if (source.startsWith("customer")) return "customer"; return "supplier" }
-function rateFor(currency: string, base: string, rates: Array<{ code: string; rateToBase: number }>) { const code = normalizeCurrency(currency, base); if (code === base) return 1; return rates.find((rate) => normalizeCurrency(rate.code) === code)?.rateToBase ?? 1 }
-function emptySupplierRow(currency: string): SupplierRow { return { rowId: rowId(), supplierId: "", supplierSku: "", cost: "", currency, minimumOrderQty: "", leadTimeDays: "", isPreferred: false, notes: "" } }
+const SYSTEM_TYPES = new Set(["text", "richtext", "number", "decimal", "currency", "attachment", "images", "lookup", "boolean", "select", "date"])
+
+function makeRowId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `row-${Date.now()}-${Math.random()}`
+}
+
+function normalizeCurrency(value?: string | null, fallback = "ZAR") {
+  return String(value || fallback).trim().toUpperCase() || fallback
+}
+
+function numberValue(value: unknown) {
+  const next = Number(value ?? 0)
+  return Number.isFinite(next) ? next : 0
+}
+
+function money(value: unknown, currency = "ZAR") {
+  return new Intl.NumberFormat("en-ZA", {
+    style: "currency",
+    currency: normalizeCurrency(currency),
+    maximumFractionDigits: 2,
+  }).format(numberValue(value))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function normalizeList<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value as T[]
+  if (isRecord(value)) return (value.items || value.data || []) as T[]
+  return []
+}
+
+function fieldType(field: LayoutField) {
+  const type = String(field.type || "text").toLowerCase()
+  return SYSTEM_TYPES.has(type) ? type : "text"
+}
+
+function activeFields(layout: Layout | null) {
+  return [...(layout?.fields || [])]
+    .filter((field) => field.isActive !== false)
+    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0))
+}
+
+function productToForm(product: Product): FormState {
+  return {
+    name: product.name || "",
+    sku: product.sku || "",
+    category: product.category || "",
+    description: product.description || "",
+    status: product.status || "active",
+    price: String(product.price ?? 0),
+    quantity: String(product.quantity ?? 0),
+    lowStockLevel: String(product.lowStockLevel ?? 5),
+  }
+}
+
+function emptySupplierRow(currency: string): SupplierRow {
+  return {
+    rowId: makeRowId(),
+    supplierId: "",
+    supplierSku: "",
+    cost: "",
+    currency,
+    minimumOrderQty: "",
+    leadTimeDays: "",
+    isPreferred: false,
+    notes: "",
+  }
+}
+
+function rateFor(currency: string, base: string, rates: Array<{ code: string; rateToBase: number }>) {
+  const code = normalizeCurrency(currency, base)
+  if (code === base) return 1
+  return rates.find((rate) => normalizeCurrency(rate.code) === code)?.rateToBase ?? 1
+}
+
+function cleanFileName(value?: string, fallback = "attachment") {
+  return String(value || fallback || "attachment")
+    .trim()
+    .replace(/\.[^./\\]+$/, "")
+    .trim() || "attachment"
+}
 
 function stringifyFieldValue(field: LayoutField, value: unknown): unknown {
   const type = fieldType(field)
-  if (value == null) return type === "lookup" ? null : ""
+  if (value == null) return type === "lookup" ? null : type === "images" || type === "attachment" ? [] : ""
   if (type === "lookup") return isRecord(value) ? { id: String(value.id || ""), name: String(value.name || value.id || "") } : null
   if (type === "currency" && isRecord(value)) return String(value.amount ?? value.value ?? "")
   if (type === "date") return String(value).slice(0, 10)
@@ -114,7 +235,7 @@ function stringifyFieldValue(field: LayoutField, value: unknown): unknown {
   return String(value)
 }
 
-function isBlankLayoutValue(field: LayoutField, value: unknown) {
+function isBlankOptionalValue(field: LayoutField, value: unknown) {
   const type = fieldType(field)
   if (value == null) return true
   if (type === "images" || type === "attachment") return !Array.isArray(value) || value.length === 0
@@ -126,23 +247,22 @@ function isBlankLayoutValue(field: LayoutField, value: unknown) {
   return false
 }
 
-function normalizeFieldValue(field: LayoutField, value: unknown, currency: string) {
+function normalizeCustomFieldValue(field: LayoutField, value: unknown, currency: string) {
   const type = fieldType(field)
   if (type === "images") return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : []
   if (type === "attachment") {
     return Array.isArray(value)
-      ? value.filter(isRecord).map((item) => ({ name: cleanFileName(String(item.name || ""), String(item.url || "attachment")), url: String(item.url || "").trim() })).filter((item) => item.url)
+      ? value
+          .filter(isRecord)
+          .map((item) => ({ name: cleanFileName(String(item.name || ""), String(item.url || "attachment")), url: String(item.url || "").trim() }))
+          .filter((item) => item.url)
       : []
   }
   if (type === "lookup") {
-    if (!value) return undefined
-    if (isRecord(value)) {
-      const id = String(value.id || "").trim()
-      const name = String(value.name || value.id || "").trim()
-      return id && name ? { id, name } : undefined
-    }
-    const text = String(value).trim()
-    return text ? { id: text, name: text } : undefined
+    if (!value || !isRecord(value)) return undefined
+    const id = String(value.id || "").trim()
+    const name = String(value.name || value.id || "").trim()
+    return id && name ? { id, name } : undefined
   }
   if (value == null || (typeof value === "string" && value.trim() === "")) return undefined
   if (type === "number") return Math.trunc(numberValue(value))
@@ -152,29 +272,70 @@ function normalizeFieldValue(field: LayoutField, value: unknown, currency: strin
   return String(value).trim()
 }
 
-async function uploadAsset(file: File, type: "images" | "attachment") { const body = new FormData(); body.append("file", file); return apiFetch<AssetResponse>(type === "images" ? "/api/products/asset-image" : "/api/products/asset-attachment", { method: "POST", body }) }
+async function uploadAsset(file: File, type: "images" | "attachment") {
+  const body = new FormData()
+  body.append("file", file)
+  return apiFetch<AssetResponse>(type === "images" ? "/api/products/asset-image" : "/api/products/asset-attachment", {
+    method: "POST",
+    body,
+  })
+}
+
+function lookupSource(field: LayoutField) {
+  return String(field.options?.[0] || "suppliers").trim().toLowerCase()
+}
+
+function lookupLabel(source: string) {
+  if (source.startsWith("product")) return "product"
+  if (source.startsWith("customer")) return "customer"
+  return "supplier"
+}
 
 async function fetchLookupOptions(source: string): Promise<LookupOption[]> {
   if (source.startsWith("product")) {
     const result = await apiFetch<unknown>("/api/products?limit=100")
-    return normalizeList<Record<string, unknown>>(result).map((item) => ({ id: String(item.id), name: String(item.name || item.sku || item.id), subtitle: item.sku ? String(item.sku) : undefined })).filter((item) => item.id && item.name)
+    return normalizeList<Record<string, unknown>>(result)
+      .map((item) => ({ id: String(item.id), name: String(item.name || item.sku || item.id), subtitle: item.sku ? String(item.sku) : undefined }))
+      .filter((item) => item.id && item.name)
   }
   if (source.startsWith("customer")) {
     const result = await apiFetch<unknown>("/api/customers?limit=100").catch(() => [])
-    return normalizeList<Record<string, unknown>>(result).map((item) => ({ id: String(item.id), name: String(item.name || item.email || item.id), subtitle: item.email ? String(item.email) : undefined })).filter((item) => item.id && item.name)
+    return normalizeList<Record<string, unknown>>(result)
+      .map((item) => ({ id: String(item.id), name: String(item.name || item.email || item.id), subtitle: item.email ? String(item.email) : undefined }))
+      .filter((item) => item.id && item.name)
   }
   const result = await getCachedSuppliers<unknown>().catch(() => [])
-  return normalizeList<Record<string, unknown>>(result).map((item) => ({ id: String(item.id), name: String(item.name || item.supplierCode || item.id), subtitle: item.supplierCode ? String(item.supplierCode) : undefined })).filter((item) => item.id && item.name)
+  return normalizeList<Record<string, unknown>>(result)
+    .map((item) => ({ id: String(item.id), name: String(item.name || item.supplierCode || item.id), subtitle: item.supplierCode ? String(item.supplierCode) : undefined }))
+    .filter((item) => item.id && item.name)
 }
 
 function FormLoading() {
-  return <div className="grid gap-4 p-4 md:p-6"><div className="flex items-center justify-between gap-4"><div className="grid gap-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-8 w-56" /></div><Skeleton className="h-9 w-24" /></div><div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]"><div className="grid gap-4"><Skeleton className="h-64 rounded-xl" /><Skeleton className="h-64 rounded-xl" /></div><Skeleton className="h-64 rounded-xl" /></div></div>
+  return (
+    <div className="grid gap-4 p-4 md:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div className="grid gap-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-8 w-56" />
+        </div>
+        <Skeleton className="h-9 w-24" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-4">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
+        <Skeleton className="h-64 rounded-xl" />
+      </div>
+    </div>
+  )
 }
 
 export function ProductLayoutForm({ productId, layout }: { productId?: string; layout: Layout | null }) {
   const router = useRouter()
   const editing = Boolean(productId)
   const fields = React.useMemo(() => activeFields(layout), [layout])
+
   const [form, setForm] = React.useState<FormState>(emptyForm)
   const [baseCurrency, setBaseCurrency] = React.useState("ZAR")
   const [exchangeRates, setExchangeRates] = React.useState<Array<{ code: string; rateToBase: number }>>([])
@@ -200,74 +361,290 @@ export function ProductLayoutForm({ productId, layout }: { productId?: string; l
 
   React.useEffect(() => {
     let active = true
+
     async function load() {
-      setLoading(Boolean(productId)); setError(null)
+      setLoading(Boolean(productId))
+      setError(null)
       try {
-        const [org, product, supplierResult, linkResult] = await Promise.all([getCachedOrganization<Organization>().catch(() => null), productId ? apiFetch<Product>(`/api/products/${productId}`) : Promise.resolve(null), getCachedSuppliers<unknown>().catch(() => []), productId ? apiFetch<ProductSupplierLink[]>(`/api/products/${productId}/suppliers`).catch(() => []) : Promise.resolve([])])
+        const [org, product, supplierResult, linkResult] = await Promise.all([
+          getCachedOrganization<Organization>().catch(() => null),
+          productId ? apiFetch<Product>(`/api/products/${productId}`) : Promise.resolve(null),
+          getCachedSuppliers<unknown>().catch(() => []),
+          productId ? apiFetch<ProductSupplierLink[]>(`/api/products/${productId}/suppliers`).catch(() => []) : Promise.resolve([]),
+        ])
         if (!active) return
+
         const currency = normalizeCurrency(org?.baseCurrency || product?.priceCurrency || "ZAR")
-        setBaseCurrency(currency); setExchangeRates(org?.exchangeRates ?? []); setSuppliers(normalizeList<Supplier>(supplierResult).filter((supplier) => supplier.status !== "archived"))
-        setSupplierRows((Array.isArray(linkResult) ? linkResult : []).map((link) => ({ rowId: link.id, linkId: link.id, supplierId: link.supplierId, supplierSku: link.supplierSku ?? "", cost: link.cost == null ? "" : String(link.cost), currency: normalizeCurrency(link.supplier?.currency || link.currency || currency), minimumOrderQty: link.minimumOrderQty == null ? "" : String(link.minimumOrderQty), leadTimeDays: link.leadTimeDays == null ? "" : String(link.leadTimeDays), isPreferred: Boolean(link.isPreferred), notes: link.notes ?? "" })))
+        setBaseCurrency(currency)
+        setExchangeRates(org?.exchangeRates ?? [])
+        setSuppliers(normalizeList<Supplier>(supplierResult).filter((supplier) => supplier.status !== "archived"))
+        setSupplierRows(
+          (Array.isArray(linkResult) ? linkResult : []).map((link) => ({
+            rowId: link.id,
+            linkId: link.id,
+            supplierId: link.supplierId,
+            supplierSku: link.supplierSku ?? "",
+            cost: link.cost == null ? "" : String(link.cost),
+            currency: normalizeCurrency(link.supplier?.currency || link.currency || currency),
+            minimumOrderQty: link.minimumOrderQty == null ? "" : String(link.minimumOrderQty),
+            leadTimeDays: link.leadTimeDays == null ? "" : String(link.leadTimeDays),
+            isPreferred: Boolean(link.isPreferred),
+            notes: link.notes ?? "",
+          })),
+        )
+
         const nextValues: Record<string, unknown> = {}
-        if (product) { setForm(productToForm(product)); setProductImages(product.images || []); const stored = product.metadata?.customFields || {}; for (const field of fields) nextValues[field.key] = stringifyFieldValue(field, stored[field.key]) }
-        else { for (const field of fields) nextValues[field.key] = fieldType(field) === "images" || fieldType(field) === "attachment" ? [] : fieldType(field) === "lookup" ? null : "" }
+        if (product) {
+          setForm(productToForm(product))
+          setProductImages(product.images || [])
+          const stored = product.metadata?.customFields || {}
+          for (const field of fields) nextValues[field.key] = stringifyFieldValue(field, stored[field.key])
+        } else {
+          for (const field of fields) nextValues[field.key] = fieldType(field) === "images" || fieldType(field) === "attachment" ? [] : fieldType(field) === "lookup" ? null : ""
+        }
         setCustomValues(nextValues)
-      } catch (err) { const message = err instanceof Error ? err.message : "Could not load product form"; setError(message); toast.error("Product form could not load", { description: message }) }
-      finally { if (active) setLoading(false) }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Could not load product form"
+        setError(message)
+        toast.error("Product form could not load", { description: message })
+      } finally {
+        if (active) setLoading(false)
+      }
     }
-    void load(); return () => { active = false }
+
+    void load()
+    return () => { active = false }
   }, [productId, fields])
 
-  function updateForm(key: keyof FormState, value: string) { setForm((current) => ({ ...current, [key]: value })) }
-  function updateCustom(key: string, value: unknown) { setCustomValues((current) => ({ ...current, [key]: value })) }
-  function addSupplierRow() { setSupplierRows((current) => [...current, { ...emptySupplierRow(baseCurrency), isPreferred: current.length === 0 }]) }
-  function updateSupplierRow(rowIdValue: string, patch: Partial<SupplierRow>) { setSupplierRows((current) => current.map((row) => row.rowId === rowIdValue ? { ...row, ...patch } : row)) }
-  function selectSupplier(rowIdValue: string, supplierId: string) { const supplier = suppliers.find((item) => item.id === supplierId); setSupplierRows((current) => current.map((row) => row.rowId === rowIdValue ? { ...row, supplierId, currency: normalizeCurrency(supplier?.currency || baseCurrency), minimumOrderQty: row.minimumOrderQty || (supplier?.minimumOrderQty == null ? "" : String(supplier.minimumOrderQty)), leadTimeDays: row.leadTimeDays || (supplier?.leadTimeDays == null ? "" : String(supplier.leadTimeDays)) } : row)) }
-  function makePreferred(rowIdValue: string) { setSupplierRows((current) => current.map((row) => ({ ...row, isPreferred: row.rowId === rowIdValue }))) }
-  function removeSupplierRow(rowIdValue: string) { setSupplierRows((current) => { const row = current.find((item) => item.rowId === rowIdValue); if (row?.linkId) setRemovedLinkIds((ids) => [...ids, row.linkId!]); const next = current.filter((item) => item.rowId !== rowIdValue); if (row?.isPreferred && next.length) next[0] = { ...next[0], isPreferred: true }; return next }) }
+  function updateForm(key: keyof FormState, value: string) {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
 
-  async function uploadProductImages(files: FileList | null) { if (!files?.length) return; setUploadingKey("product-images"); try { const urls: string[] = []; for (const file of Array.from(files)) urls.push((await uploadAsset(file, "images")).url); setProductImages((current) => [...current, ...urls.filter(Boolean)]); toast.success("Images uploaded") } catch (err) { toast.error("Upload failed", { description: err instanceof Error ? err.message : "Could not upload image" }) } finally { setUploadingKey(null) } }
-  async function uploadLayoutFiles(field: LayoutField, files: FileList | null) { if (!files?.length) return; const type = fieldType(field) === "images" ? "images" : "attachment"; setUploadingKey(field.key); try { const uploaded: unknown[] = []; for (const file of Array.from(files)) { const asset = await uploadAsset(file, type); if (!asset.url) continue; uploaded.push(type === "images" ? asset.url : { name: cleanFileName(asset.name, file.name), url: asset.url }) } const current = Array.isArray(customValues[field.key]) ? customValues[field.key] as unknown[] : []; updateCustom(field.key, [...current, ...uploaded]); toast.success(type === "images" ? "Images uploaded" : "Files uploaded") } catch (err) { toast.error("Upload failed", { description: err instanceof Error ? err.message : "Could not upload file" }) } finally { setUploadingKey(null) } }
-  async function saveProductSuppliers(savedProductId: string) { for (const linkId of removedLinkIds) await apiFetch(`/api/products/${savedProductId}/suppliers/${linkId}`, { method: "DELETE" }); const rows = supplierRows.filter((row) => row.supplierId); const preferredId = rows.find((row) => row.isPreferred)?.rowId ?? rows[0]?.rowId; for (const row of rows) { const payload = { supplierId: row.supplierId, supplierSku: row.supplierSku.trim() || undefined, cost: row.cost === "" ? undefined : numberValue(row.cost), currency: row.currency, minimumOrderQty: row.minimumOrderQty === "" ? undefined : numberValue(row.minimumOrderQty), leadTimeDays: row.leadTimeDays === "" ? undefined : numberValue(row.leadTimeDays), isPreferred: row.rowId === preferredId, notes: row.notes.trim() || undefined }; if (row.linkId) await apiFetch(`/api/products/${savedProductId}/suppliers/${row.linkId}`, { method: "PATCH", body: JSON.stringify(payload) }); else await apiFetch(`/api/products/${savedProductId}/suppliers`, { method: "POST", body: JSON.stringify(payload) }) } }
-  function removeLayoutAsset(field: LayoutField, index: number) { const current = Array.isArray(customValues[field.key]) ? customValues[field.key] as unknown[] : []; updateCustom(field.key, current.filter((_, itemIndex) => itemIndex !== index)) }
+  function updateCustom(key: string, value: unknown) {
+    setCustomValues((current) => ({ ...current, [key]: value }))
+  }
+
+  function addSupplierRow() {
+    setSupplierRows((current) => [...current, { ...emptySupplierRow(baseCurrency), isPreferred: current.length === 0 }])
+  }
+
+  function updateSupplierRow(rowIdValue: string, patch: Partial<SupplierRow>) {
+    setSupplierRows((current) => current.map((row) => row.rowId === rowIdValue ? { ...row, ...patch } : row))
+  }
+
+  function selectSupplier(rowIdValue: string, supplierId: string) {
+    const supplier = suppliers.find((item) => item.id === supplierId)
+    setSupplierRows((current) => current.map((row) => row.rowId === rowIdValue ? {
+      ...row,
+      supplierId,
+      currency: normalizeCurrency(supplier?.currency || baseCurrency),
+      minimumOrderQty: row.minimumOrderQty || (supplier?.minimumOrderQty == null ? "" : String(supplier.minimumOrderQty)),
+      leadTimeDays: row.leadTimeDays || (supplier?.leadTimeDays == null ? "" : String(supplier.leadTimeDays)),
+    } : row))
+  }
+
+  function makePreferred(rowIdValue: string) {
+    setSupplierRows((current) => current.map((row) => ({ ...row, isPreferred: row.rowId === rowIdValue })))
+  }
+
+  function removeSupplierRow(rowIdValue: string) {
+    setSupplierRows((current) => {
+      const row = current.find((item) => item.rowId === rowIdValue)
+      if (row?.linkId) setRemovedLinkIds((ids) => [...ids, row.linkId!])
+      const next = current.filter((item) => item.rowId !== rowIdValue)
+      if (row?.isPreferred && next.length) next[0] = { ...next[0], isPreferred: true }
+      return next
+    })
+  }
+
+  async function uploadProductImages(files: FileList | null) {
+    if (!files?.length) return
+    setUploadingKey("product-images")
+    try {
+      const urls: string[] = []
+      for (const file of Array.from(files)) urls.push((await uploadAsset(file, "images")).url)
+      setProductImages((current) => [...current, ...urls.filter(Boolean)])
+      toast.success("Images uploaded")
+    } catch (err) {
+      toast.error("Upload failed", { description: err instanceof Error ? err.message : "Could not upload image" })
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
+  async function uploadLayoutFiles(field: LayoutField, files: FileList | null) {
+    if (!files?.length) return
+    const type = fieldType(field) === "images" ? "images" : "attachment"
+    setUploadingKey(field.key)
+    try {
+      const uploaded: unknown[] = []
+      for (const file of Array.from(files)) {
+        const asset = await uploadAsset(file, type)
+        if (!asset.url) continue
+        uploaded.push(type === "images" ? asset.url : { name: cleanFileName(asset.name, file.name), url: asset.url })
+      }
+      const current = Array.isArray(customValues[field.key]) ? customValues[field.key] as unknown[] : []
+      updateCustom(field.key, [...current, ...uploaded])
+      toast.success(type === "images" ? "Images uploaded" : "Files uploaded")
+    } catch (err) {
+      toast.error("Upload failed", { description: err instanceof Error ? err.message : "Could not upload file" })
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
+  async function saveProductSuppliers(savedProductId: string) {
+    for (const linkId of removedLinkIds) await apiFetch(`/api/products/${savedProductId}/suppliers/${linkId}`, { method: "DELETE" })
+    const rows = supplierRows.filter((row) => row.supplierId)
+    const preferredId = rows.find((row) => row.isPreferred)?.rowId ?? rows[0]?.rowId
+
+    for (const row of rows) {
+      const payload = {
+        supplierId: row.supplierId,
+        supplierSku: row.supplierSku.trim() || undefined,
+        cost: row.cost === "" ? undefined : numberValue(row.cost),
+        currency: row.currency,
+        minimumOrderQty: row.minimumOrderQty === "" ? undefined : numberValue(row.minimumOrderQty),
+        leadTimeDays: row.leadTimeDays === "" ? undefined : numberValue(row.leadTimeDays),
+        isPreferred: row.rowId === preferredId,
+        notes: row.notes.trim() || undefined,
+      }
+      if (row.linkId) await apiFetch(`/api/products/${savedProductId}/suppliers/${row.linkId}`, { method: "PATCH", body: JSON.stringify(payload) })
+      else await apiFetch(`/api/products/${savedProductId}/suppliers`, { method: "POST", body: JSON.stringify(payload) })
+    }
+  }
+
+  function removeLayoutAsset(field: LayoutField, index: number) {
+    const current = Array.isArray(customValues[field.key]) ? customValues[field.key] as unknown[] : []
+    updateCustom(field.key, current.filter((_, itemIndex) => itemIndex !== index))
+  }
 
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(null)
+    event.preventDefault()
+    setError(null)
     if (!layout) return setError("Choose a layout before saving.")
     if (!form.name.trim()) return setError("Product name is required.")
+
     const supplierIds = supplierRows.map((row) => row.supplierId).filter(Boolean)
     if (new Set(supplierIds).size !== supplierIds.length) return setError("Each supplier can only be linked once.")
+
     const customFields: Record<string, unknown> = {}
     for (const field of fields) {
       const rawValue = customValues[field.key]
-      if (!field.required && isBlankLayoutValue(field, rawValue)) continue
-      const value = normalizeFieldValue(field, rawValue, baseCurrency)
+      if (!field.required && isBlankOptionalValue(field, rawValue)) continue
+      const value = normalizeCustomFieldValue(field, rawValue, baseCurrency)
       const empty = value === undefined || value === null || (Array.isArray(value) && value.length === 0)
       if (field.required && empty) return setError(`${field.label || field.key} is required.`)
       if (!empty) customFields[field.key] = value
     }
-    const payload = { name: form.name.trim(), sku: form.sku.trim() || undefined, category: form.category.trim() || undefined, description: form.description.trim() || undefined, status: form.status, price: numberValue(form.price), priceCurrency: baseCurrency, cost: preferredCost, costCurrency, exchangeRateToBase, convertedCost, lowStockLevel: Math.trunc(numberValue(form.lowStockLevel)), images: productImages, productTypeId: layout.id, kind: layout.kind || "physical", trackInventory: layout.trackInventory !== false, customFields, metadata: { productTypeId: layout.id, productTypeName: layout.name, kind: layout.kind || "physical", trackInventory: layout.trackInventory !== false, customFields }, ...(editing ? {} : { quantity: Math.trunc(numberValue(form.quantity)) }) }
+
+    const payload = {
+      name: form.name.trim(),
+      sku: form.sku.trim() || undefined,
+      category: form.category.trim() || undefined,
+      description: form.description.trim() || undefined,
+      ...(editing ? { status: form.status } : {}),
+      price: numberValue(form.price),
+      priceCurrency: baseCurrency,
+      cost: preferredCost,
+      costCurrency,
+      exchangeRateToBase,
+      convertedCost,
+      lowStockLevel: Math.trunc(numberValue(form.lowStockLevel)),
+      images: productImages,
+      productTypeId: layout.id,
+      kind: layout.kind || "physical",
+      trackInventory: layout.trackInventory !== false,
+      customFields,
+      metadata: {
+        productTypeId: layout.id,
+        productTypeName: layout.name,
+        kind: layout.kind || "physical",
+        trackInventory: layout.trackInventory !== false,
+        customFields,
+      },
+      ...(editing ? {} : { quantity: Math.trunc(numberValue(form.quantity)) }),
+    }
+
     setSaving(true)
-    try { const saved = editing && productId ? await apiFetch<Product>(`/api/products/${productId}`, { method: "PATCH", body: JSON.stringify(payload) }) : await apiFetch<Product>("/api/products", { method: "POST", body: JSON.stringify(payload) }); await saveProductSuppliers(saved.id); toast.success(editing ? "Product updated" : "Product created", { description: saved.name || form.name }); router.push(`/products/${saved.id}`); router.refresh() }
-    catch (err) { const message = err instanceof Error ? err.message : "Could not save product"; setError(message); toast.error("Product could not save", { description: message }) }
-    finally { setSaving(false) }
+    try {
+      const saved = editing && productId
+        ? await apiFetch<Product>(`/api/products/${productId}`, { method: "PATCH", body: JSON.stringify(payload) })
+        : await apiFetch<Product>("/api/products", { method: "POST", body: JSON.stringify(payload) })
+      await saveProductSuppliers(saved.id)
+      toast.success(editing ? "Product updated" : "Product created", { description: saved.name || form.name })
+      router.push(`/products/${saved.id}`)
+      router.refresh()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not save product"
+      setError(message)
+      toast.error("Product could not save", { description: message })
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <FormLoading />
 
   return (
     <form onSubmit={saveProduct} className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="text-sm text-muted-foreground">Products</p><h1 className="font-heading text-2xl font-semibold tracking-tight">{editing ? "Edit product" : "Create product"}</h1><p className="mt-1 max-w-2xl text-sm text-muted-foreground">Create a product from its layout, supplier cost source, stock rules, images, and custom fields.</p></div><Button asChild variant="outline" size="sm" className="w-full sm:w-auto"><Link href={editing && productId ? `/products/${productId}` : "/products"}><ArrowLeftIcon className="size-4" />Back</Link></Button></div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm text-muted-foreground">Products</p>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">{editing ? "Edit product" : "Create product"}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Only product name is required. Layout fields are required only when marked required in Layout Settings.</p>
+        </div>
+        <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
+          <Link href={editing && productId ? `/products/${productId}` : "/products"}><ArrowLeftIcon className="size-4" />Back</Link>
+        </Button>
+      </div>
+
       {error ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><div className="flex gap-2"><AlertCircleIcon className="mt-0.5 size-4 shrink-0" />{error}</div></div> : null}
+
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <main className="grid min-w-0 gap-4">
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><PackagePlusIcon className="size-4" />Basic product details</CardTitle><CardDescription>Core product fields used across inventory, imports, and API responses. Only product name is required.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><Field label="Product name" required><Input value={form.name} onChange={(event) => updateForm("name", event.target.value)} /></Field><Field label="SKU"><Input value={form.sku} onChange={(event) => updateForm("sku", event.target.value)} placeholder="Leave blank to auto-generate" /></Field><Field label="Category"><Input value={form.category} onChange={(event) => updateForm("category", event.target.value)} /></Field><Field label="Status"><Select value={form.status} onValueChange={(value) => updateForm("status", value)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="draft">Draft</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent></Select></Field><div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => updateForm("description", event.target.value)} className="min-h-28" /></Field></div></CardContent></Card>
-          <Card><CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="flex items-center gap-2"><TruckIcon className="size-4" />Supplier cost source</CardTitle><CardDescription>Optional. Link suppliers and mark one preferred supplier for cost and margin calculations.</CardDescription></div><Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={addSupplierRow}><PlusIcon className="size-4" />Add supplier</Button></CardHeader><CardContent className="grid gap-4"><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><ReadOnly label="Preferred supplier" value={preferredSupplier?.supplierCode || preferredSupplier?.name || "Not set"} /><ReadOnly label="Supplier cost" value={preferredCost === undefined ? "Not set" : money(preferredCost, costCurrency || baseCurrency)} /><ReadOnly label="Converted cost" value={convertedCost === undefined ? "Set supplier cost first" : money(convertedCost, baseCurrency)} /><ReadOnly label="Margin" value={margin} /></div>{supplierRows.length ? <div className="grid gap-3">{supplierRows.map((row) => <SupplierRowEditor key={row.rowId} row={row} suppliers={suppliers} baseCurrency={baseCurrency} exchangeRates={exchangeRates} price={price} onSelectSupplier={selectSupplier} onUpdate={updateSupplierRow} onPreferred={makePreferred} onRemove={removeSupplierRow} />)}</div> : <EmptyState title="No suppliers linked" description="Add a supplier to capture cost price before setting the final selling price." />}</CardContent></Card>
-          <Card><CardHeader><CardTitle>Selling price and stock</CardTitle><CardDescription>Optional values. Blank price, quantity, or low-stock alert will be saved as 0 by the backend-compatible payload.</CardDescription></CardHeader><CardContent className="grid gap-4 md:grid-cols-2"><ReadOnly label="Preferred converted cost" value={convertedCost === undefined ? "Set supplier cost first" : money(convertedCost, baseCurrency)} /><MoneyInputField label="Selling price" currency={baseCurrency} value={form.price} onChange={(event) => updateForm("price", event.target.value)} min="0" step="0.01" />{editing ? <ReadOnly label="Current stock" value="Use Adjust stock on product detail" /> : <Field label="Initial quantity"><Input type="number" min="0" value={form.quantity} onChange={(event) => updateForm("quantity", event.target.value)} /></Field>}<Field label="Low-stock alert"><Input type="number" min="0" value={form.lowStockLevel} onChange={(event) => updateForm("lowStockLevel", event.target.value)} /></Field></CardContent></Card>
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" />Product images</CardTitle><CardDescription>Optional main product gallery images shown on the product detail page.</CardDescription></CardHeader><CardContent className="grid gap-4"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center transition hover:bg-muted/40"><UploadCloudIcon className="mb-2 size-6" /><span className="text-sm font-medium">{uploadingKey === "product-images" ? "Uploading..." : "Upload product images"}</span><Input type="file" accept="image/*" multiple className="hidden" disabled={Boolean(uploadingKey)} onChange={(event) => void uploadProductImages(event.target.files)} /></label>{productImages.length ? <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{productImages.map((image, index) => <div key={`${image}-${index}`} className="group relative overflow-hidden rounded-xl border bg-muted"><img src={image} alt={`Product image ${index + 1}`} className="aspect-square h-auto w-full object-cover" /><Button type="button" size="icon" variant="secondary" className="absolute right-1.5 top-1.5 size-7 opacity-90 transition group-hover:opacity-100" onClick={() => setProductImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2Icon className="size-3.5" /></Button></div>)}</div> : null}</CardContent></Card>
-          <Card><CardHeader><CardTitle>{layout?.name || "Layout"} fields</CardTitle><CardDescription>Only fields marked required in Layout Settings must be filled. Optional fields can stay blank.</CardDescription></CardHeader><CardContent>{fields.length ? <div className="grid gap-4 md:grid-cols-2">{fields.map((field) => <LayoutFieldInput key={field.key} field={field} value={customValues[field.key]} currency={baseCurrency} uploading={uploadingKey === field.key} onChange={(value) => updateCustom(field.key, value)} onUpload={(files) => void uploadLayoutFiles(field, files)} onRemove={(index) => removeLayoutAsset(field, index)} />)}</div> : <EmptyState title="No layout fields" description="Add fields in Settings > Layout." />}</CardContent></Card>
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><PackagePlusIcon className="size-4" />Basic product details</CardTitle><CardDescription>Core product fields. Product name is the only required core field.</CardDescription></CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <Field label="Product name" required><Input value={form.name} onChange={(event) => updateForm("name", event.target.value)} /></Field>
+              <Field label="SKU"><Input value={form.sku} onChange={(event) => updateForm("sku", event.target.value)} placeholder="Leave blank to auto-generate" /></Field>
+              <Field label="Category"><Input value={form.category} onChange={(event) => updateForm("category", event.target.value)} /></Field>
+              <Field label="Status"><Select value={form.status} onValueChange={(value) => updateForm("status", value)} disabled={!editing}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="draft">Draft</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent></Select></Field>
+              <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => updateForm("description", event.target.value)} className="min-h-28" /></Field></div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="flex items-center gap-2"><TruckIcon className="size-4" />Supplier cost source</CardTitle><CardDescription>Optional. Link suppliers for cost and margin calculations.</CardDescription></div><Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={addSupplierRow}><PlusIcon className="size-4" />Add supplier</Button></CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><ReadOnly label="Preferred supplier" value={preferredSupplier?.supplierCode || preferredSupplier?.name || "Not set"} /><ReadOnly label="Supplier cost" value={preferredCost === undefined ? "Not set" : money(preferredCost, costCurrency || baseCurrency)} /><ReadOnly label="Converted cost" value={convertedCost === undefined ? "Set supplier cost first" : money(convertedCost, baseCurrency)} /><ReadOnly label="Margin" value={margin} /></div>
+              {supplierRows.length ? <div className="grid gap-3">{supplierRows.map((row) => <SupplierRowEditor key={row.rowId} row={row} suppliers={suppliers} baseCurrency={baseCurrency} exchangeRates={exchangeRates} price={price} onSelectSupplier={selectSupplier} onUpdate={updateSupplierRow} onPreferred={makePreferred} onRemove={removeSupplierRow} />)}</div> : <EmptyState title="No suppliers linked" description="Suppliers are optional. Add one when you want cost and margin tracking." />}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Selling price and stock</CardTitle><CardDescription>Optional numeric fields. Blank values save as 0.</CardDescription></CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <ReadOnly label="Preferred converted cost" value={convertedCost === undefined ? "Set supplier cost first" : money(convertedCost, baseCurrency)} />
+              <MoneyInputField label="Selling price" currency={baseCurrency} value={form.price} onChange={(event) => updateForm("price", event.target.value)} min="0" step="0.01" />
+              {editing ? <ReadOnly label="Current stock" value="Use Adjust stock on product detail" /> : <Field label="Initial quantity"><Input type="number" min="0" value={form.quantity} onChange={(event) => updateForm("quantity", event.target.value)} /></Field>}
+              <Field label="Low-stock alert"><Input type="number" min="0" value={form.lowStockLevel} onChange={(event) => updateForm("lowStockLevel", event.target.value)} /></Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="size-4" />Product images</CardTitle><CardDescription>Optional gallery images.</CardDescription></CardHeader>
+            <CardContent className="grid gap-4"><label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center transition hover:bg-muted/40"><UploadCloudIcon className="mb-2 size-6" /><span className="text-sm font-medium">{uploadingKey === "product-images" ? "Uploading..." : "Upload product images"}</span><Input type="file" accept="image/*" multiple className="hidden" disabled={Boolean(uploadingKey)} onChange={(event) => void uploadProductImages(event.target.files)} /></label>{productImages.length ? <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{productImages.map((image, index) => <div key={`${image}-${index}`} className="group relative overflow-hidden rounded-xl border bg-muted"><img src={image} alt={`Product image ${index + 1}`} className="aspect-square h-auto w-full object-cover" /><Button type="button" size="icon" variant="secondary" className="absolute right-1.5 top-1.5 size-7 opacity-90 transition group-hover:opacity-100" onClick={() => setProductImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2Icon className="size-3.5" /></Button></div>)}</div> : null}</CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>{layout?.name || "Layout"} fields</CardTitle><CardDescription>Optional layout fields can stay blank. Required fields show an asterisk.</CardDescription></CardHeader>
+            <CardContent>{fields.length ? <div className="grid gap-4 md:grid-cols-2">{fields.map((field) => <LayoutFieldInput key={field.key} field={field} value={customValues[field.key]} currency={baseCurrency} uploading={uploadingKey === field.key} onChange={(value) => updateCustom(field.key, value)} onUpload={(files) => void uploadLayoutFiles(field, files)} onRemove={(index) => removeLayoutAsset(field, index)} />)}</div> : <EmptyState title="No layout fields" description="Add fields in Settings > Layout." />}</CardContent>
+          </Card>
+
           <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6"><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => router.push(editing && productId ? `/products/${productId}` : "/products")} disabled={saving}>Cancel</Button><Button type="submit" disabled={saving || Boolean(uploadingKey)}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : editing ? <SaveIcon className="size-4" /> : <PackagePlusIcon className="size-4" />}{saving ? "Saving..." : editing ? "Update product" : "Create product"}</Button></div></div>
         </main>
+
         <aside className="grid gap-4 self-start xl:sticky xl:top-[calc(var(--header-height)+1rem)]"><Card><CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2Icon className="size-4" />Summary</CardTitle><CardDescription>Quick validation before saving.</CardDescription></CardHeader><CardContent className="grid gap-3 text-sm"><Side label="Layout" value={layout?.name || "Not selected"} /><Side label="Preferred supplier" value={preferredSupplier?.supplierCode || preferredSupplier?.name || "Not set"} /><Side label="Converted cost" value={convertedCost === undefined ? "-" : money(convertedCost, baseCurrency)} /><Side label="Margin" value={margin} /><Side label="Images" value={String(productImages.length)} /><Side label="Custom fields" value={String(fields.length)} /></CardContent></Card></aside>
       </div>
     </form>
@@ -277,12 +654,22 @@ export function ProductLayoutForm({ productId, layout }: { productId?: string; l
 function SupplierRowEditor({ row, suppliers, baseCurrency, exchangeRates, price, onSelectSupplier, onUpdate, onPreferred, onRemove }: { row: SupplierRow; suppliers: Supplier[]; baseCurrency: string; exchangeRates: Array<{ code: string; rateToBase: number }>; price: number; onSelectSupplier: (rowId: string, supplierId: string) => void; onUpdate: (rowId: string, patch: Partial<SupplierRow>) => void; onPreferred: (rowId: string) => void; onRemove: (rowId: string) => void }) {
   const converted = row.cost === "" ? undefined : Number((numberValue(row.cost) * rateFor(row.currency, baseCurrency, exchangeRates)).toFixed(2))
   const margin = price > 0 && converted !== undefined ? `${Math.round(((price - converted) / price) * 100)}%` : "-"
+
   return <Card className="shadow-none"><CardHeader className="gap-3 p-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><CardTitle className="flex flex-wrap items-center gap-2 text-sm">{row.isPreferred ? <Badge className="gap-1"><StarIcon className="size-3" />Preferred</Badge> : <Badge variant="secondary">Alternative</Badge>}<span className="truncate text-sm font-medium">{row.supplierId ? "Linked supplier" : "Supplier row"}</span></CardTitle><CardDescription>{row.supplierId ? "Update supplier cost details for this product." : "Choose a supplier and enter cost details."}</CardDescription></div><div className="flex shrink-0 items-center gap-2"><Button type="button" size="sm" variant={row.isPreferred ? "default" : "outline"} className="h-8 rounded-full px-2.5 text-xs" onClick={() => onPreferred(row.rowId)}><StarIcon className="size-3.5" />Preferred</Button><Button type="button" size="icon" variant="ghost" className="size-8 text-muted-foreground hover:text-destructive" onClick={() => onRemove(row.rowId)}><Trash2Icon className="size-4" /></Button></div></CardHeader><CardContent className="grid gap-4 p-4 pt-0 md:grid-cols-2 xl:grid-cols-3"><Field label="Supplier"><Select value={row.supplierId || "none"} onValueChange={(value) => onSelectSupplier(row.rowId, value === "none" ? "" : value)}><SelectTrigger><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent><SelectItem value="none">Choose supplier</SelectItem>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode ? `${supplier.supplierCode} · ` : ""}{supplier.name}</SelectItem>)}</SelectContent></Select></Field><Field label="Supplier SKU"><Input value={row.supplierSku} onChange={(event) => onUpdate(row.rowId, { supplierSku: event.target.value })} /></Field><MoneyInputField label="Cost" currency={row.currency || baseCurrency} value={row.cost} onChange={(event) => onUpdate(row.rowId, { cost: event.target.value })} min="0" step="0.01" /><ReadOnly label="Currency" value={row.supplierId ? row.currency : "-"} /><Field label="MOQ"><Input type="number" min="0" value={row.minimumOrderQty} onChange={(event) => onUpdate(row.rowId, { minimumOrderQty: event.target.value })} /></Field><ReadOnly label="Converted" value={converted === undefined ? "-" : `${money(converted, baseCurrency)} · ${margin}`} /></CardContent></Card>
 }
 
 function LayoutFieldInput({ field, value, currency, uploading, onChange, onUpload, onRemove }: { field: LayoutField; value: unknown; currency: string; uploading: boolean; onChange: (value: unknown) => void; onUpload: (files: FileList | null) => void; onRemove: (index: number) => void }) {
-  const type = fieldType(field); const source = lookupSource(field); const [lookupOptions, setLookupOptions] = React.useState<LookupOption[]>([])
-  React.useEffect(() => { let active = true; if (type !== "lookup") return; fetchLookupOptions(source).then((items) => { if (active) setLookupOptions(items) }).catch(() => setLookupOptions([])); return () => { active = false } }, [source, type])
+  const type = fieldType(field)
+  const source = lookupSource(field)
+  const [lookupOptions, setLookupOptions] = React.useState<LookupOption[]>([])
+
+  React.useEffect(() => {
+    let active = true
+    if (type !== "lookup") return
+    fetchLookupOptions(source).then((items) => { if (active) setLookupOptions(items) }).catch(() => setLookupOptions([]))
+    return () => { active = false }
+  }, [source, type])
+
   if (type === "richtext") return <Field label={field.label} required={Boolean(field.required)} className="md:col-span-2"><Textarea value={String(value || "")} onChange={(event) => onChange(event.target.value)} className="min-h-28" /></Field>
   if (type === "number") return <Field label={field.label} required={Boolean(field.required)}><Input type="number" step="1" value={String(value || "")} onChange={(event) => onChange(event.target.value)} /></Field>
   if (type === "decimal") return <Field label={field.label} required={Boolean(field.required)}><Input type="number" step="0.01" value={String(value || "")} onChange={(event) => onChange(event.target.value)} /></Field>
@@ -300,7 +687,18 @@ function AssetField({ field, value, uploading, type, onUpload, onRemove }: { fie
   return <div className="grid gap-2 md:col-span-2"><Label>{field.label}{field.required ? <span className="text-destructive"> *</span> : null}</Label><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 p-4 text-sm hover:bg-muted/40"><UploadCloudIcon className="size-4" />{uploading ? "Uploading..." : type === "images" ? "Upload images" : "Upload files"}<Input type="file" multiple accept={type === "images" ? "image/*" : undefined} className="hidden" disabled={uploading} onChange={(event) => onUpload(event.target.files)} /></label>{items.length ? <div className="grid gap-2 sm:grid-cols-2">{items.map((item, index) => { const label = typeof item === "string" ? item : isRecord(item) ? String(item.name || item.url || "File") : "File"; const url = typeof item === "string" ? item : isRecord(item) ? String(item.url || "") : ""; return <div key={`${label}-${index}`} className="flex items-center justify-between gap-2 rounded-lg border p-2 text-sm"><span className="min-w-0 truncate">{label}</span>{url ? <a className="text-primary hover:underline" href={url} target="_blank" rel="noreferrer">Open</a> : null}<Button type="button" variant="ghost" size="icon" className="size-7" onClick={() => onRemove(index)}><Trash2Icon className="size-3.5" /></Button></div> })}</div> : null}</div>
 }
 
-function Field({ label, required, children, className }: { label: string; required?: boolean; children: React.ReactNode; className?: string }) { return <div className={className ? `grid gap-2 ${className}` : "grid gap-2"}><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</div> }
-function ReadOnly({ label, value }: { label: string; value: string }) { return <div className="grid gap-2"><Label>{label}</Label><Input value={value} readOnly className="bg-muted/40" /></div> }
-function Side({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className="truncate font-medium">{value}</span></div> }
-function EmptyState({ title, description }: { title: string; description: string }) { return <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{description}</p></div> }
+function Field({ label, required, children, className }: { label: string; required?: boolean; children: React.ReactNode; className?: string }) {
+  return <div className={className ? `grid gap-2 ${className}` : "grid gap-2"}><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</div>
+}
+
+function ReadOnly({ label, value }: { label: string; value: string }) {
+  return <div className="grid gap-2"><Label>{label}</Label><Input value={value} readOnly className="bg-muted/40" /></div>
+}
+
+function Side({ label, value }: { label: string; value: string }) {
+  return <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className="truncate font-medium">{value}</span></div>
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+  return <div className="rounded-xl border border-dashed bg-muted/20 p-6 text-center"><p className="font-medium">{title}</p><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>
+}
