@@ -127,7 +127,7 @@ export function ProductFormAlignmentFix() {
         opacity: 1 !important;
       }
 
-      /* Active supplier row editor: responsive row with compact actions pinned to the far right. */
+      /* Active supplier row editor: responsive fields, with only preferred-star pinned as compact badge. */
       .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"],
       form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] {
         position: relative !important;
@@ -136,7 +136,7 @@ export function ProductFormAlignmentFix() {
         align-items: start !important;
         overflow: visible !important;
         max-width: 100% !important;
-        padding-right: 4.25rem !important;
+        padding-right: 3.5rem !important;
       }
 
       .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > div,
@@ -146,35 +146,44 @@ export function ProductFormAlignmentFix() {
 
       .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2,
       form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 {
-        position: absolute !important;
-        top: 0.75rem !important;
-        right: 0.75rem !important;
+        position: static !important;
+        align-self: end !important;
         display: flex !important;
         align-items: center !important;
         justify-content: flex-end !important;
-        gap: 0.25rem !important;
+        gap: 0.5rem !important;
         width: auto !important;
+        min-width: 0 !important;
       }
 
-      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button,
-      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button {
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button:first-child,
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button:first-child {
+        position: absolute !important;
+        top: 0.75rem !important;
+        right: 0.75rem !important;
         width: 1.75rem !important;
         height: 1.75rem !important;
         min-width: 1.75rem !important;
         border-radius: 9999px !important;
         padding: 0 !important;
+        z-index: 1 !important;
       }
 
-      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button svg,
-      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button svg {
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button:first-child svg,
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button:first-child svg {
         width: 0.875rem !important;
         height: 0.875rem !important;
+      }
+
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button:not(:first-child),
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button:not(:first-child) {
+        position: static !important;
       }
 
       @media (max-width: 640px) {
         .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"],
         form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] {
-          padding-right: 3.75rem !important;
+          padding-right: 3.25rem !important;
         }
       }
 
