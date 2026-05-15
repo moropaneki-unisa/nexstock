@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, CheckCircle2Icon, Loader2Icon, SaveIcon, TriangleAlertIcon } from "lucide-react"
+import { AlertCircleIcon, ArrowLeftIcon, CheckCircle2Icon, Loader2Icon, SaveIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -137,6 +137,10 @@ function toDateInput(value?: string | null) {
   return date.toISOString().slice(0, 10)
 }
 
+function formPath(supplierId?: string) {
+  return supplierId ? `/suppliers/${supplierId}` : "/suppliers"
+}
+
 export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
   const router = useRouter()
   const [form, setForm] = React.useState<SupplierForm>(emptyForm)
@@ -152,6 +156,8 @@ export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
   }, [organization])
 
   React.useEffect(() => {
+    let active = true
+
     async function load() {
       setLoading(true)
       setError(null)
@@ -160,6 +166,7 @@ export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
           apiFetch<OrganizationSummary>("/api/organization").catch(() => null),
           supplierId ? apiFetch<Supplier>(`/api/suppliers/${supplierId}`) : Promise.resolve(null),
         ])
+        if (!active) return
         setOrganization(org)
         if (supplierResult) {
           setSupplier(supplierResult)
@@ -195,19 +202,29 @@ export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
           setForm((current) => ({ ...current, currency: normalizeCurrency(org?.baseCurrency || DEFAULT_CURRENCY) }))
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Supplier could not load")
+        if (active) setError(err instanceof Error ? err.message : "Supplier could not load")
       } finally {
-        setLoading(false)
+        if (active) setLoading(false)
       }
     }
+
     void load()
+    return () => { active = false }
   }, [supplierId])
 
-  async function saveSupplier() {
+  function updateForm(key: keyof SupplierForm, value: string) {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  async function saveSupplier(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault()
     if (!form.name.trim()) {
-      toast.error("Supplier name is required")
+      const message = "Supplier name is required"
+      setError(message)
+      toast.error(message)
       return
     }
+
     setSaving(true)
     setError(null)
     const payload = {
@@ -238,12 +255,14 @@ export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
       lastOrderAt: form.lastOrderAt ? new Date(form.lastOrderAt).toISOString() : undefined,
       notes: clean(form.notes),
     }
+
     try {
       const result = supplierId
         ? await apiFetch<Supplier>(`/api/suppliers/${supplierId}`, { method: "PATCH", body: JSON.stringify(payload) })
         : await apiFetch<Supplier>("/api/suppliers", { method: "POST", body: JSON.stringify(payload) })
       toast.success(supplierId ? "Supplier updated" : "Supplier created", { description: result.name })
       router.push(`/suppliers/${result.id}`)
+      router.refresh()
     } catch (err) {
       const message = err instanceof Error ? err.message : "Supplier could not be saved"
       setError(message)
@@ -253,69 +272,92 @@ export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
     }
   }
 
-  if (loading) return <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6"><Skeleton className="h-12 w-72" /><Skeleton className="h-[640px] rounded-xl" /></div>
+  if (loading) {
+    return (
+      <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <Skeleton className="h-12 w-72" />
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+          <div className="grid gap-4">
+            <Skeleton className="h-48 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
+    <form onSubmit={saveSupplier} className="@container/main flex flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <Button asChild variant="ghost" size="sm" className="-ml-2 mb-2"><Link href="/suppliers"><ArrowLeftIcon className="size-4" />Suppliers</Link></Button>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">{supplierId ? "Edit supplier" : "New supplier"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{supplier ? `${supplier.supplierCode} · ${supplier.name}` : "Create a controlled supplier record for purchasing and product sourcing."}</p>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {supplier ? `${supplier.supplierCode} · ${supplier.name}` : "Create a controlled supplier record for purchasing and product sourcing. Only supplier name is required."}
+          </p>
         </div>
-        <Button onClick={saveSupplier} disabled={saving} size="sm">
-          {saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}
-          {supplierId ? "Save changes" : "Create supplier"}
-        </Button>
       </div>
 
-      {error ? <Card className="border-destructive/30 bg-destructive/5"><CardHeader><CardTitle className="flex items-center gap-2 text-destructive"><TriangleAlertIcon className="size-4" />Supplier form error</CardTitle><CardDescription>{error}</CardDescription></CardHeader></Card> : null}
+      {error ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div className="flex gap-2"><AlertCircleIcon className="mt-0.5 size-4 shrink-0" />{error}</div>
+        </div>
+      ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
-        <div className="grid gap-4">
-          <FormSection title="Classification" description="Core identity and reporting fields.">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid min-w-0 gap-4">
+          <FormSection title="Classification" description="Core identity and reporting fields. Supplier name is required; the rest can use defaults or stay blank.">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <Field label="Supplier name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="ABC Equipment Supplies" /></Field>
-              <SelectField label="Supplier type" value={form.supplierType} onChange={(value) => setForm((current) => ({ ...current, supplierType: value }))} options={supplierTypes.map((value) => ({ value, label: titleCase(value) }))} />
-              <SelectField label="Category" value={form.category} onChange={(value) => setForm((current) => ({ ...current, category: value }))} options={categories.map((value) => ({ value, label: value }))} />
-              <SelectField label="Rating" value={form.rating} onChange={(value) => setForm((current) => ({ ...current, rating: value }))} options={ratings.map((value) => ({ value, label: titleCase(value) }))} />
+              <Field label="Supplier name" required><Input value={form.name} onChange={(event) => updateForm("name", event.target.value)} placeholder="ABC Equipment Supplies" /></Field>
+              <SelectField label="Supplier type" value={form.supplierType} onChange={(value) => updateForm("supplierType", value)} options={supplierTypes.map((value) => ({ value, label: titleCase(value) }))} />
+              <SelectField label="Category" value={form.category} onChange={(value) => updateForm("category", value)} options={categories.map((value) => ({ value, label: value }))} />
+              <SelectField label="Rating" value={form.rating} onChange={(value) => updateForm("rating", value)} options={ratings.map((value) => ({ value, label: titleCase(value) }))} />
             </div>
           </FormSection>
 
-          <FormSection title="Contact and address" description="Communication and location details.">
+          <FormSection title="Contact and address" description="Optional communication and location details.">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <Field label="Contact person"><Input value={form.contactName} onChange={(event) => setForm((current) => ({ ...current, contactName: event.target.value }))} /></Field>
-              <Field label="Email"><Input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /></Field>
-              <Field label="Phone"><Input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field>
-              <Field label="Website"><Input value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} /></Field>
-              <Field label="Country"><Input value={form.country} onChange={(event) => setForm((current) => ({ ...current, country: event.target.value }))} /></Field>
-              <Field label="Province"><Input value={form.province} onChange={(event) => setForm((current) => ({ ...current, province: event.target.value }))} /></Field>
-              <Field label="City"><Input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} /></Field>
-              <Field label="Postal code"><Input value={form.postalCode} onChange={(event) => setForm((current) => ({ ...current, postalCode: event.target.value }))} /></Field>
-              <Field label="Address line 1"><Input value={form.addressLine1} onChange={(event) => setForm((current) => ({ ...current, addressLine1: event.target.value }))} /></Field>
-              <Field label="Address line 2"><Input value={form.addressLine2} onChange={(event) => setForm((current) => ({ ...current, addressLine2: event.target.value }))} /></Field>
+              <Field label="Contact person"><Input value={form.contactName} onChange={(event) => updateForm("contactName", event.target.value)} /></Field>
+              <Field label="Email"><Input type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} /></Field>
+              <Field label="Phone"><Input value={form.phone} onChange={(event) => updateForm("phone", event.target.value)} /></Field>
+              <Field label="Website"><Input value={form.website} onChange={(event) => updateForm("website", event.target.value)} /></Field>
+              <Field label="Country"><Input value={form.country} onChange={(event) => updateForm("country", event.target.value)} /></Field>
+              <Field label="Province"><Input value={form.province} onChange={(event) => updateForm("province", event.target.value)} /></Field>
+              <Field label="City"><Input value={form.city} onChange={(event) => updateForm("city", event.target.value)} /></Field>
+              <Field label="Postal code"><Input value={form.postalCode} onChange={(event) => updateForm("postalCode", event.target.value)} /></Field>
+              <Field label="Address line 1"><Input value={form.addressLine1} onChange={(event) => updateForm("addressLine1", event.target.value)} /></Field>
+              <Field label="Address line 2"><Input value={form.addressLine2} onChange={(event) => updateForm("addressLine2", event.target.value)} /></Field>
             </div>
           </FormSection>
 
-          <FormSection title="Purchasing" description="Currency, payment, tax, shipping, and order controls.">
+          <FormSection title="Purchasing" description="Optional currency, payment, tax, shipping, and order controls.">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <SelectField label="Currency" value={form.currency} onChange={(value) => setForm((current) => ({ ...current, currency: value }))} options={enabledCurrencies.map((value) => ({ value, label: value }))} />
-              <SelectField label="Payment terms" value={form.paymentTerms} onChange={(value) => setForm((current) => ({ ...current, paymentTerms: value }))} options={paymentTerms.map((value) => ({ value, label: value }))} />
-              <SelectField label="Payment method" value={form.paymentMethod} onChange={(value) => setForm((current) => ({ ...current, paymentMethod: value }))} options={paymentMethods.map((value) => ({ value, label: value }))} />
-              <SelectField label="Tax status" value={form.taxStatus} onChange={(value) => setForm((current) => ({ ...current, taxStatus: value }))} options={taxStatuses.map((value) => ({ value, label: titleCase(value) }))} />
-              <Field label="Tax number"><Input value={form.taxNumber} onChange={(event) => setForm((current) => ({ ...current, taxNumber: event.target.value }))} /></Field>
-              <SelectField label="Shipping terms" value={form.shippingTerms} onChange={(value) => setForm((current) => ({ ...current, shippingTerms: value }))} options={shippingTerms.map((value) => ({ value, label: value }))} />
-              <SelectField label="Incoterm" value={form.incoterm} onChange={(value) => setForm((current) => ({ ...current, incoterm: value }))} options={incoterms.map((value) => ({ value, label: value === "none" ? "Not applicable" : value }))} />
-              <Field label="Account number"><Input value={form.accountNumber} onChange={(event) => setForm((current) => ({ ...current, accountNumber: event.target.value }))} /></Field>
-              <Field label="Lead time days"><Input type="number" min="0" value={form.leadTimeDays} onChange={(event) => setForm((current) => ({ ...current, leadTimeDays: event.target.value }))} /></Field>
-              <Field label="Minimum order qty"><Input type="number" min="0" value={form.minimumOrderQty} onChange={(event) => setForm((current) => ({ ...current, minimumOrderQty: event.target.value }))} /></Field>
-              <Field label="Last order date"><Input type="date" value={form.lastOrderAt} onChange={(event) => setForm((current) => ({ ...current, lastOrderAt: event.target.value }))} /></Field>
+              <SelectField label="Currency" value={form.currency} onChange={(value) => updateForm("currency", value)} options={enabledCurrencies.map((value) => ({ value, label: value }))} />
+              <SelectField label="Payment terms" value={form.paymentTerms} onChange={(value) => updateForm("paymentTerms", value)} options={paymentTerms.map((value) => ({ value, label: value }))} />
+              <SelectField label="Payment method" value={form.paymentMethod} onChange={(value) => updateForm("paymentMethod", value)} options={paymentMethods.map((value) => ({ value, label: value }))} />
+              <SelectField label="Tax status" value={form.taxStatus} onChange={(value) => updateForm("taxStatus", value)} options={taxStatuses.map((value) => ({ value, label: titleCase(value) }))} />
+              <Field label="Tax number"><Input value={form.taxNumber} onChange={(event) => updateForm("taxNumber", event.target.value)} /></Field>
+              <SelectField label="Shipping terms" value={form.shippingTerms} onChange={(value) => updateForm("shippingTerms", value)} options={shippingTerms.map((value) => ({ value, label: value }))} />
+              <SelectField label="Incoterm" value={form.incoterm} onChange={(value) => updateForm("incoterm", value)} options={incoterms.map((value) => ({ value, label: value === "none" ? "Not applicable" : value }))} />
+              <Field label="Account number"><Input value={form.accountNumber} onChange={(event) => updateForm("accountNumber", event.target.value)} /></Field>
+              <Field label="Lead time days"><Input type="number" min="0" value={form.leadTimeDays} onChange={(event) => updateForm("leadTimeDays", event.target.value)} /></Field>
+              <Field label="Minimum order qty"><Input type="number" min="0" value={form.minimumOrderQty} onChange={(event) => updateForm("minimumOrderQty", event.target.value)} /></Field>
+              <Field label="Last order date"><Input type="date" value={form.lastOrderAt} onChange={(event) => updateForm("lastOrderAt", event.target.value)} /></Field>
             </div>
           </FormSection>
 
-          <FormSection title="Notes" description="Contract rules, delivery instructions, supplier risks, or internal reminders.">
-            <Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-28" />
+          <FormSection title="Notes" description="Optional contract rules, delivery instructions, supplier risks, or internal reminders.">
+            <Textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} className="min-h-28" />
           </FormSection>
+
+          <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => router.push(formPath(supplierId))} disabled={saving}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{saving ? "Saving..." : supplierId ? "Save changes" : "Create supplier"}</Button>
+            </div>
+          </div>
         </div>
 
         <Card className="h-fit xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
@@ -332,7 +374,7 @@ export function SupplierFormContent({ supplierId }: { supplierId?: string }) {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </form>
   )
 }
 
@@ -340,8 +382,8 @@ function FormSection({ title, description, children }: { title: string; descript
   return <Card><CardHeader><CardTitle>{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent>{children}</CardContent></Card>
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="grid gap-2"><Label>{label}</Label>{children}</label>
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return <label className="grid gap-2"><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</label>
 }
 
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
