@@ -37,6 +37,10 @@ type ProductStatusPatch = UpdateProductDto & {
   status?: 'active' | 'draft' | 'archived';
 };
 
+type ImportBody = {
+  mapping?: string | Record<string, string>;
+};
+
 @Controller('products')
 @UseGuards(JwtAuthGuard)
 export class ProductsController {
@@ -85,6 +89,16 @@ export class ProductsController {
     return response.send(exportFile.buffer);
   }
 
+  @Get('import-logs')
+  listImportLogs(@CurrentUser() user: CurrentUserPayload) {
+    return this.importExport.listImportLogs(user.organizationId);
+  }
+
+  @Get('import-logs/:logId')
+  getImportLog(@CurrentUser() user: CurrentUserPayload, @Param('logId') logId: string) {
+    return this.importExport.getImportLog(user.organizationId, logId);
+  }
+
   @Post('import')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -95,8 +109,9 @@ export class ProductsController {
   importProducts(
     @CurrentUser() user: CurrentUserPayload,
     @UploadedFile() file: Express.Multer.File,
+    @Body() body: ImportBody,
   ) {
-    return this.importExport.importProducts(user.organizationId, file);
+    return this.importExport.importProducts(user.organizationId, file, this.parseImportMapping(body?.mapping));
   }
 
   @Post(':id/upload-image')
@@ -222,5 +237,17 @@ export class ProductsController {
   @Delete(':id')
   remove(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
     return this.products.softDelete(user.organizationId, id);
+  }
+
+  private parseImportMapping(mapping: ImportBody['mapping']) {
+    if (!mapping) return {};
+    if (typeof mapping === 'object' && !Array.isArray(mapping)) return mapping;
+    if (typeof mapping !== 'string') return {};
+    try {
+      const parsed = JSON.parse(mapping);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, string> : {};
+    } catch {
+      return {};
+    }
   }
 }
