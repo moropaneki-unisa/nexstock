@@ -196,9 +196,13 @@ These changes were applied directly to the `main-v2` branch.
    - Added organization relations for `productTypes` and `productTypeFields`.
    - Prisma can now generate typed clients for the layout tables created by the existing migration.
 
+9. **Product import/export frontend**
+   - Added product toolbar actions for CSV export, XLSX export, and CSV/XLSX import.
+   - Export uses the authenticated backend file endpoints and downloads the returned file.
+   - Import uploads a spreadsheet through `POST /api/products/import`, shows success/warning/error toasts, and refreshes the products list after completion.
+
 ## Current known follow-up items
 
-- Verify or complete product import/export frontend actions.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
 - Verify or complete webhook management UI.
