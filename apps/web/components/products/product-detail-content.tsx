@@ -183,11 +183,6 @@ export function ProductDetailContent({ productId }: { productId: string }) {
             <InlineSection icon={<PackageIcon className="size-5" />} title="Inventory" action={<Button variant="ghost" size="sm" onClick={() => setAdjustOpen(true)}><HistoryIcon className="size-4" />Update Quantity History</Button>}>
               <InfoGrid><InfoPair label="Quantity" value={stock.toLocaleString()} /><InfoPair label="Unit" value="Item" /><InfoPair label="Tracking" value={layoutTrackInventory ? "Tracked" : "Not tracked"} /><InfoPair label="Updated" value={formatDate(product.updatedAt)} /></InfoGrid>
             </InlineSection>
-
-            <section className="grid min-w-0 gap-3">
-              <h3 className="font-semibold">Relevant Inventory Plans</h3>
-              <div className="min-w-0 border">{layoutAttributeFields.length ? layoutAttributeFields.slice(0, 3).map((field, index) => <PlanRow key={field.id} title={field.label} subtitle={field.value} status={field.type || (index === 0 ? "Todo" : index === 1 ? "Processing" : "Completed")} progress={index === 0 ? 35 : index === 1 ? 65 : 100} />) : <PlanRow title="No layout fields" subtitle="No layout-specific values saved" status="Empty" progress={10} />}</div>
-            </section>
           </div>
         </section>
 
