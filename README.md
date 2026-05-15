@@ -286,6 +286,15 @@ These changes were applied directly to the `main-v2` branch.
    - Added responsive behavior: smaller mobile padding, full-width mobile actions, horizontal tabs, two-column mobile filters, a safe horizontal table scroll, stacked mobile pagination, and stable `svh` page height.
    - Task row actions use shadcn DropdownMenu and delete uses shadcn AlertDialog through `TaskDeleteDialog`.
 
+19. **Operational list page standardization**
+   - Upgraded the shared `RecordsTable` used by Products, Suppliers, and Purchase Orders with a fixed-height responsive table container, sticky table header, horizontal table scroll, result count, column visibility control, page-size selector, stable empty state, and pinned pagination.
+   - Reworked `/products` to remove large metric cards, use compact stats, place layout/kind filters inside the table control area, keep export/import/refresh/new-product actions, and confirm product archive actions with shadcn AlertDialog through `RecordActionDialog`.
+   - Reworked `/suppliers` to remove large metric cards, use compact stats, keep the upgraded table pattern, and confirm archive/reactivate actions with shadcn AlertDialog through `RecordActionDialog`.
+   - Reworked `/purchase-orders` to remove large metric cards, use compact stats, keep the upgraded table pattern, and confirm cancel actions with shadcn AlertDialog through `RecordActionDialog`.
+   - Reworked `/imports` to remove large cards and the separate right-side latest-import panel, use compact import stats, combine search/status filters with the import table, add a fixed-height scrollable table, sticky header, stable empty state, and client-side pagination.
+   - Added reusable `apps/web/components/records/record-action-dialog.tsx` for list-page destructive or important confirmations.
+   - Manual test checklist: open `/products`, `/suppliers`, `/purchase-orders`, and `/imports`; verify compact stats, table scroll, pagination, search/filter behavior, column controls where present, row actions, and confirmation dialogs on destructive/important actions.
+
 ## Current known follow-up items
 
 - Add import preview/validation before final upload.
