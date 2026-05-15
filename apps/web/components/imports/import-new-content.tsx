@@ -8,7 +8,9 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiFetch } from "@/lib/api"
+import { getCachedLayouts } from "@/lib/cached-api"
 
 type ImportResult = {
   logId?: string
@@ -20,6 +22,26 @@ type ImportResult = {
   errors?: Array<{ row?: number; message?: string } | string>
 }
 
+type Layout = {
+  id: string
+  name: string
+  kind?: string | null
+  trackInventory?: boolean | null
+  fields?: Array<{
+    id?: string
+    key: string
+    label: string
+    type: string
+    required?: boolean | null
+    options?: string[] | null
+  }> | null
+}
+
+type Paginated<T> = {
+  items?: T[]
+  data?: T[]
+}
+
 const defaultMapping = `{
   "name": "Product Name",
   "sku": "SKU",
@@ -27,6 +49,12 @@ const defaultMapping = `{
   "quantity": "Quantity",
   "category": "Category"
 }`
+
+function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  return value.items ?? value.data ?? []
+}
 
 function importSummary(result: ImportResult) {
   return [
@@ -47,9 +75,31 @@ function parseMapping(value: string) {
 export function ImportNewContent() {
   const router = useRouter()
   const [mapping, setMapping] = React.useState(defaultMapping)
+  const [layouts, setLayouts] = React.useState<Layout[]>([])
+  const [selectedLayoutId, setSelectedLayoutId] = React.useState("none")
+  const [loadingLayouts, setLoadingLayouts] = React.useState(true)
   const [uploading, setUploading] = React.useState(false)
   const [fileName, setFileName] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+
+  React.useEffect(() => {
+    async function loadLayouts() {
+      setLoadingLayouts(true)
+      try {
+        const result = await getCachedLayouts<Layout[] | Paginated<Layout>>()
+        setLayouts(normalizeList(result).filter((layout) => layout?.id))
+      } catch (error) {
+        toast.error("Could not load layouts", { description: error instanceof Error ? error.message : "Request failed" })
+      } finally {
+        setLoadingLayouts(false)
+      }
+    }
+
+    void loadLayouts()
+  }, [])
+
+  const selectedLayout = layouts.find((layout) => layout.id === selectedLayoutId) ?? null
+  const selectedFields = selectedLayout?.fields ?? []
 
   async function uploadImport(file: File) {
     setUploading(true)
@@ -58,6 +108,7 @@ export function ImportNewContent() {
       const formData = new FormData()
       formData.append("file", file)
       formData.append("mapping", JSON.stringify(parseMapping(mapping)))
+      formData.append("productTypeId", selectedLayoutId === "none" ? "none" : selectedLayoutId)
 
       const result = await apiFetch<ImportResult>("/api/products/import", {
         method: "POST",
@@ -88,7 +139,7 @@ export function ImportNewContent() {
         <div>
           <p className="text-sm text-muted-foreground">Imports</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">New import</h1>
-          <p className="text-sm text-muted-foreground">Upload a product spreadsheet and map its columns to NexStock fields.</p>
+          <p className="text-sm text-muted-foreground">Upload a product spreadsheet, choose a layout, and map its columns to NexStock fields.</p>
         </div>
         <Button asChild variant="outline" size="sm">
           <Link href="/imports">
@@ -102,7 +153,7 @@ export function ImportNewContent() {
         <Card>
           <CardHeader>
             <CardTitle>Upload spreadsheet</CardTitle>
-            <CardDescription>Supported formats: CSV and XLSX. The import will create a persistent import log.</CardDescription>
+            <CardDescription>Supported formats: CSV and XLSX. Select a layout only when the import should follow that layout's fields and rules.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <input
@@ -117,6 +168,24 @@ export function ImportNewContent() {
             />
 
             <div className="space-y-2">
+              <label className="text-sm font-medium">Product layout</label>
+              <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId} disabled={loadingLayouts || uploading}>
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {layouts.map((layout) => (
+                    <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Default is None. Choosing a layout applies its required fields, select options, kind, and stock-tracking rules to imported products.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium">Column mapping JSON</label>
               <textarea
                 value={mapping}
@@ -125,7 +194,7 @@ export function ImportNewContent() {
                 spellCheck={false}
               />
               <p className="text-xs text-muted-foreground">
-                Keys are NexStock fields. Values are spreadsheet column names. Leave empty to use automatic header matching.
+                Keys are NexStock fields. Values are spreadsheet column names. Use <span className="font-mono">custom:fieldKey</span> for selected layout fields.
               </p>
             </div>
 
@@ -138,16 +207,31 @@ export function ImportNewContent() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Common fields</CardTitle>
-            <CardDescription>Use these keys in the mapping JSON.</CardDescription>
+            <CardTitle>Import rules</CardTitle>
+            <CardDescription>How layout and select defaults are applied.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <FieldHint label="name" description="Product name. Required." />
-            <FieldHint label="sku" description="Existing SKU updates, new SKU creates." />
-            <FieldHint label="price" description="Selling price in base currency." />
-            <FieldHint label="quantity" description="Stock on hand." />
-            <FieldHint label="category" description="Product category." />
-            <FieldHint label="custom:fieldKey" description="Maps to custom layout fields." />
+            <FieldHint label="Layout default" description="Layout defaults to None until the user chooses one." />
+            <FieldHint label="Select defaults" description="Select fields are treated as None unless a spreadsheet value is provided and it matches a configured option." />
+            <FieldHint label="Required layout fields" description="If a selected layout field is required, the import row must include a mapped value." />
+            <FieldHint label="custom:fieldKey" description="Maps spreadsheet columns to selected layout fields." />
+            {selectedLayout ? (
+              <div className="rounded-md border p-3">
+                <p className="font-medium">Selected layout: {selectedLayout.name}</p>
+                <p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p>
+                <div className="mt-3 space-y-2">
+                  {selectedFields.slice(0, 8).map((field) => (
+                    <div key={field.key} className="rounded border p-2 text-xs">
+                      <p className="font-mono">custom:{field.key}</p>
+                      <p className="text-muted-foreground">{field.label} · {field.type}{field.required ? " · required" : ""}</p>
+                      {field.type === "select" && field.options?.length ? (
+                        <p className="text-muted-foreground">Options: {field.options.join(", ")}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>
