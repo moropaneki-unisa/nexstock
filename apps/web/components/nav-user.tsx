@@ -28,6 +28,7 @@ import {
   CircleUserRoundIcon,
   CreditCardIcon,
   EllipsisVerticalIcon,
+  ListTodoIcon,
   LogOutIcon,
   Settings2Icon,
 } from "lucide-react"
@@ -97,6 +98,12 @@ export function NavUser({
                 <Link href="/profile">
                   <CircleUserRoundIcon />
                   Account
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/tasks">
+                  <ListTodoIcon />
+                  Tasks
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
