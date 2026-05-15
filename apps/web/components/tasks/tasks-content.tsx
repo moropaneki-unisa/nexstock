@@ -8,10 +8,12 @@ import {
   ArrowLeftIcon,
   CalendarClockIcon,
   CheckCircle2Icon,
-  ClipboardListIcon,
+  CircleIcon,
+  ClockIcon,
   EditIcon,
-  ListFilterIcon,
+  FilterIcon,
   Loader2Icon,
+  MoreHorizontalIcon,
   PlusIcon,
   RocketIcon,
   SaveIcon,
@@ -20,14 +22,44 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup, ButtonGroupItem } from "@/components/ui/button-group"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 
@@ -88,7 +120,16 @@ type TaskFormState = {
   reminderAt: string
 }
 
-const emptySummary: TaskSummary = { total: 0, todo: 0, inProgress: 0, blocked: 0, done: 0, dueToday: 0, overdue: 0 }
+const emptySummary: TaskSummary = {
+  total: 0,
+  todo: 0,
+  inProgress: 0,
+  blocked: 0,
+  done: 0,
+  dueToday: 0,
+  overdue: 0,
+}
+
 const emptyForm: TaskFormState = {
   title: "",
   description: "",
@@ -100,37 +141,42 @@ const emptyForm: TaskFormState = {
   reminderAt: "",
 }
 
-const priorityRank: Record<TaskPriority, number> = { urgent: 4, high: 3, medium: 2, low: 1 }
+const priorityRank: Record<TaskPriority, number> = {
+  urgent: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+}
 
-const views: Array<{ id: TaskView; label: string; description: string }> = [
-  { id: "focus", label: "Focus", description: "Open work that needs attention" },
-  { id: "today", label: "Today", description: "Due today" },
-  { id: "overdue", label: "Overdue", description: "Past due and unfinished" },
-  { id: "upcoming", label: "Upcoming", description: "Future work" },
-  { id: "blocked", label: "Blocked", description: "Waiting on something" },
-  { id: "done", label: "Done", description: "Completed tasks" },
-  { id: "all", label: "All", description: "Everything" },
+const views: Array<{ id: TaskView; label: string; helper: string }> = [
+  { id: "focus", label: "Focus", helper: "Priority work" },
+  { id: "today", label: "Today", helper: "Due today" },
+  { id: "overdue", label: "Overdue", helper: "Past due" },
+  { id: "upcoming", label: "Upcoming", helper: "Future work" },
+  { id: "blocked", label: "Blocked", helper: "Waiting" },
+  { id: "done", label: "Done", helper: "Completed" },
+  { id: "all", label: "All", helper: "Everything" },
 ]
 
 function statusLabel(status: TaskStatus) {
-  return status === "in_progress" ? "In progress" : status === "todo" ? "To do" : status[0].toUpperCase() + status.slice(1)
+  if (status === "todo") return "To do"
+  if (status === "in_progress") return "In progress"
+  return status[0].toUpperCase() + status.slice(1)
 }
 
 function priorityLabel(priority: TaskPriority) {
   return priority[0].toUpperCase() + priority.slice(1)
 }
 
-function dateInputValue(value?: string | null) {
-  if (!value) return ""
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
-  return date.toISOString().slice(0, 10)
-}
-
 function dateValue(value?: string | null) {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+function dateInputValue(value?: string | null) {
+  const date = dateValue(value)
+  return date ? date.toISOString().slice(0, 10) : ""
 }
 
 function formatDate(value?: string | null) {
@@ -141,8 +187,7 @@ function formatDate(value?: string | null) {
 
 function isToday(value?: string | null) {
   const date = dateValue(value)
-  if (!date) return false
-  return date.toDateString() === new Date().toDateString()
+  return Boolean(date && date.toDateString() === new Date().toDateString())
 }
 
 function isOverdue(task: Task) {
@@ -159,6 +204,48 @@ function isUpcoming(task: Task) {
   const endOfToday = new Date()
   endOfToday.setHours(23, 59, 59, 999)
   return due > endOfToday
+}
+
+function viewMatches(task: Task, view: TaskView) {
+  if (view === "all") return true
+  if (view === "done") return task.status === "done"
+  if (view === "blocked") return task.status === "blocked"
+  if (view === "today") return task.status !== "done" && isToday(task.dueAt)
+  if (view === "overdue") return isOverdue(task)
+  if (view === "upcoming") return isUpcoming(task)
+
+  return (
+    task.status !== "done" &&
+    (task.status === "in_progress" ||
+      task.priority === "urgent" ||
+      task.priority === "high" ||
+      isOverdue(task) ||
+      isToday(task.dueAt))
+  )
+}
+
+function groupLabel(task: Task) {
+  if (task.status === "done") return "Done"
+  if (isOverdue(task)) return "Overdue"
+  if (isToday(task.dueAt)) return "Today"
+  if (task.status === "blocked") return "Blocked"
+  if (isUpcoming(task)) return "Upcoming"
+  return "No due date"
+}
+
+function sortTasks(tasks: Task[], sort: TaskSort) {
+  return [...tasks].sort((a, b) => {
+    if (sort === "priority") return priorityRank[b.priority] - priorityRank[a.priority]
+    if (sort === "created") return (dateValue(b.createdAt)?.getTime() ?? 0) - (dateValue(a.createdAt)?.getTime() ?? 0)
+
+    const aDue = dateValue(a.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER
+    const bDue = dateValue(b.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER
+    if (sort === "due") return aDue - bDue
+
+    const aScore = (isOverdue(a) ? 100 : 0) + (isToday(a.dueAt) ? 50 : 0) + priorityRank[a.priority] * 10 + (a.status === "in_progress" ? 5 : 0)
+    const bScore = (isOverdue(b) ? 100 : 0) + (isToday(b.dueAt) ? 50 : 0) + priorityRank[b.priority] * 10 + (b.status === "in_progress" ? 5 : 0)
+    return bScore === aScore ? aDue - bDue : bScore - aScore
+  })
 }
 
 function taskToForm(task: Task): TaskFormState {
@@ -213,19 +300,6 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
   return <Badge variant={variant}>{priorityLabel(priority)}</Badge>
 }
 
-function MetricButton({ label, value, active, onClick }: { label: string; value: number; active?: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-xl border p-4 text-left transition hover:bg-muted/40 ${active ? "border-primary bg-primary/5" : "bg-background"}`}
-    >
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
-    </button>
-  )
-}
-
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="grid gap-2">
@@ -237,17 +311,30 @@ function Field({ label, required, children }: { label: string; required?: boolea
   )
 }
 
-function TaskListSkeleton() {
+function StatCard({ label, value, helper }: { label: string; value: number; helper: string }) {
   return (
-    <div className="grid gap-2">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="rounded-xl border p-4">
-          <div className="flex flex-wrap gap-2">
-            <div className="h-5 w-20 animate-pulse rounded-full bg-muted" />
-            <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+    <Card className="shadow-none">
+      <CardContent className="p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TasksLoading() {
+  return (
+    <div className="space-y-2 rounded-xl border p-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="grid gap-3 border-b p-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_10rem_8rem_3rem] md:items-center">
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-3 w-1/2" />
           </div>
-          <div className="mt-3 h-5 w-2/3 animate-pulse rounded bg-muted" />
-          <div className="mt-2 h-4 w-1/2 animate-pulse rounded bg-muted" />
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-6 w-20" />
+          <Skeleton className="h-8 w-8" />
         </div>
       ))}
     </div>
@@ -256,12 +343,12 @@ function TaskListSkeleton() {
 
 function EmptyTasksState({ hasTasks, onReset }: { hasTasks: boolean; onReset: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/10 p-10 text-center">
-      <ClipboardListIcon className="size-10 text-muted-foreground" />
+    <div className="flex min-h-72 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/10 p-10 text-center">
+      <CircleIcon className="size-10 text-muted-foreground" />
       <div>
         <p className="font-medium">{hasTasks ? "No tasks match this view" : "No tasks yet"}</p>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
-          {hasTasks ? "Clear filters or switch views to find the task you need." : "Create a task or generate the launch checklist to start tracking real work."}
+          {hasTasks ? "Adjust the filters, switch tabs, or clear the search to find the work you need." : "Create a task or generate the launch checklist to start running the app from one place."}
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
@@ -274,28 +361,56 @@ function EmptyTasksState({ hasTasks, onReset }: { hasTasks: boolean; onReset: ()
   )
 }
 
-function viewMatches(task: Task, view: TaskView) {
-  if (view === "all") return true
-  if (view === "done") return task.status === "done"
-  if (view === "blocked") return task.status === "blocked"
-  if (view === "today") return task.status !== "done" && isToday(task.dueAt)
-  if (view === "overdue") return isOverdue(task)
-  if (view === "upcoming") return isUpcoming(task)
-  return task.status !== "done" && (task.status === "in_progress" || task.priority === "urgent" || task.priority === "high" || isOverdue(task) || isToday(task.dueAt))
+function TaskActions({ task, busy, onStatus, onDelete }: { task: Task; busy: boolean; onStatus: (status: TaskStatus) => void; onDelete: () => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" disabled={busy}>
+          <MoreHorizontalIcon className="size-4" />
+          <span className="sr-only">Task actions</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuLabel>Move task</DropdownMenuLabel>
+        {task.status !== "in_progress" ? <DropdownMenuItem onClick={() => onStatus("in_progress")}>Start work</DropdownMenuItem> : null}
+        {task.status !== "blocked" ? <DropdownMenuItem onClick={() => onStatus("blocked")}>Mark blocked</DropdownMenuItem> : null}
+        {task.status !== "done" ? <DropdownMenuItem onClick={() => onStatus("done")}>Mark done</DropdownMenuItem> : <DropdownMenuItem onClick={() => onStatus("todo")}>Reopen task</DropdownMenuItem>}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href={`/tasks/${task.id}/edit`}><EditIcon className="size-4" />Edit</Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={onDelete}>
+          <Trash2Icon className="size-4" />Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
-function sortTasks(tasks: Task[], sort: TaskSort) {
-  return [...tasks].sort((a, b) => {
-    if (sort === "priority") return priorityRank[b.priority] - priorityRank[a.priority]
-    if (sort === "created") return (dateValue(b.createdAt)?.getTime() ?? 0) - (dateValue(a.createdAt)?.getTime() ?? 0)
-    const aDue = dateValue(a.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER
-    const bDue = dateValue(b.dueAt)?.getTime() ?? Number.MAX_SAFE_INTEGER
-    if (sort === "due") return aDue - bDue
-    const aScore = (isOverdue(a) ? 100 : 0) + (isToday(a.dueAt) ? 50 : 0) + priorityRank[a.priority] * 10 + (a.status === "in_progress" ? 5 : 0)
-    const bScore = (isOverdue(b) ? 100 : 0) + (isToday(b.dueAt) ? 50 : 0) + priorityRank[b.priority] * 10 + (b.status === "in_progress" ? 5 : 0)
-    if (bScore !== aScore) return bScore - aScore
-    return aDue - bDue
-  })
+function TaskMobileCard({ task, busy, onStatus, onDelete }: { task: Task; busy: boolean; onStatus: (status: TaskStatus) => void; onDelete: () => void }) {
+  return (
+    <Card className="shadow-none md:hidden">
+      <CardContent className="space-y-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge status={task.status} />
+              <PriorityBadge priority={task.priority} />
+              {isOverdue(task) ? <Badge variant="destructive">Overdue</Badge> : null}
+              {isToday(task.dueAt) && task.status !== "done" ? <Badge variant="outline">Today</Badge> : null}
+            </div>
+            <Link href={`/tasks/${task.id}`} className="block text-base font-semibold hover:underline">{task.title}</Link>
+          </div>
+          <TaskActions task={task} busy={busy} onStatus={onStatus} onDelete={onDelete} />
+        </div>
+        {task.description ? <p className="line-clamp-2 text-sm text-muted-foreground">{task.description}</p> : null}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1"><CalendarClockIcon className="size-3.5" />{formatDate(task.dueAt)}</span>
+          {task.category ? <Badge variant="outline">{task.category}</Badge> : null}
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function TasksContent() {
@@ -309,7 +424,7 @@ export function TasksContent() {
   const [sort, setSort] = React.useState<TaskSort>("smart")
   const [loading, setLoading] = React.useState(true)
   const [busy, setBusy] = React.useState<string | null>(null)
-  const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null)
+  const [deleteTask, setDeleteTask] = React.useState<Task | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
   const load = React.useCallback(async () => {
@@ -336,6 +451,13 @@ export function TasksContent() {
     return Array.from(new Set(tasks.map((task) => task.category).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b))
   }, [tasks])
 
+  const viewCounts = React.useMemo(() => {
+    return views.reduce<Record<TaskView, number>>((acc, item) => {
+      acc[item.id] = tasks.filter((task) => viewMatches(task, item.id)).length
+      return acc
+    }, { focus: 0, today: 0, overdue: 0, upcoming: 0, blocked: 0, done: 0, all: 0 })
+  }, [tasks])
+
   const visibleTasks = React.useMemo(() => {
     const search = query.trim().toLowerCase()
     const filtered = tasks.filter((task) => {
@@ -356,14 +478,13 @@ export function TasksContent() {
   const groupedTasks = React.useMemo(() => {
     const groups = new Map<string, Task[]>()
     for (const task of visibleTasks) {
-      const group = task.status === "done" ? "Done" : isOverdue(task) ? "Overdue" : isToday(task.dueAt) ? "Today" : task.status === "blocked" ? "Blocked" : isUpcoming(task) ? "Upcoming" : "No due date"
+      const group = groupLabel(task)
       groups.set(group, [...(groups.get(group) || []), task])
     }
     return Array.from(groups.entries())
   }, [visibleTasks])
 
   function resetFilters() {
-    setView("all")
     setQuery("")
     setStatusFilter("all")
     setPriorityFilter("all")
@@ -384,12 +505,13 @@ export function TasksContent() {
     }
   }
 
-  async function removeTask(task: Task) {
-    setBusy(task.id)
+  async function removeTask() {
+    if (!deleteTask) return
+    setBusy(deleteTask.id)
     try {
-      await apiFetch(`/api/tasks/${task.id}`, { method: "DELETE" })
+      await apiFetch(`/api/tasks/${deleteTask.id}`, { method: "DELETE" })
       toast.success("Task deleted")
-      setPendingDeleteId(null)
+      setDeleteTask(null)
       await load()
     } catch (err) {
       toast.error("Task could not delete", { description: err instanceof Error ? err.message : "API request failed" })
@@ -413,12 +535,14 @@ export function TasksContent() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-5 p-4 md:p-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Workspace</p>
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">Tasks</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Plan launch work, filter by urgency, and move tasks through the workflow without opening every detail page.</p>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">Tasks</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Manage launch and operational work from one focused page with views, filters, quick actions, and clear task ownership.
+          </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" onClick={createChecklist} disabled={busy === "launch-checklist"}>
@@ -431,142 +555,159 @@ export function TasksContent() {
         </div>
       </div>
 
-      {error ? <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><AlertCircleIcon className="size-4" />{error}</div> : null}
+      {error ? (
+        <div className="flex gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <AlertCircleIcon className="size-4" />{error}
+        </div>
+      ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-        <MetricButton label="Focus" value={tasks.filter((task) => viewMatches(task, "focus")).length} active={view === "focus"} onClick={() => setView("focus")} />
-        <MetricButton label="Today" value={summary.dueToday} active={view === "today"} onClick={() => setView("today")} />
-        <MetricButton label="Overdue" value={summary.overdue} active={view === "overdue"} onClick={() => setView("overdue")} />
-        <MetricButton label="Blocked" value={summary.blocked} active={view === "blocked"} onClick={() => setView("blocked")} />
-        <MetricButton label="To do" value={summary.todo} active={statusFilter === "todo"} onClick={() => { setView("all"); setStatusFilter("todo") }} />
-        <MetricButton label="In progress" value={summary.inProgress} active={statusFilter === "in_progress"} onClick={() => { setView("all"); setStatusFilter("in_progress") }} />
-        <MetricButton label="Done" value={summary.done} active={view === "done"} onClick={() => setView("done")} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard label="Open" value={summary.todo + summary.inProgress + summary.blocked} helper="Not completed" />
+        <StatCard label="Today" value={summary.dueToday} helper="Due now" />
+        <StatCard label="Overdue" value={summary.overdue} helper="Needs action" />
+        <StatCard label="Blocked" value={summary.blocked} helper="Waiting" />
+        <StatCard label="Done" value={summary.done} helper="Completed" />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside className="grid gap-4 self-start rounded-xl border bg-muted/10 p-3 xl:sticky xl:top-20">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-medium"><ListFilterIcon className="size-4" />Views</div>
-            <div className="mt-2 grid gap-1">
-              {views.map((item) => (
-                <button key={item.id} type="button" onClick={() => setView(item.id)} className={`rounded-lg px-3 py-2 text-left text-sm transition hover:bg-muted ${view === item.id ? "bg-background shadow-xs" : "text-muted-foreground"}`}>
-                  <span className="font-medium text-foreground">{item.label}</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{item.description}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid gap-3">
-            <Field label="Status">
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TaskStatus | "all")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="todo">To do</SelectItem>
-                  <SelectItem value="in_progress">In progress</SelectItem>
-                  <SelectItem value="blocked">Blocked</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Priority">
-              <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as TaskPriority | "all")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All priorities</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Category">
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All categories</SelectItem>
-                  {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Sort">
-              <Select value={sort} onValueChange={(value) => setSort(value as TaskSort)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="smart">Smart priority</SelectItem>
-                  <SelectItem value="due">Due date</SelectItem>
-                  <SelectItem value="priority">Priority</SelectItem>
-                  <SelectItem value="created">Newest</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Button type="button" variant="outline" onClick={resetFilters}>Clear filters</Button>
-          </div>
-        </aside>
-
-        <main className="min-w-0 space-y-4">
-          <div className="flex flex-col gap-3 rounded-xl border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative min-w-0 flex-1">
+      <Tabs value={view} onValueChange={(value) => setView(value as TaskView)} className="gap-4">
+        <div className="flex flex-col gap-3 rounded-xl border bg-background p-3">
+          <TabsList variant="line" className="w-full justify-start overflow-x-auto">
+            {views.map((item) => (
+              <TabsTrigger key={item.id} value={item.id} className="min-w-fit gap-2 px-3">
+                {item.label}
+                <Badge variant="outline" className="rounded-full px-1.5 py-0 text-[10px]">{viewCounts[item.id]}</Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <Separator />
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_9rem_9rem_10rem_9rem]">
+            <div className="relative min-w-0">
               <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search tasks, prompts, categories..." className="pl-9" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, description, prompt, category..." className="pl-9" />
             </div>
-            <div className="text-sm text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{visibleTasks.length}</span> of <span className="font-medium text-foreground">{tasks.length}</span>
-            </div>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TaskStatus | "all")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All status</SelectItem>
+                <SelectItem value="todo">To do</SelectItem>
+                <SelectItem value="in_progress">In progress</SelectItem>
+                <SelectItem value="blocked">Blocked</SelectItem>
+                <SelectItem value="done">Done</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as TaskPriority | "all")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All priority</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {categories.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={sort} onValueChange={(value) => setSort(value as TaskSort)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="smart">Smart sort</SelectItem>
+                <SelectItem value="due">Due date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="created">Newest</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+            <span>Showing <span className="font-medium text-foreground">{visibleTasks.length}</span> of <span className="font-medium text-foreground">{tasks.length}</span> tasks</span>
+            <Button type="button" variant="ghost" size="sm" onClick={resetFilters}><FilterIcon className="size-4" />Clear filters</Button>
+          </div>
+        </div>
 
-          {loading ? <TaskListSkeleton /> : null}
-          {!loading && visibleTasks.length === 0 ? <EmptyTasksState hasTasks={tasks.length > 0} onReset={resetFilters} /> : null}
-
-          {!loading && groupedTasks.map(([group, groupTasks]) => (
-            <section key={group} className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{group}</h2>
-                <Badge variant="outline">{groupTasks.length}</Badge>
-              </div>
-              <div className="grid gap-2">
-                {groupTasks.map((task) => (
-                  <div key={task.id} className="rounded-xl border bg-background p-4 transition hover:bg-muted/20">
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <StatusBadge status={task.status} />
-                          <PriorityBadge priority={task.priority} />
-                          {isOverdue(task) ? <Badge variant="destructive">Overdue</Badge> : null}
-                          {isToday(task.dueAt) && task.status !== "done" ? <Badge variant="outline">Today</Badge> : null}
-                          {task.category ? <Badge variant="outline">{task.category}</Badge> : null}
-                        </div>
-                        <Link href={`/tasks/${task.id}`} className="mt-2 block truncate text-base font-semibold hover:underline">
-                          {task.title}
-                        </Link>
-                        {task.description ? <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{task.description}</p> : null}
-                        <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                          <CalendarClockIcon className="size-3.5" />{formatDate(task.dueAt)}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                        {task.status !== "in_progress" && task.status !== "done" ? <Button type="button" size="sm" variant="outline" disabled={busy === task.id} onClick={() => updateStatus(task, "in_progress")}>Start</Button> : null}
-                        {task.status !== "blocked" && task.status !== "done" ? <Button type="button" size="sm" variant="outline" disabled={busy === task.id} onClick={() => updateStatus(task, "blocked")}>Block</Button> : null}
-                        {task.status !== "done" ? <Button type="button" size="sm" disabled={busy === task.id} onClick={() => updateStatus(task, "done")}><CheckCircle2Icon className="size-4" />Done</Button> : <Button type="button" size="sm" variant="outline" disabled={busy === task.id} onClick={() => updateStatus(task, "todo")}>Reopen</Button>}
-                        <Button asChild variant="ghost" size="icon"><Link href={`/tasks/${task.id}/edit`}><EditIcon className="size-4" /></Link></Button>
-                        {pendingDeleteId === task.id ? (
-                          <div className="flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 p-1">
-                            <Button type="button" size="sm" variant="ghost" onClick={() => setPendingDeleteId(null)}>Cancel</Button>
-                            <Button type="button" size="sm" variant="destructive" disabled={busy === task.id} onClick={() => void removeTask(task)}>Delete</Button>
-                          </div>
-                        ) : (
-                          <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" disabled={busy === task.id} onClick={() => setPendingDeleteId(task.id)}><Trash2Icon className="size-4" /></Button>
-                        )}
-                      </div>
-                    </div>
+        {views.map((item) => (
+          <TabsContent key={item.id} value={item.id} className="space-y-5">
+            {loading ? <TasksLoading /> : null}
+            {!loading && visibleTasks.length === 0 ? <EmptyTasksState hasTasks={tasks.length > 0} onReset={resetFilters} /> : null}
+            {!loading && groupedTasks.map(([group, groupTasks]) => (
+              <section key={group} className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{group}</h2>
+                    <p className="text-xs text-muted-foreground">{groupTasks.length} task{groupTasks.length === 1 ? "" : "s"}</p>
                   </div>
-                ))}
-              </div>
-            </section>
-          ))}
-        </main>
-      </div>
+                  <Badge variant="outline">{groupTasks.length}</Badge>
+                </div>
+
+                <div className="hidden overflow-hidden rounded-xl border bg-background md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Task</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Priority</TableHead>
+                        <TableHead>Due</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead className="w-12 text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groupTasks.map((task) => (
+                        <TableRow key={task.id}>
+                          <TableCell className="max-w-[34rem]">
+                            <Link href={`/tasks/${task.id}`} className="font-medium hover:underline">{task.title}</Link>
+                            {task.description ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{task.description}</p> : null}
+                          </TableCell>
+                          <TableCell><StatusBadge status={task.status} /></TableCell>
+                          <TableCell><PriorityBadge priority={task.priority} /></TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <CalendarClockIcon className="size-3.5" />{formatDate(task.dueAt)}
+                            </span>
+                            {isOverdue(task) ? <Badge variant="destructive" className="ml-2">Overdue</Badge> : null}
+                            {isToday(task.dueAt) && task.status !== "done" ? <Badge variant="outline" className="ml-2">Today</Badge> : null}
+                          </TableCell>
+                          <TableCell>{task.category ? <Badge variant="outline">{task.category}</Badge> : <span className="text-muted-foreground">None</span>}</TableCell>
+                          <TableCell className="text-right">
+                            <TaskActions task={task} busy={busy === task.id} onStatus={(status) => updateStatus(task, status)} onDelete={() => setDeleteTask(task)} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="grid gap-2 md:hidden">
+                  {groupTasks.map((task) => (
+                    <TaskMobileCard key={task.id} task={task} busy={busy === task.id} onStatus={(status) => updateStatus(task, status)} onDelete={() => setDeleteTask(task)} />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </TabsContent>
+        ))}
+      </Tabs>
+
+      <AlertDialog open={Boolean(deleteTask)} onOpenChange={(open) => { if (!open) setDeleteTask(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="text-destructive"><Trash2Icon className="size-5" /></AlertDialogMedia>
+            <AlertDialogTitle>Delete task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {deleteTask ? `"${deleteTask.title}"` : "this task"}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(deleteTask && busy === deleteTask.id)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={Boolean(deleteTask && busy === deleteTask.id)} onClick={() => void removeTask()}>
+              {deleteTask && busy === deleteTask.id ? "Deleting..." : "Delete task"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -633,7 +774,13 @@ export function TaskFormContent({ taskId }: { taskId?: string }) {
   }
 
   if (loading) {
-    return <div className="p-4 md:p-6"><Card><CardContent className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" />Loading task...</CardContent></Card></div>
+    return (
+      <div className="p-4 md:p-6">
+        <Card>
+          <CardContent className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" />Loading task...</CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
