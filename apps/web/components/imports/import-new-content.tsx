@@ -17,11 +17,12 @@ type ImportResult = { logId?: string; created?: number; updated?: number; skippe
 type LayoutField = { id?: string; key: string; label: string; type: string; required?: boolean | null; options?: string[] | null; defaultValue?: unknown; placeholder?: string | null; helpText?: string | null }
 type Layout = { id: string; name: string; kind?: string | null; trackInventory?: boolean | null; fields?: LayoutField[] | null }
 type Paginated<T> = { items?: T[]; data?: T[] }
+type ImportDataType = "text" | "richtext" | "number" | "decimal" | "currency" | "attachment" | "images" | "lookup" | "boolean" | "select" | "date"
 type ImportFieldDefinition = {
   key: string
   column: string
   source: "core" | "layout"
-  dataType: string
+  dataType: ImportDataType
   required: boolean
   defaultValue: unknown
   example: string
@@ -30,24 +31,26 @@ type ImportFieldDefinition = {
   notes: string
 }
 
+const backendFieldTypes: ImportDataType[] = ["text", "richtext", "number", "decimal", "currency", "attachment", "images", "lookup", "boolean", "select", "date"]
+
 const coreFieldDefinitions: ImportFieldDefinition[] = [
   { key: "name", column: "Product Name", source: "core", dataType: "text", required: true, defaultValue: null, example: "Example Product", allowedValues: [], importFormat: "Plain text", notes: "Required. Backend skips rows without a product name." },
   { key: "sku", column: "SKU", source: "core", dataType: "text", required: false, defaultValue: "Auto-generated when empty", example: "EXAMPLE-001", allowedValues: [], importFormat: "Plain text", notes: "Existing SKU updates the matching product; empty SKU creates a new generated SKU." },
   { key: "description", column: "Description", source: "core", dataType: "text", required: false, defaultValue: null, example: "Example product description", allowedValues: [], importFormat: "Plain text", notes: "Optional product description." },
   { key: "price", column: "Price", source: "core", dataType: "decimal", required: false, defaultValue: 0, example: "100.00", allowedValues: [], importFormat: "Number or decimal", notes: "Selling price. Price currency must match the organization's base currency." },
-  { key: "priceCurrency", column: "Price Currency", source: "core", dataType: "currency-code", required: false, defaultValue: "Organization base currency", example: "ZAR", allowedValues: [], importFormat: "3-letter currency code", notes: "Backend requires selling currency to match organization base currency." },
+  { key: "priceCurrency", column: "Price Currency", source: "core", dataType: "text", required: false, defaultValue: "Organization base currency", example: "ZAR", allowedValues: [], importFormat: "3-letter currency code", notes: "Backend parses this as a currency code. This is not a layout field type." },
   { key: "cost", column: "Cost", source: "core", dataType: "decimal", required: false, defaultValue: null, example: "70.00", allowedValues: [], importFormat: "Number or decimal", notes: "Optional buying/vendor cost." },
-  { key: "costCurrency", column: "Cost Currency", source: "core", dataType: "currency-code", required: false, defaultValue: "Price currency", example: "ZAR", allowedValues: [], importFormat: "3-letter enabled currency code", notes: "Must be enabled in organization currency settings." },
+  { key: "costCurrency", column: "Cost Currency", source: "core", dataType: "text", required: false, defaultValue: "Price currency", example: "ZAR", allowedValues: [], importFormat: "3-letter enabled currency code", notes: "Backend parses this as a currency code. It must be enabled in organization currency settings." },
   { key: "exchangeRateToBase", column: "Exchange Rate To Base", source: "core", dataType: "decimal", required: false, defaultValue: "System rate or 1", example: "1", allowedValues: [], importFormat: "Number or decimal", notes: "Used to convert cost to base currency when cost currency differs." },
-  { key: "quantity", column: "Quantity", source: "core", dataType: "integer", required: false, defaultValue: 0, example: "10", allowedValues: [], importFormat: "Whole number, zero or more", notes: "Stock on hand. Inventory logs are created when quantity changes." },
-  { key: "lowStockLevel", column: "Low Stock Level", source: "core", dataType: "integer", required: false, defaultValue: 5, example: "2", allowedValues: [], importFormat: "Whole number, zero or more", notes: "Defaults to 5 when empty." },
+  { key: "quantity", column: "Quantity", source: "core", dataType: "number", required: false, defaultValue: 0, example: "10", allowedValues: [], importFormat: "Whole number, zero or more", notes: "Backend rounds this to a whole number for product stock." },
+  { key: "lowStockLevel", column: "Low Stock Level", source: "core", dataType: "number", required: false, defaultValue: 5, example: "2", allowedValues: [], importFormat: "Whole number, zero or more", notes: "Backend rounds this to a whole number. Defaults to 5 when empty." },
   { key: "category", column: "Category", source: "core", dataType: "text", required: false, defaultValue: null, example: "Example Category", allowedValues: [], importFormat: "Plain text", notes: "Optional category label." },
   { key: "status", column: "Status", source: "core", dataType: "select", required: false, defaultValue: "active", example: "active", allowedValues: ["active", "draft", "archived"], importFormat: "One of: active, draft, archived", notes: "Backend defaults to active when empty or unrecognized." },
   { key: "images", column: "Images", source: "core", dataType: "images", required: false, defaultValue: [], example: "https://example.com/image.jpg", allowedValues: [], importFormat: "One or more URLs separated by comma or pipe", notes: "Optional image URLs." },
 ]
 
 function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) { return !value ? [] : Array.isArray(value) ? value : value.items ?? value.data ?? [] }
-function normalizeFieldType(type: string | null | undefined) { return String(type || "text").trim().toLowerCase() }
+function normalizeFieldType(type: string | null | undefined): ImportDataType { const value = String(type || "text").trim().toLowerCase(); return backendFieldTypes.includes(value as ImportDataType) ? value as ImportDataType : "text" }
 function importSummary(result: ImportResult) { return [typeof result.created === "number" ? `${result.created} created` : null, typeof result.updated === "number" ? `${result.updated} updated` : null, typeof result.skipped === "number" ? `${result.skipped} skipped` : null].filter(Boolean).join(" · ") || "Import completed" }
 function parseMapping(value: string) { const text = value.trim(); if (!text) return {}; const parsed = JSON.parse(text); if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Mapping must be a JSON object"); return parsed as Record<string, string> }
 function safeFilePart(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "products" }
@@ -112,6 +115,7 @@ function schemaForLayout(layout: Layout | null, mapping: Record<string, string>)
     app: "NexStock",
     importableByBackend: false,
     validUploadFormats: ["csv", "xlsx"],
+    supportedLayoutFieldTypes: backendFieldTypes,
     generatedAt: new Date().toISOString(),
     purpose: "Developer/reference schema for the CSV/XLSX product import template. This JSON file is not uploadable to the current backend importer.",
     backendContract: { endpoint: "POST /api/products/import", contentType: "multipart/form-data", fields: ["file", "mapping", "productTypeId"], xlsxImporterReads: "first worksheet only" },
@@ -125,8 +129,8 @@ function schemaForLayout(layout: Layout | null, mapping: Record<string, string>)
       "SKU updates an existing product when it matches; empty SKU creates a generated SKU.",
       "Price must be numeric and Price Currency must match the organization's base currency.",
       "Cost Currency must be enabled in organization currency settings.",
-      "Quantity and Low Stock Level must be zero or positive whole numbers.",
-      "Status should be active, draft, or archived; unrecognized/empty status becomes active.",
+      "Quantity and Low Stock Level use the backend number datatype and are rounded to whole numbers for stock fields.",
+      "Status uses the select datatype with active, draft, or archived; unrecognized/empty status becomes active.",
       "Selected layout required fields must be mapped and provided.",
       "Selected layout select fields must match one of their configured options; none is treated as empty and is not saved.",
     ],
@@ -262,12 +266,12 @@ export function ImportNewContent() {
         <Card>
           <CardHeader><CardTitle>Import rules</CardTitle><CardDescription>Rules verified against the backend import service.</CardDescription></CardHeader>
           <CardContent className="space-y-3 text-sm">
+            <FieldHint label="Backend field types" description="Schema dataType values now use only supported backend layout types: text, richtext, number, decimal, currency, attachment, images, lookup, boolean, select, date." />
             <FieldHint label="Upload formats" description="Only CSV and XLSX are importable by the backend. JSON is schema/reference only." />
             <FieldHint label="XLSX first sheet" description="The backend imports only the first worksheet. Extra guide sheets are ignored." />
             <FieldHint label="Core fields" description="Template includes backend-supported product fields: price/cost currencies, exchange rate, stock, status, images, and layout fields." />
-            <FieldHint label="Select defaults" description="Select fields are empty/None unless a spreadsheet value matches a configured option." />
             <FieldHint label="Required layout fields" description="Selected layout required fields must be mapped and provided per row." />
-            {selectedLayout ? <div className="rounded-md border p-3"><p className="font-medium">Selected layout: {selectedLayout.name}</p><p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p><div className="mt-3 space-y-2">{selectedFields.slice(0, 8).map((field) => <div key={field.key} className="rounded border p-2 text-xs"><p className="font-mono">custom:{field.key}</p><p className="text-muted-foreground">{field.label} · {field.type}{field.required ? " · required" : ""}</p>{field.type === "select" && field.options?.length ? <p className="text-muted-foreground">Options: {field.options.join(", ")}</p> : null}</div>)}</div></div> : null}
+            {selectedLayout ? <div className="rounded-md border p-3"><p className="font-medium">Selected layout: {selectedLayout.name}</p><p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p><div className="mt-3 space-y-2">{selectedFields.slice(0, 8).map((field) => <div key={field.key} className="rounded border p-2 text-xs"><p className="font-mono">custom:{field.key}</p><p className="text-muted-foreground">{field.label} · {normalizeFieldType(field.type)}{field.required ? " · required" : ""}</p>{normalizeFieldType(field.type) === "select" && field.options?.length ? <p className="text-muted-foreground">Options: {field.options.join(", ")}</p> : null}</div>)}</div></div> : null}
           </CardContent>
         </Card>
       </div>
