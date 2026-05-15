@@ -8,17 +8,16 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api"
 import { getCachedSuppliers } from "@/lib/cached-api"
 import { formatMoney, normalizeCurrencyCode, numberValue } from "@/lib/money"
-import { cn } from "@/lib/utils"
 
 type Supplier = { id: string; supplierCode: string; name: string; currency?: string | null; status?: string | null }
 type Product = { id: string; name: string; sku?: string | null; cost?: string | number | null; costPrice?: string | number | null; price?: string | number | null }
@@ -154,52 +153,59 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
       {error ? <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><div className="flex gap-2"><AlertCircleIcon className="mt-0.5 size-4 shrink-0" />{error}</div></div> : null}
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <main className="min-w-0 overflow-hidden rounded-xl border bg-card">
-          <section className="grid gap-4 border-b p-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="min-w-0 overflow-hidden py-0">
+          <CardHeader className="border-b px-4 py-4">
+            <CardTitle>Purchase order details</CardTitle>
+            <CardDescription>Set the supplier, expected date, and normal text notes for this order.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
             <Field label="Supplier" required><Select value={form.supplierId || "none"} onValueChange={(value) => changeSupplier(value === "none" ? "" : value)} disabled={editing}><SelectTrigger className="w-full"><SelectValue placeholder="Choose supplier" /></SelectTrigger><SelectContent><SelectItem value="none">Choose supplier</SelectItem>{suppliers.map((supplier) => <SelectItem key={supplier.id} value={supplier.id}>{supplier.supplierCode} · {supplier.name}</SelectItem>)}</SelectContent></Select></Field>
             {editing ? <Field label="Status"><Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value as PurchaseOrderStatus }))}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{statuses.map((status) => <SelectItem key={status} value={status}>{titleCase(status)}</SelectItem>)}</SelectContent></Select></Field> : null}
             <Field label="Expected date"><Input type="date" value={form.expectedAt} onChange={(event) => setForm((current) => ({ ...current, expectedAt: event.target.value }))} /></Field>
-            <div className={cn("grid gap-2", editing ? "md:col-span-2 lg:col-span-2" : "md:col-span-2 lg:col-span-2")}><Label>Notes</Label><Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-10 resize-y" placeholder="Optional internal notes" /></div>
-          </section>
-
-          <section className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold">Order lines</h2>
-              <p className="text-sm text-muted-foreground">{editing ? "Lines are locked by the current API. Use a new PO for changed product lines." : linksLoading ? "Loading supplier-linked products..." : supplierLinks.length ? "Products are filtered by the selected supplier link." : "No supplier links found. Showing all products as fallback."}</p>
+            <Field label="Notes"><Input value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Optional internal notes" /></Field>
+          </CardContent>
+          <Separator />
+          <CardHeader className="px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Order lines</CardTitle>
+              <CardDescription>{editing ? "Lines are locked by the current API. Use a new PO for changed product lines." : linksLoading ? "Loading supplier-linked products..." : supplierLinks.length ? "Products are filtered by the selected supplier link." : "No supplier links found. Showing all products as fallback."}</CardDescription>
             </div>
             {!editing ? <Button type="button" variant="outline" size="sm" onClick={addLine} className="w-full sm:w-auto"><PlusIcon className="size-4" />Add line</Button> : null}
-          </section>
+          </CardHeader>
 
-          <section className="min-w-0 overflow-x-auto">
-            <Table className="min-w-[980px]">
-              <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Description</TableHead><TableHead className="w-28">Qty</TableHead><TableHead className="w-36">Unit cost</TableHead><TableHead className="w-36 text-right">Total</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
-              <TableBody>
-                {form.lines.map((line, index) => <TableRow key={index}>
-                  <TableCell className="min-w-64"><Select value={line.productId || "none"} onValueChange={(value) => selectProduct(index, value === "none" ? "" : value)} disabled={editing || linksLoading}><SelectTrigger className="w-full"><SelectValue placeholder={linksLoading ? "Loading..." : "Choose product"} /></SelectTrigger><SelectContent><SelectItem value="none">Choose product</SelectItem>{availableProducts.map((product) => <SelectItem key={product.id} value={product.id}>{productLabel(product)}</SelectItem>)}</SelectContent></Select></TableCell>
-                  <TableCell className="min-w-36"><Input value={line.supplierSku} onChange={(event) => updateLine(index, { supplierSku: event.target.value })} disabled={editing} /></TableCell>
-                  <TableCell className="min-w-56"><Input value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} disabled={editing} /></TableCell>
-                  <TableCell><Input type="number" min="1" value={line.quantityOrdered} onChange={(event) => updateLine(index, { quantityOrdered: event.target.value })} disabled={editing} /></TableCell>
-                  <TableCell><Input type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(index, { unitCost: event.target.value })} disabled={editing} /></TableCell>
-                  <TableCell className="text-right font-medium">{formatMoney(numberValue(line.quantityOrdered) * numberValue(line.unitCost), currency)}</TableCell>
-                  <TableCell>{!editing ? <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(index)} disabled={form.lines.length === 1}><Trash2Icon className="size-4" /></Button> : null}</TableCell>
-                </TableRow>)}
-              </TableBody>
-            </Table>
-          </section>
+          <CardContent className="grid gap-3 p-4 md:hidden">
+            {form.lines.map((line, index) => <LineCard key={index} index={index} line={line} currency={currency} editing={editing} linksLoading={linksLoading} products={availableProducts} canRemove={form.lines.length > 1} onProductChange={selectProduct} onUpdate={updateLine} onRemove={removeLine} />)}
+          </CardContent>
 
-          <section className="sticky bottom-0 z-10 border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <CardContent className="hidden p-0 md:block">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[980px]">
+                <TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Description</TableHead><TableHead className="w-28">Qty</TableHead><TableHead className="w-36">Unit cost</TableHead><TableHead className="w-36 text-right">Total</TableHead><TableHead className="w-12" /></TableRow></TableHeader>
+                <TableBody>
+                  {form.lines.map((line, index) => <TableRow key={index}>
+                    <TableCell className="min-w-64"><Select value={line.productId || "none"} onValueChange={(value) => selectProduct(index, value === "none" ? "" : value)} disabled={editing || linksLoading}><SelectTrigger className="w-full"><SelectValue placeholder={linksLoading ? "Loading..." : "Choose product"} /></SelectTrigger><SelectContent><SelectItem value="none">Choose product</SelectItem>{availableProducts.map((product) => <SelectItem key={product.id} value={product.id}>{productLabel(product)}</SelectItem>)}</SelectContent></Select></TableCell>
+                    <TableCell className="min-w-36"><Input value={line.supplierSku} onChange={(event) => updateLine(index, { supplierSku: event.target.value })} disabled={editing} /></TableCell>
+                    <TableCell className="min-w-56"><Input value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} disabled={editing} /></TableCell>
+                    <TableCell><Input type="number" min="1" value={line.quantityOrdered} onChange={(event) => updateLine(index, { quantityOrdered: event.target.value })} disabled={editing} /></TableCell>
+                    <TableCell><Input type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => updateLine(index, { unitCost: event.target.value })} disabled={editing} /></TableCell>
+                    <TableCell className="text-right font-medium">{formatMoney(numberValue(line.quantityOrdered) * numberValue(line.unitCost), currency)}</TableCell>
+                    <TableCell>{!editing ? <Button type="button" variant="ghost" size="icon" onClick={() => removeLine(index)} disabled={form.lines.length === 1}><Trash2Icon className="size-4" /></Button> : null}</TableCell>
+                  </TableRow>)}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+
+          <div className="sticky bottom-0 z-10 border-t bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
               <Button type="button" variant="outline" onClick={() => router.push(editing && order ? `/purchase-orders/${order.id}` : "/purchase-orders")} disabled={saving}>Cancel</Button>
               <Button type="submit" disabled={saving}>{saving ? <Loader2Icon className="size-4 animate-spin" /> : <SaveIcon className="size-4" />}{saving ? "Saving..." : editing ? "Save changes" : "Create purchase order"}</Button>
             </div>
-          </section>
-        </main>
+          </div>
+        </Card>
 
         <aside className="h-fit rounded-xl border bg-card p-4 xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
-          <div>
-            <h2 className="font-semibold">Review</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Confirm supplier, lines, and subtotal before saving.</p>
-          </div>
+          <div><h2 className="font-semibold">Review</h2><p className="mt-1 text-sm text-muted-foreground">Confirm supplier, lines, and subtotal before saving.</p></div>
           <Separator className="my-4" />
           <div className="grid gap-3 text-sm">
             <ReviewLine label="Supplier" value={selectedSupplier?.name || "Not set"} />
@@ -217,7 +223,23 @@ export function PurchaseOrderFormContent({ purchaseOrderId }: { purchaseOrderId?
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return <label className="grid gap-2"><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</label>
+  return <label className="grid min-w-0 gap-2"><Label>{label}{required ? <span className="text-destructive"> *</span> : null}</Label>{children}</label>
+}
+
+function LineCard({ index, line, currency, editing, linksLoading, products, canRemove, onProductChange, onUpdate, onRemove }: { index: number; line: LineForm; currency: string; editing: boolean; linksLoading: boolean; products: Product[]; canRemove: boolean; onProductChange: (index: number, productId: string) => void; onUpdate: (index: number, patch: Partial<LineForm>) => void; onRemove: (index: number) => void }) {
+  return (
+    <div className="grid gap-3 rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">Line {index + 1}</p>{!editing ? <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => onRemove(index)} disabled={!canRemove}><Trash2Icon className="size-4" /></Button> : null}</div>
+      <Field label="Product"><Select value={line.productId || "none"} onValueChange={(value) => onProductChange(index, value === "none" ? "" : value)} disabled={editing || linksLoading}><SelectTrigger className="w-full"><SelectValue placeholder={linksLoading ? "Loading..." : "Choose product"} /></SelectTrigger><SelectContent><SelectItem value="none">Choose product</SelectItem>{products.map((product) => <SelectItem key={product.id} value={product.id}>{productLabel(product)}</SelectItem>)}</SelectContent></Select></Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Supplier SKU"><Input value={line.supplierSku} onChange={(event) => onUpdate(index, { supplierSku: event.target.value })} disabled={editing} /></Field>
+        <Field label="Description"><Input value={line.description} onChange={(event) => onUpdate(index, { description: event.target.value })} disabled={editing} /></Field>
+        <Field label="Qty"><Input type="number" min="1" value={line.quantityOrdered} onChange={(event) => onUpdate(index, { quantityOrdered: event.target.value })} disabled={editing} /></Field>
+        <Field label="Unit cost"><Input type="number" min="0" step="0.01" value={line.unitCost} onChange={(event) => onUpdate(index, { unitCost: event.target.value })} disabled={editing} /></Field>
+      </div>
+      <div className="flex items-center justify-between rounded-md bg-muted/40 px-3 py-2 text-sm"><span className="text-muted-foreground">Line total</span><span className="font-medium">{formatMoney(numberValue(line.quantityOrdered) * numberValue(line.unitCost), currency)}</span></div>
+    </div>
+  )
 }
 
 function ReviewLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
