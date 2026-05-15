@@ -37,10 +37,6 @@ type Task = {
   completedAt?: string | null
 }
 
-type TasksResponse = {
-  tasks: Task[]
-}
-
 function statusLabel(status: TaskStatus) {
   return status === "in_progress" ? "In progress" : status === "todo" ? "To do" : status[0].toUpperCase() + status.slice(1)
 }
@@ -85,8 +81,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 async function fetchTask(taskId: string) {
-  const data = await apiFetch<TasksResponse>("/api/tasks")
-  return data.tasks.find((task) => task.id === taskId) || null
+  return apiFetch<Task>(`/api/tasks/${taskId}`)
 }
 
 export function TaskDetailContent({ taskId }: { taskId: string }) {
@@ -105,7 +100,6 @@ export function TaskDetailContent({ taskId }: { taskId: string }) {
       .then((nextTask) => {
         if (!active) return
         setTask(nextTask)
-        if (!nextTask) setError("Task not found")
       })
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "Task could not load")
