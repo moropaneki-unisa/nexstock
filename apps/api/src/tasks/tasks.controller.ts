@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, NotFoundException, Param, Patch, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { CreateTaskDto, UpdateTaskDto } from './dto';
@@ -16,8 +16,11 @@ export class TasksController {
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
-    return this.tasks.findOne(user, id);
+  async findOne(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    const result = await this.tasks.list(user);
+    const task = result.tasks.find((item) => item.id === id);
+    if (!task) throw new NotFoundException('Task not found');
+    return task;
   }
 
   @Post()
