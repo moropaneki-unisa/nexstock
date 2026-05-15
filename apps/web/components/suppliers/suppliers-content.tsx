@@ -329,6 +329,10 @@ export function SuppliersContent() {
     {
       label: "Archive selected",
       variant: "destructive",
+      confirmTitle: "Archive selected suppliers?",
+      confirmDescription: (count) => `This will archive ${count} selected supplier${count === 1 ? "" : "s"} and remove them from active purchasing workflows. Existing history remains available.`,
+      confirmLabel: "Archive suppliers",
+      confirmVariant: "destructive",
       onClick: bulkArchive,
     },
   ], [])
