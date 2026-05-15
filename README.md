@@ -175,6 +175,11 @@ These changes were applied directly to the `main-v2` branch.
    - Follow-up cleanup moved status persistence into `ProductsService.update()` so the normal service update flow now saves status.
    - Simplified `ProductsController.update()` back to a single service call after moving status logic into the service.
 
+5. **Dashboard inventory valuation**
+   - Dashboard now returns both `inventoryRetailValue` and `inventoryCostValue`.
+   - `inventoryValue` remains available as a backward-compatible alias for retail value.
+   - Cost value uses `convertedCost`, then `cost`, then falls back to selling price when no cost is available.
+
 ## Current known follow-up items
 
 - Signup frontend auth persistence cleanup is still recommended: signup should return verification state only and should not attempt to persist auth data until OTP verification succeeds.
