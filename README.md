@@ -230,7 +230,10 @@ These changes were applied directly to the `main-v2` branch.
    - CSV export is an upload-ready product import template.
    - XLSX export keeps the importable product data in the first worksheet because the backend reads only the first worksheet; additional `Field Guide`, `Select Options`, and `Import Info` sheets are reference-only and ignored by import.
    - JSON export is renamed/treated as a schema/reference file only, not an importable upload format.
-   - Templates now include backend-supported core fields: price currency, cost, cost currency, exchange rate, quantity, low stock level, status, images, and selected layout fields.
+   - Template schema `dataType` values now use only backend-supported layout field type names: `text`, `richtext`, `number`, `decimal`, `currency`, `attachment`, `images`, `lookup`, `boolean`, `select`, and `date`.
+   - Core product fields that are not layout fields, such as `priceCurrency` and `costCurrency`, are documented as `text` with their currency-code rules in `importFormat` and notes.
+   - Stock fields use the backend `number` datatype label, with notes explaining they are rounded to whole numbers by the import service.
+   - Templates include backend-supported core fields: price currency, cost, cost currency, exchange rate, quantity, low stock level, status, images, and selected layout fields.
    - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
 
 ## Current known follow-up items
