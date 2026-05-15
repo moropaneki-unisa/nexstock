@@ -167,34 +167,31 @@ export function ProductDetailContent({ productId }: { productId: string }) {
           </div>
         </header>
 
-        <section className="grid min-w-0 gap-4 border p-4 md:grid-cols-[minmax(16rem,0.36fr)_minmax(0,0.64fr)] md:p-6">
+        <section className="grid min-w-0 gap-6 border p-4 md:grid-cols-[minmax(16rem,0.36fr)_minmax(0,0.64fr)] md:p-6">
           <ProductGallery productName={cleanText(product.name) || "Product"} images={images} activeImage={activeImage} sku={sku} category={cleanText(product.category) || "Uncategorized"} layoutName={layoutName} onSelect={setSelectedImage} />
-          <div className="grid min-w-0 content-start gap-4">
+          <div className="grid min-w-0 content-start gap-7">
             <div className="grid gap-4 sm:grid-cols-3"><StockBox label="On hand" value={stock.toLocaleString()} /><StockBox label="Low stock level" value={lowStock.toLocaleString()} /><StockBox label="To be ordered" value={toOrder.toLocaleString()} /></div>
-            <QuickFacts price={formatMoney(product.price, priceCurrency)} cost={costValue == null ? "Not set" : formatMoney(costValue, costCurrency)} category={cleanText(product.category) || "Uncategorized"} updated={formatDate(product.updatedAt)} />
+
+            <InlineSection icon={<InfoIcon className="size-5" />} title="Basic information">
+              <InfoGrid><InfoPair label="Product name" value={cleanText(product.name) || "-"} /><InfoPair label="Location" value="Default warehouse" /><InfoPair label="Vendor" value={layoutName} /><InfoPair label="Code" value={sku} mono /><InfoPair label="SKU" value={sku} mono /><InfoPair label="Images" value={`${images.length} picture${images.length === 1 ? "" : "s"}`} /><InfoPair label="Category" value={cleanText(product.category) || "Uncategorized"} /><InfoPair label="Kind" value={productKindLabel(layoutKind)} /></InfoGrid>
+            </InlineSection>
+
+            <InlineSection icon={<span className="text-xl leading-none">$</span>} title="Sale information">
+              <InfoGrid><InfoPair label="Price" value={formatMoney(product.price, priceCurrency)} /><InfoPair label="Cost" value={costValue == null ? "Not set" : formatMoney(costValue, costCurrency)} /><InfoPair label="Profit" value={costValue == null ? "Not set" : formatMoney(numberValue(product.price) - numberValue(costValue), priceCurrency)} /><InfoPair label="Currency" value={priceCurrency} /></InfoGrid>
+            </InlineSection>
+
+            <InlineSection icon={<PackageIcon className="size-5" />} title="Inventory" action={<Button variant="ghost" size="sm" onClick={() => setAdjustOpen(true)}><HistoryIcon className="size-4" />Update Quantity History</Button>}>
+              <InfoGrid><InfoPair label="Quantity" value={stock.toLocaleString()} /><InfoPair label="Unit" value="Item" /><InfoPair label="Tracking" value={layoutTrackInventory ? "Tracked" : "Not tracked"} /><InfoPair label="Updated" value={formatDate(product.updatedAt)} /></InfoGrid>
+            </InlineSection>
+
+            <section className="grid min-w-0 gap-3">
+              <h3 className="font-semibold">Relevant Inventory Plans</h3>
+              <div className="min-w-0 border">{layoutAttributeFields.length ? layoutAttributeFields.slice(0, 3).map((field, index) => <PlanRow key={field.id} title={field.label} subtitle={field.value} status={field.type || (index === 0 ? "Todo" : index === 1 ? "Processing" : "Completed")} progress={index === 0 ? 35 : index === 1 ? 65 : 100} />) : <PlanRow title="No layout fields" subtitle="No layout-specific values saved" status="Empty" progress={10} />}</div>
+            </section>
           </div>
         </section>
 
         <main className="grid min-w-0 gap-4">
-          <section className="grid min-w-0 gap-4 border p-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <InfoIcon className="size-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <h2 className="font-semibold">Basic information</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Name, SKU, category, layout and product classification.</p>
-              </div>
-            </div>
-            <InfoGrid><InfoPair label="Product name" value={cleanText(product.name) || "-"} /><InfoPair label="Location" value="Default warehouse" /><InfoPair label="Vendor" value={layoutName} /><InfoPair label="Code" value={sku} mono /><InfoPair label="SKU" value={sku} mono /><InfoPair label="Images" value={`${images.length} picture${images.length === 1 ? "" : "s"}`} /><InfoPair label="Category" value={cleanText(product.category) || "Uncategorized"} /><InfoPair label="Kind" value={productKindLabel(layoutKind)} /></InfoGrid>
-          </section>
-
-          <DropdownSection defaultOpen icon={<span className="text-xl leading-none">$</span>} title="Sale information" summary="Pricing, cost, profit and currency information.">
-            <InfoGrid><InfoPair label="Price" value={formatMoney(product.price, priceCurrency)} /><InfoPair label="Cost" value={costValue == null ? "Not set" : formatMoney(costValue, costCurrency)} /><InfoPair label="Profit" value={costValue == null ? "Not set" : formatMoney(numberValue(product.price) - numberValue(costValue), priceCurrency)} /><InfoPair label="Currency" value={priceCurrency} /><InfoPair label="Base currency" value={baseCurrency} /><InfoPair label="Converted cost" value={product.convertedCost == null ? "Not set" : formatMoney(product.convertedCost, baseCurrency)} /></InfoGrid>
-          </DropdownSection>
-
-          <DropdownSection defaultOpen icon={<PackageIcon className="size-5" />} title="Inventory" summary="Quantity tracking, low stock settings and last movement." action={<Button variant="ghost" size="sm" onClick={() => setAdjustOpen(true)}><HistoryIcon className="size-4" />Update Quantity</Button>}>
-            <InfoGrid><InfoPair label="Quantity" value={stock.toLocaleString()} /><InfoPair label="Unit" value="Item" /><InfoPair label="Tracking" value={layoutTrackInventory ? "Tracked" : "Not tracked"} /><InfoPair label="Low stock" value={lowStock.toLocaleString()} /><InfoPair label="To order" value={toOrder.toLocaleString()} /><InfoPair label="Updated" value={formatDate(product.updatedAt)} /></InfoGrid>
-          </DropdownSection>
-
           <DropdownSection icon={<BoxesIcon className="size-5" />} title="Layout fields" summary={`${layoutAttributeFields.length} custom field${layoutAttributeFields.length === 1 ? "" : "s"} from the product layout.`}>
             <div className="min-w-0 border">{layoutAttributeFields.length ? layoutAttributeFields.map((field, index) => <PlanRow key={field.id} title={field.label} subtitle={field.value} status={field.type || (index === 0 ? "Primary" : "Field")} progress={100} />) : <PlanRow title="No layout fields" subtitle="No layout-specific values saved" status="Empty" progress={10} />}</div>
           </DropdownSection>
@@ -222,8 +219,8 @@ export function ProductDetailContent({ productId }: { productId: string }) {
 function ProductGallery({ productName, images, activeImage, sku, category, layoutName, onSelect }: { productName: string; images: string[]; activeImage?: string; sku: string; category: string; layoutName: string; onSelect: (image: string) => void }) {
   return <div className="grid min-w-0 gap-4 border p-5"><div className="flex aspect-square min-h-72 items-center justify-center overflow-hidden bg-muted/40">{activeImage ? <img src={activeImage} alt={productName} className="h-full w-full object-cover" /> : <div className="grid place-items-center gap-3 text-center text-muted-foreground"><ImageIcon className="size-24 opacity-30" /><div><p className="font-medium text-foreground">No product image</p><p className="text-sm">Upload product pictures from the edit page.</p></div></div>}</div><div className="grid gap-3 border p-4"><div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold">Product media</h2><Badge variant="outline">{images.length} image{images.length === 1 ? "" : "s"}</Badge></div>{images.length ? <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-4 xl:grid-cols-5">{images.map((image, index) => <button key={`${image}-${index}`} type="button" onClick={() => onSelect(image)} className={cn("aspect-square overflow-hidden border bg-muted ring-offset-background transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", activeImage === image && "ring-2 ring-primary")}><img src={image} alt={`${productName} picture ${index + 1}`} className="h-full w-full object-cover" /></button>)}</div> : null}<div className="grid gap-2 border-t pt-3 text-sm"><MediaLine label="SKU" value={sku} mono /><MediaLine label="Category" value={category} /><MediaLine label="Layout" value={layoutName} /></div></div></div>
 }
+function InlineSection({ icon, title, action, children }: { icon: React.ReactNode; title: string; action?: React.ReactNode; children: React.ReactNode }) { return <section className="grid min-w-0 gap-4"><div className="flex min-w-0 flex-wrap items-center justify-between gap-3"><h2 className="flex min-w-0 items-center gap-2 text-lg font-semibold">{icon}<span>{title}</span></h2>{action ? <div className="shrink-0">{action}</div> : null}</div>{children}</section> }
 function DropdownSection({ icon, title, summary, action, defaultOpen = false, children }: { icon: React.ReactNode; title: string; summary?: string; action?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode }) { const [open, setOpen] = React.useState(defaultOpen); return <Collapsible open={open} onOpenChange={setOpen} className="border"><div className="flex min-w-0 items-center justify-between gap-3 p-4"><CollapsibleTrigger asChild><button type="button" className="flex min-w-0 flex-1 items-start gap-3 text-left"><span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span><span className="min-w-0"><span className="block font-semibold">{title}</span>{summary ? <span className="mt-1 block text-sm text-muted-foreground">{summary}</span> : null}</span><ChevronDownIcon className={cn("ml-auto mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} /></button></CollapsibleTrigger>{action ? <div className="shrink-0">{action}</div> : null}</div><CollapsibleContent><div className="border-t p-4">{children}</div></CollapsibleContent></Collapsible> }
-function QuickFacts({ price, cost, category, updated }: { price: string; cost: string; category: string; updated: string }) { return <div className="grid gap-3 border p-4 sm:grid-cols-2"><MediaLine label="Price" value={price} /><MediaLine label="Cost" value={cost} /><MediaLine label="Category" value={category} /><MediaLine label="Updated" value={updated} /></div> }
 function MediaLine({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3"><span className="font-medium text-muted-foreground">{label}</span><span className={cn("min-w-0 break-words", mono && "font-mono text-xs")}>{value}</span></div> }
 function StockBox({ label, value }: { label: string; value: string }) { return <div className="border p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 text-2xl font-bold">{value}</p></div> }
 function InfoGrid({ children }: { children: React.ReactNode }) { return <div className="grid min-w-0 gap-x-10 gap-y-4 sm:grid-cols-2">{children}</div> }
