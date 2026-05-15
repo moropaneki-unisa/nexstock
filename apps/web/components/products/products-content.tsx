@@ -7,6 +7,7 @@ import {
   ArchiveIcon,
   ArrowRightIcon,
   BoxesIcon,
+  DownloadIcon,
   EditIcon,
   EllipsisVerticalIcon,
   FilterIcon,
@@ -15,6 +16,7 @@ import {
   PlusIcon,
   RefreshCwIcon,
   TriangleAlertIcon,
+  UploadIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -41,7 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { apiFetch } from "@/lib/api"
+import { apiFetch, getAccessToken, getApiUrl } from "@/lib/api"
 import { getCachedLayouts } from "@/lib/cached-api"
 import { formatMoney, numberValue } from "@/lib/money"
 
@@ -79,6 +81,14 @@ type Paginated<T> = {
   items?: T[]
   data?: T[]
   pagination?: { total?: number | null } | null
+}
+
+type ImportResult = {
+  created?: number
+  updated?: number
+  skipped?: number
+  errors?: Array<string | { row?: number; message?: string }>
+  message?: string
 }
 
 function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
@@ -120,6 +130,16 @@ function productLayoutId(product: Product) {
 
 function productLayoutName(product: Product) {
   return product.metadata?.productTypeName || "No layout"
+}
+
+function importSummary(result: ImportResult) {
+  const parts = [
+    typeof result.created === "number" ? `${result.created} created` : null,
+    typeof result.updated === "number" ? `${result.updated} updated` : null,
+    typeof result.skipped === "number" ? `${result.skipped} skipped` : null,
+  ].filter(Boolean)
+
+  return parts.length ? parts.join(" · ") : result.message || "Import completed"
 }
 
 function ProductStatusBadge({ product }: { product: Product }) {
@@ -195,6 +215,9 @@ export function ProductsContent() {
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [running, setRunning] = React.useState(false)
+  const [importing, setImporting] = React.useState(false)
+  const [exporting, setExporting] = React.useState<"csv" | "xlsx" | null>(null)
+  const importInputRef = React.useRef<HTMLInputElement | null>(null)
 
   async function loadProducts() {
     setLoading(true)
@@ -267,6 +290,63 @@ export function ProductsContent() {
       })
     } finally {
       setRunning(false)
+    }
+  }
+
+  async function exportProducts(format: "csv" | "xlsx") {
+    setExporting(format)
+    try {
+      const token = getAccessToken()
+      const response = await fetch(`${getApiUrl()}/api/products/export?format=${format}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+
+      if (!response.ok) throw new Error("Export failed")
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const disposition = response.headers.get("content-disposition") || ""
+      const match = disposition.match(/filename="?([^";]+)"?/i)
+      link.href = url
+      link.download = match?.[1] || `nexstock-products.${format}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success(`Products exported as ${format.toUpperCase()}`)
+    } catch (err) {
+      toast.error("Could not export products", { description: err instanceof Error ? err.message : "Export failed" })
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  async function importProducts(file: File) {
+    setImporting(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const result = await apiFetch<ImportResult>("/api/products/import", {
+        method: "POST",
+        body: formData,
+      })
+
+      const errors = result.errors ?? []
+      if (errors.length) {
+        toast.warning("Products imported with warnings", {
+          description: `${importSummary(result)} · ${errors.length} row issue${errors.length === 1 ? "" : "s"}`,
+        })
+      } else {
+        toast.success("Products imported", { description: importSummary(result) })
+      }
+      await loadProducts()
+    } catch (err) {
+      toast.error("Could not import products", { description: err instanceof Error ? err.message : "Import failed" })
+    } finally {
+      setImporting(false)
+      if (importInputRef.current) importInputRef.current.value = ""
     }
   }
 
@@ -383,6 +463,28 @@ export function ProductsContent() {
             <h1 className="font-heading text-2xl font-semibold tracking-tight">Products</h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void importProducts(file)
+              }}
+            />
+            <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()} disabled={running || loading || importing}>
+              {importing ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+              Import
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void exportProducts("csv")} disabled={running || loading || exporting !== null}>
+              {exporting === "csv" ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void exportProducts("xlsx")} disabled={running || loading || exporting !== null}>
+              {exporting === "xlsx" ? <Loader2Icon className="size-4 animate-spin" /> : <DownloadIcon className="size-4" />}
+              XLSX
+            </Button>
             <Button variant="outline" size="sm" onClick={() => void loadProducts()} disabled={running || loading}>
               {running ? <Loader2Icon className="size-4 animate-spin" /> : <RefreshCwIcon className="size-4" />}
               Refresh
