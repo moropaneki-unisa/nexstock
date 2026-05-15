@@ -178,7 +178,7 @@ function PriorityBadge({ priority }: { priority: TaskPriority }) {
 
 function CompactStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">
+    <div className="flex h-9 items-center gap-2 rounded-lg border bg-background px-3">
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
       <span className="font-semibold tabular-nums">{value}</span>
     </div>
@@ -187,13 +187,22 @@ function CompactStat({ label, value }: { label: string; value: number }) {
 
 function TableSkeleton({ rows = 10 }: { rows?: number }) {
   return Array.from({ length: rows }).map((_, index) => (
-    <TableRow key={index}>
+    <TableRow key={index} className="h-14">
       <TableCell><Skeleton className="h-5 w-64" /></TableCell>
       <TableCell><Skeleton className="h-6 w-24" /></TableCell>
       <TableCell><Skeleton className="h-6 w-20" /></TableCell>
       <TableCell><Skeleton className="h-5 w-28" /></TableCell>
       <TableCell><Skeleton className="h-6 w-24" /></TableCell>
       <TableCell><Skeleton className="ml-auto h-8 w-8" /></TableCell>
+    </TableRow>
+  ))
+}
+
+function EmptyRows({ rows }: { rows: number }) {
+  if (rows <= 0) return null
+  return Array.from({ length: rows }).map((_, index) => (
+    <TableRow key={`empty-${index}`} className="h-14 hover:bg-transparent">
+      <TableCell colSpan={6}>&nbsp;</TableCell>
     </TableRow>
   ))
 }
@@ -285,6 +294,7 @@ export function TasksTableContent() {
     const start = (currentPage - 1) * pageSize
     return visibleTasks.slice(start, start + pageSize)
   }, [visibleTasks, currentPage, pageSize])
+  const emptyRowCount = !loading && visibleTasks.length > 0 ? Math.max(0, pageSize - paginatedTasks.length) : 0
 
   React.useEffect(() => {
     setPage(1)
@@ -342,7 +352,7 @@ export function TasksTableContent() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+    <div className="flex min-h-[calc(100vh-var(--header-height))] flex-1 flex-col gap-4 p-4 md:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">Workspace</p>
@@ -429,58 +439,61 @@ export function TasksTableContent() {
         </div>
       </Tabs>
 
-      <div className="overflow-hidden rounded-xl border bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Task</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Due</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? <TableSkeleton rows={pageSize} /> : null}
-            {!loading && visibleTasks.length === 0 ? (
+      <div className="flex min-h-[44rem] flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+        <div className="min-w-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6}>
-                  <div className="flex min-h-64 flex-col items-center justify-center gap-3 p-8 text-center">
-                    <p className="font-medium">{tasks.length ? "No tasks match these filters" : "No tasks yet"}</p>
-                    <p className="max-w-md text-sm text-muted-foreground">{tasks.length ? "Change the filters or clear them to see more tasks." : "Create your first task or generate the launch checklist."}</p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {tasks.length ? <Button type="button" variant="outline" onClick={resetFilters}>Clear filters</Button> : null}
-                      <Button asChild><Link href="/tasks/new"><PlusIcon className="size-4" />New task</Link></Button>
+                <TableHead>Task</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Due</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="w-12 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? <TableSkeleton rows={pageSize} /> : null}
+              {!loading && visibleTasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <div className="flex min-h-[35rem] flex-col items-center justify-center gap-3 p-8 text-center">
+                      <p className="font-medium">{tasks.length ? "No tasks match these filters" : "No tasks yet"}</p>
+                      <p className="max-w-md text-sm text-muted-foreground">{tasks.length ? "Change the filters or clear them to see more tasks." : "Create your first task or generate the launch checklist."}</p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {tasks.length ? <Button type="button" variant="outline" onClick={resetFilters}>Clear filters</Button> : null}
+                        <Button asChild><Link href="/tasks/new"><PlusIcon className="size-4" />New task</Link></Button>
+                      </div>
                     </div>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {!loading && paginatedTasks.map((task) => (
-              <TableRow key={task.id}>
-                <TableCell className="min-w-[18rem] max-w-[34rem]">
-                  <Link href={`/tasks/${task.id}`} className="font-medium hover:underline">{task.title}</Link>
-                  {task.description ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{task.description}</p> : null}
-                </TableCell>
-                <TableCell><StatusBadge status={task.status} /></TableCell>
-                <TableCell><PriorityBadge priority={task.priority} /></TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <CalendarClockIcon className="size-3.5" />{formatDate(task.dueAt)}
-                  </span>
-                  {isOverdue(task) ? <Badge variant="destructive" className="ml-2">Overdue</Badge> : null}
-                  {isToday(task.dueAt) && task.status !== "done" ? <Badge variant="outline" className="ml-2">Today</Badge> : null}
-                </TableCell>
-                <TableCell>{task.category ? <Badge variant="outline">{task.category}</Badge> : <span className="text-muted-foreground">None</span>}</TableCell>
-                <TableCell className="text-right">
-                  <TaskActions task={task} busy={busy === task.id} onStatus={(status) => updateStatus(task, status)} onDelete={() => setDeleteTask(task)} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        <div className="flex flex-col gap-3 border-t px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  </TableCell>
+                </TableRow>
+              ) : null}
+              {!loading && paginatedTasks.map((task) => (
+                <TableRow key={task.id} className="h-14">
+                  <TableCell className="min-w-[18rem] max-w-[34rem]">
+                    <Link href={`/tasks/${task.id}`} className="font-medium hover:underline">{task.title}</Link>
+                    {task.description ? <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{task.description}</p> : null}
+                  </TableCell>
+                  <TableCell><StatusBadge status={task.status} /></TableCell>
+                  <TableCell><PriorityBadge priority={task.priority} /></TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <CalendarClockIcon className="size-3.5" />{formatDate(task.dueAt)}
+                    </span>
+                    {isOverdue(task) ? <Badge variant="destructive" className="ml-2">Overdue</Badge> : null}
+                    {isToday(task.dueAt) && task.status !== "done" ? <Badge variant="outline" className="ml-2">Today</Badge> : null}
+                  </TableCell>
+                  <TableCell>{task.category ? <Badge variant="outline">{task.category}</Badge> : <span className="text-muted-foreground">None</span>}</TableCell>
+                  <TableCell className="text-right">
+                    <TaskActions task={task} busy={busy === task.id} onStatus={(status) => updateStatus(task, status)} onDelete={() => setDeleteTask(task)} />
+                  </TableCell>
+                </TableRow>
+              ))}
+              <EmptyRows rows={emptyRowCount} />
+            </TableBody>
+          </Table>
+        </div>
+        <div className="mt-auto flex flex-col gap-3 border-t px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
             Page <span className="font-medium text-foreground">{currentPage}</span> of <span className="font-medium text-foreground">{totalPages}</span>
           </div>
