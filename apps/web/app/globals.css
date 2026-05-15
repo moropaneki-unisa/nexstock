@@ -91,6 +91,14 @@
     --sidebar-accent-foreground: oklch(0.24 0.035 255);
     --sidebar-border: oklch(0.895 0.014 245);
     --sidebar-ring: oklch(0.57 0.16 255);
+
+    --app-page-padding: 1rem;
+    --app-page-padding-md: 1.5rem;
+    --app-card-padding: 1.25rem;
+    --app-card-padding-sm: 0.75rem;
+    --app-section-gap: 1rem;
+    --app-field-gap: 0.5rem;
+    --app-grid-gap: 1rem;
 }
 
 .dark {
@@ -138,9 +146,62 @@
   html {
     @apply font-sans;
     }
+
+  [data-slot="card"] {
+    min-width: 0;
+  }
+
+  [data-slot="card-header"],
+  [data-slot="card-content"],
+  [data-slot="card-footer"] {
+    min-width: 0;
+  }
+
+  [data-slot="table-cell"],
+  [data-slot="table-head"] {
+    vertical-align: middle;
+  }
+
+  label,
+  form,
+  fieldset {
+    min-width: 0;
+  }
 }
 
 @layer utilities {
+  .app-page {
+    padding: var(--app-page-padding);
+  }
+
+  @media (width >= 48rem) {
+    .app-page {
+      padding: var(--app-page-padding-md);
+    }
+  }
+
+  .app-section-gap {
+    gap: var(--app-section-gap);
+  }
+
+  .app-grid-gap {
+    gap: var(--app-grid-gap);
+  }
+
+  .app-card-pad {
+    padding: var(--app-card-padding);
+  }
+
+  .app-card-pad-sm {
+    padding: var(--app-card-padding-sm);
+  }
+
+  .app-field {
+    display: grid;
+    min-width: 0;
+    gap: var(--app-field-gap);
+  }
+
   .nexstock-shell {
     background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   }
@@ -179,36 +240,6 @@
 
   .nexstock-glow {
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 16px 32px rgba(15, 23, 42, 0.12);
-  }
-
-  @media (width >= 80rem) {
-    .xl\:overflow-y-auto {
-      overflow-y: visible !important;
-    }
-
-    .xl\:max-h-\[calc\(100vh-var\(--header-height\)-2rem\)\] {
-      max-height: none !important;
-    }
-  }
-
-  .lg\:grid-cols-\[1\.2fr_0\.8fr_0\.75fr_0\.55fr_0\.55fr_0\.9fr_auto\] {
-    gap: 0.75rem !important;
-  }
-
-  .lg\:grid-cols-\[1\.2fr_0\.8fr_0\.75fr_0\.55fr_0\.55fr_0\.9fr_auto\] > :nth-child(5),
-  .lg\:grid-cols-\[1\.2fr_0\.8fr_0\.75fr_0\.55fr_0\.55fr_0\.9fr_auto\] > :nth-child(6) {
-    display: none !important;
-  }
-
-  @media (width >= 64rem) {
-    .lg\:grid-cols-\[1\.2fr_0\.8fr_0\.75fr_0\.55fr_0\.55fr_0\.9fr_auto\] {
-      grid-template-columns: minmax(14rem, 1.25fr) minmax(9rem, 0.9fr) minmax(12rem, 1fr) minmax(7rem, 0.65fr) auto !important;
-    }
-
-    .lg\:grid-cols-\[1\.2fr_0\.8fr_0\.75fr_0\.55fr_0\.55fr_0\.9fr_auto\] > :nth-child(7) {
-      align-self: end;
-      justify-self: end;
-    }
   }
 
   img[alt^="Product image "] {
