@@ -13,6 +13,7 @@ type UploadedSpreadsheetFile = {
 
 type ProductImportRow = Record<string, unknown>;
 type ProductImportMapping = Record<string, string>;
+type ProductImportOptions = { productTypeId?: string | null };
 
 type ProductImportResult = {
   logId?: string;
@@ -31,10 +32,16 @@ type CurrencySettings = {
 };
 
 type LayoutField = {
+  productTypeId: string;
   key: string;
   label: string;
   type: string;
+  required: boolean;
+  options: string[];
+  defaultValue: Prisma.JsonValue | null;
   layoutName: string;
+  kind: string;
+  trackInventory: boolean;
 };
 
 type ProductImportLogRow = {
@@ -167,11 +174,18 @@ export class ProductsImportExportService {
     };
   }
 
-  async importProducts(organizationId: string, file: UploadedSpreadsheetFile, mapping: ProductImportMapping = {}): Promise<ProductImportResult> {
+  async importProducts(
+    organizationId: string,
+    file: UploadedSpreadsheetFile,
+    mapping: ProductImportMapping = {},
+    options: ProductImportOptions = {},
+  ): Promise<ProductImportResult> {
     if (!file) throw new BadRequestException('CSV or XLSX file is required');
     if (file.size > 10 * 1024 * 1024) throw new BadRequestException('Import file must be 10MB or smaller');
 
-    const logId = await this.createImportLog(organizationId, file, mapping);
+    const productTypeId = this.normalizeOptionalId(options.productTypeId);
+    const selectedLayout = productTypeId ? await this.layoutType(organizationId, productTypeId) : null;
+    const logId = await this.createImportLog(organizationId, file, mapping, selectedLayout);
     const result: ProductImportResult = { logId, status: 'completed', created: 0, updated: 0, skipped: 0, total: 0, errors: [] };
 
     try {
@@ -187,7 +201,7 @@ export class ProductsImportExportService {
 
       const [organization, activeFields, existingProductCount] = await Promise.all([
         this.prisma.organization.findUnique({ where: { id: organizationId } }),
-        this.layoutFields(organizationId),
+        this.layoutFields(organizationId, productTypeId),
         this.prisma.product.count({ where: { organizationId, deletedAt: null } }),
       ]);
 
@@ -200,7 +214,7 @@ export class ProductsImportExportService {
         const rowNumber = index + 2;
 
         try {
-          const mapped = this.mapImportRow(row, activeFields, currencySettings, mapping);
+          const mapped = this.mapImportRow(row, activeFields, currencySettings, mapping, selectedLayout);
           if (!mapped.name) {
             result.skipped++;
             result.errors.push({ row: rowNumber, message: 'Missing product name' });
@@ -309,10 +323,18 @@ export class ProductsImportExportService {
     }
   }
 
-  private async createImportLog(organizationId: string, file: UploadedSpreadsheetFile, mapping: ProductImportMapping) {
+  private async createImportLog(organizationId: string, file: UploadedSpreadsheetFile, mapping: ProductImportMapping, layout: LayoutField | null) {
+    const metadata = {
+      size: file.size,
+      mimetype: file.mimetype,
+      productTypeId: layout?.productTypeId ?? null,
+      productTypeName: layout?.layoutName ?? null,
+      layoutSelected: Boolean(layout),
+    };
+
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO "ProductImportLog" ("organizationId", "fileName", status, mapping, metadata)
-      VALUES (${organizationId}, ${file.originalname}, 'processing', ${JSON.stringify(mapping)}::jsonb, ${JSON.stringify({ size: file.size, mimetype: file.mimetype })}::jsonb)
+      VALUES (${organizationId}, ${file.originalname}, 'processing', ${JSON.stringify(mapping)}::jsonb, ${JSON.stringify(metadata)}::jsonb)
       RETURNING id
     `;
     return rows[0]?.id;
@@ -356,7 +378,13 @@ export class ProductsImportExportService {
     throw new BadRequestException('Only CSV, XLS, and XLSX files are supported');
   }
 
-  private mapImportRow(row: ProductImportRow, fields: LayoutField[], currencySettings: CurrencySettings, mapping: ProductImportMapping = {}) {
+  private mapImportRow(
+    row: ProductImportRow,
+    fields: LayoutField[],
+    currencySettings: CurrencySettings,
+    mapping: ProductImportMapping = {},
+    layout: LayoutField | null = null,
+  ) {
     const normalized = new Map<string, unknown>();
     for (const [key, value] of Object.entries(row)) normalized.set(this.normalizeHeader(key), value);
 
@@ -366,7 +394,7 @@ export class ProductsImportExportService {
         const candidates = mappedColumn ? [mappedColumn, key] : [key];
         for (const candidate of candidates) {
           const value = normalized.get(this.normalizeHeader(candidate));
-          if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+          if (value !== undefined && value !== null && String(value).trim() !== '' && String(value).trim().toLowerCase() !== 'none') return value;
         }
       }
       return undefined;
@@ -375,7 +403,11 @@ export class ProductsImportExportService {
     const customFields: Record<string, unknown> = {};
     for (const field of fields) {
       const value = get(`custom:${field.key}`, this.customHeader(field), field.label, field.key, `custom:${field.label}`);
-      if (value !== undefined) customFields[field.key] = this.convertLayoutValue(field, value, currencySettings.baseCurrency);
+      if (value === undefined) {
+        if (field.required) throw new BadRequestException(`Layout field "${field.label}" is required`);
+        continue;
+      }
+      customFields[field.key] = this.convertLayoutValue(field, value, currencySettings.baseCurrency);
     }
 
     const price = new Prisma.Decimal(this.numberValue(get('price', 'rate', 'sales rate')));
@@ -393,6 +425,12 @@ export class ProductsImportExportService {
     }
 
     const metadata: Record<string, unknown> = { source: 'file_import' };
+    if (layout) {
+      metadata.productTypeId = layout.productTypeId;
+      metadata.productTypeName = layout.layoutName;
+      metadata.kind = layout.kind;
+      metadata.trackInventory = layout.trackInventory;
+    }
     if (Object.keys(customFields).length) metadata.customFields = customFields;
 
     return {
@@ -581,10 +619,14 @@ export class ProductsImportExportService {
 
   private convertLayoutValue(field: LayoutField, value: unknown, fallbackCurrency: string): Prisma.InputJsonValue {
     const type = String(field.type || 'text').toLowerCase();
+    if (String(value).trim().toLowerCase() === 'none') {
+      throw new BadRequestException(`Layout field "${field.label}" cannot use none as a saved value`);
+    }
     if (type === 'number') return Math.trunc(this.numberValue(value));
     if (type === 'decimal') return this.numberValue(value);
     if (type === 'currency') return this.currencyObjectValue(value, fallbackCurrency) as Prisma.InputJsonObject;
     if (type === 'boolean') return this.booleanValue(value);
+    if (type === 'select') return this.selectValue(field, value);
     if (type === 'images') return this.imagesValue(value) as Prisma.InputJsonArray;
     if (type === 'attachment') return this.attachmentValue(value) as Prisma.InputJsonArray;
     if (type === 'lookup') {
@@ -599,6 +641,15 @@ export class ProductsImportExportService {
     }
     if (type === 'date') return String(value).trim().slice(0, 10);
     return String(value).trim();
+  }
+
+  private selectValue(field: LayoutField, value: unknown) {
+    const text = String(value ?? '').trim();
+    const options = (field.options ?? []).map((option) => String(option).trim()).filter(Boolean);
+    if (!options.length) throw new BadRequestException(`Layout field "${field.label}" has no select options configured`);
+    const matched = options.find((option) => option.toLowerCase() === text.toLowerCase());
+    if (!matched) throw new BadRequestException(`Layout field "${field.label}" must match one of its configured options`);
+    return matched;
   }
 
   private currencyObjectValue(value: unknown, fallbackCurrency: string) {
@@ -667,9 +718,39 @@ export class ProductsImportExportService {
     return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, any> : {};
   }
 
-  private async layoutFields(organizationId: string) {
+  private normalizeOptionalId(value: string | null | undefined) {
+    const text = String(value ?? '').trim();
+    return text && text !== 'none' ? text : null;
+  }
+
+  private async layoutType(organizationId: string, productTypeId: string) {
+    const rows = await this.layoutFields(organizationId, productTypeId);
+    if (rows[0]) return rows[0];
+
+    const types = await this.prisma.$queryRaw<LayoutField[]>`
+      SELECT t.id AS "productTypeId", '' AS key, '' AS label, 'text' AS type, false AS required, ARRAY[]::text[] AS options, NULL::jsonb AS "defaultValue", t.name AS "layoutName", t.kind, t."trackInventory"
+      FROM "ProductType" t
+      WHERE t.id = ${productTypeId} AND t."organizationId" = ${organizationId} AND t."isActive" = true
+      LIMIT 1
+    `;
+    const layout = types[0];
+    if (!layout) throw new BadRequestException('Selected layout does not exist');
+    return layout;
+  }
+
+  private async layoutFields(organizationId: string, productTypeId?: string | null) {
+    if (productTypeId) {
+      return this.prisma.$queryRaw<LayoutField[]>`
+        SELECT f."productTypeId", f.key, f.label, f.type, f.required, f.options, f."defaultValue", t.name AS "layoutName", t.kind, t."trackInventory"
+        FROM "ProductTypeField" f
+        JOIN "ProductType" t ON t.id = f."productTypeId"
+        WHERE f."organizationId" = ${organizationId} AND f."productTypeId" = ${productTypeId} AND f."isActive" = true AND t."isActive" = true
+        ORDER BY f."order" ASC, f.label ASC
+      `;
+    }
+
     return this.prisma.$queryRaw<LayoutField[]>`
-      SELECT f.key, f.label, f.type, t.name AS "layoutName"
+      SELECT f."productTypeId", f.key, f.label, f.type, f.required, f.options, f."defaultValue", t.name AS "layoutName", t.kind, t."trackInventory"
       FROM "ProductTypeField" f
       JOIN "ProductType" t ON t.id = f."productTypeId"
       WHERE f."organizationId" = ${organizationId} AND f."isActive" = true AND t."isActive" = true
