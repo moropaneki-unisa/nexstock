@@ -3,23 +3,95 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeftIcon, ArrowRightIcon, CheckCircle2Icon, DownloadIcon, FileSpreadsheetIcon, LayoutTemplateIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckCircle2Icon,
+  CheckIcon,
+  DownloadIcon,
+  FileJsonIcon,
+  FileSpreadsheetIcon,
+  FileTextIcon,
+  LayersIcon,
+  LayoutTemplateIcon,
+  SparklesIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { getCachedLayouts } from "@/lib/cached-api"
+import { cn } from "@/lib/utils"
 
-type LayoutField = { id?: string; key: string; label: string; type: string; required?: boolean | null; options?: string[] | null; defaultValue?: unknown; placeholder?: string | null; helpText?: string | null }
-type Layout = { id: string; name: string; kind?: string | null; trackInventory?: boolean | null; fields?: LayoutField[] | null }
+type LayoutField = {
+  id?: string
+  key: string
+  label: string
+  type: string
+  required?: boolean | null
+  options?: string[] | null
+  defaultValue?: unknown
+  placeholder?: string | null
+  helpText?: string | null
+}
+type Layout = {
+  id: string
+  name: string
+  kind?: string | null
+  trackInventory?: boolean | null
+  fields?: LayoutField[] | null
+}
 type Paginated<T> = { items?: T[]; data?: T[] }
-type ImportDataType = "text" | "richtext" | "number" | "decimal" | "currency" | "attachment" | "images" | "lookup" | "boolean" | "select" | "date"
-type ImportFieldDefinition = { key: string; column: string; source: "core" | "layout"; dataType: ImportDataType; required: boolean; defaultValue: unknown; example: string; allowedValues: string[]; importFormat: string; notes: string }
+type ImportDataType =
+  | "text"
+  | "richtext"
+  | "number"
+  | "decimal"
+  | "currency"
+  | "attachment"
+  | "images"
+  | "lookup"
+  | "boolean"
+  | "select"
+  | "date"
+type ImportFieldDefinition = {
+  key: string
+  column: string
+  source: "core" | "layout"
+  dataType: ImportDataType
+  required: boolean
+  defaultValue: unknown
+  example: string
+  allowedValues: string[]
+  importFormat: string
+  notes: string
+}
 
-const backendFieldTypes: ImportDataType[] = ["text", "richtext", "number", "decimal", "currency", "attachment", "images", "lookup", "boolean", "select", "date"]
+const backendFieldTypes: ImportDataType[] = [
+  "text",
+  "richtext",
+  "number",
+  "decimal",
+  "currency",
+  "attachment",
+  "images",
+  "lookup",
+  "boolean",
+  "select",
+  "date",
+]
 const noneValue = "none"
 
 const coreFieldDefinitions: ImportFieldDefinition[] = [
@@ -38,11 +110,31 @@ const coreFieldDefinitions: ImportFieldDefinition[] = [
   { key: "images", column: "Images", source: "core", dataType: "images", required: false, defaultValue: [], example: "https://example.com/image.jpg", allowedValues: [], importFormat: "One or more URLs separated by comma or pipe", notes: "Optional image URLs." },
 ]
 
-function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) { return !value ? [] : Array.isArray(value) ? value : value.items ?? value.data ?? [] }
-function normalizeFieldType(type: string | null | undefined): ImportDataType { const value = String(type || "text").trim().toLowerCase(); return backendFieldTypes.includes(value as ImportDataType) ? value as ImportDataType : "text" }
-function safeFilePart(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "products" }
-function csvEscape(value: unknown) { const text = String(value ?? ""); return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text }
-function downloadBlob(fileName: string, contentType: string, content: BlobPart) { const blob = new Blob([content], { type: contentType }); const url = window.URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = fileName; document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url) }
+function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
+  return !value ? [] : Array.isArray(value) ? value : (value.items ?? value.data ?? [])
+}
+function normalizeFieldType(type: string | null | undefined): ImportDataType {
+  const value = String(type || "text").trim().toLowerCase()
+  return backendFieldTypes.includes(value as ImportDataType) ? (value as ImportDataType) : "text"
+}
+function safeFilePart(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "products"
+}
+function csvEscape(value: unknown) {
+  const text = String(value ?? "")
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+function downloadBlob(fileName: string, contentType: string, content: BlobPart) {
+  const blob = new Blob([content], { type: contentType })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
 
 function importFormatForLayoutField(field: LayoutField) {
   const type = normalizeFieldType(field.type)
@@ -50,7 +142,7 @@ function importFormatForLayoutField(field: LayoutField) {
   if (type === "select") return options.length ? `One of: ${options.join(", ")}` : "Select option configured in layout settings"
   if (type === "number") return "Whole number"
   if (type === "decimal") return "Number or decimal, e.g. 10.50"
-  if (type === "currency") return "Amount and optional currency, e.g. 100 ZAR or {\"amount\":100,\"currency\":\"ZAR\"}"
+  if (type === "currency") return 'Amount and optional currency, e.g. 100 ZAR or {"amount":100,"currency":"ZAR"}'
   if (type === "boolean") return "Yes/No, true/false, or 1/0"
   if (type === "date") return "YYYY-MM-DD"
   if (type === "images") return "One or more image URLs separated by comma or pipe"
@@ -62,7 +154,8 @@ function importFormatForLayoutField(field: LayoutField) {
 
 function exampleValueForField(field: LayoutField) {
   const type = normalizeFieldType(field.type)
-  if (field.defaultValue !== undefined && field.defaultValue !== null && field.defaultValue !== "") return String(field.defaultValue)
+  if (field.defaultValue !== undefined && field.defaultValue !== null && field.defaultValue !== "")
+    return String(field.defaultValue)
   if (type === "select") return field.options?.[0] || ""
   if (type === "number") return "10"
   if (type === "decimal") return "10.50"
@@ -87,12 +180,24 @@ function fieldDefinitionsForLayout(layout: Layout | null): ImportFieldDefinition
     example: exampleValueForField(field),
     allowedValues: field.options?.filter(Boolean) ?? [],
     importFormat: importFormatForLayoutField(field),
-    notes: [field.helpText, field.placeholder ? `Placeholder: ${field.placeholder}` : null, Boolean(field.required) ? "Required by selected layout." : "Optional layout field."].filter(Boolean).join(" "),
+    notes: [
+      field.helpText,
+      field.placeholder ? `Placeholder: ${field.placeholder}` : null,
+      Boolean(field.required) ? "Required by selected layout." : "Optional layout field.",
+    ]
+      .filter(Boolean)
+      .join(" "),
   }))
   return [...coreFieldDefinitions, ...layoutFields]
 }
 
-function templateRows(layout: Layout | null) { return [Object.fromEntries(fieldDefinitionsForLayout(layout).map((field) => [field.column, field.example]))] }
+function templateRows(layout: Layout | null) {
+  return [
+    Object.fromEntries(
+      fieldDefinitionsForLayout(layout).map((field) => [field.column, field.example]),
+    ),
+  ]
+}
 function schemaForLayout(layout: Layout | null) {
   const fields = fieldDefinitionsForLayout(layout)
   return {
@@ -102,11 +207,43 @@ function schemaForLayout(layout: Layout | null) {
     validUploadFormats: ["csv", "xlsx"],
     supportedLayoutFieldTypes: backendFieldTypes,
     generatedAt: new Date().toISOString(),
-    purpose: "Developer/reference schema for the CSV/XLSX product import template. This JSON file is not uploadable to the current backend importer.",
-    backendContract: { endpoint: "POST /api/products/import", contentType: "multipart/form-data", fields: ["file", "mapping", "productTypeId"], xlsxImporterReads: "first worksheet only" },
-    layout: layout ? { id: layout.id, name: layout.name, kind: layout.kind ?? "physical", trackInventory: layout.trackInventory ?? true } : null,
-    defaults: { layout: "none until selected by user", fieldMappings: "none until selected by user", selectFields: "none/empty until spreadsheet value matches configured option", sku: "auto-generated when empty", status: "active", quantity: 0, lowStockLevel: 5 },
-    columns: fields.map((field) => ({ column: field.column, mapsTo: field.key, source: field.source, dataType: field.dataType, required: field.required, defaultValue: field.defaultValue, allowedValues: field.allowedValues, example: field.example, importFormat: field.importFormat, notes: field.notes })),
+    purpose:
+      "Developer/reference schema for the CSV/XLSX product import template. This JSON file is not uploadable to the current backend importer.",
+    backendContract: {
+      endpoint: "POST /api/products/import",
+      contentType: "multipart/form-data",
+      fields: ["file", "mapping", "productTypeId"],
+      xlsxImporterReads: "first worksheet only",
+    },
+    layout: layout
+      ? {
+          id: layout.id,
+          name: layout.name,
+          kind: layout.kind ?? "physical",
+          trackInventory: layout.trackInventory ?? true,
+        }
+      : null,
+    defaults: {
+      layout: "none until selected by user",
+      fieldMappings: "none until selected by user",
+      selectFields: "none/empty until spreadsheet value matches configured option",
+      sku: "auto-generated when empty",
+      status: "active",
+      quantity: 0,
+      lowStockLevel: 5,
+    },
+    columns: fields.map((field) => ({
+      column: field.column,
+      mapsTo: field.key,
+      source: field.source,
+      dataType: field.dataType,
+      required: field.required,
+      defaultValue: field.defaultValue,
+      allowedValues: field.allowedValues,
+      example: field.example,
+      importFormat: field.importFormat,
+      notes: field.notes,
+    })),
     sampleRows: templateRows(layout),
   }
 }
@@ -116,13 +253,24 @@ export function ImportNewContent() {
   const [layouts, setLayouts] = React.useState<Layout[]>([])
   const [selectedLayoutId, setSelectedLayoutId] = React.useState(noneValue)
   const [loadingLayouts, setLoadingLayouts] = React.useState(true)
+  const [downloadedFormat, setDownloadedFormat] = React.useState<"csv" | "xlsx" | "json" | null>(null)
 
   React.useEffect(() => {
     async function loadLayouts() {
       setLoadingLayouts(true)
-      try { setLayouts(normalizeList(await getCachedLayouts<Layout[] | Paginated<Layout>>()).filter((layout) => layout?.id)) }
-      catch (error) { toast.error("Could not load layouts", { description: error instanceof Error ? error.message : "Request failed" }) }
-      finally { setLoadingLayouts(false) }
+      try {
+        setLayouts(
+          normalizeList(await getCachedLayouts<Layout[] | Paginated<Layout>>()).filter(
+            (layout) => layout?.id,
+          ),
+        )
+      } catch (error) {
+        toast.error("Could not load layouts", {
+          description: error instanceof Error ? error.message : "Request failed",
+        })
+      } finally {
+        setLoadingLayouts(false)
+      }
     }
     void loadLayouts()
   }, [])
@@ -131,33 +279,94 @@ export function ImportNewContent() {
   const selectedFields = selectedLayout?.fields ?? []
   const requiredFields = selectedFields.filter((field) => field.required)
   const fieldCount = coreFieldDefinitions.length + selectedFields.length
+  const layoutSelected = selectedLayoutId !== noneValue
 
   function exportTemplate(format: "csv" | "xlsx" | "json") {
     const fileBase = `nexstock-import-template-${safeFilePart(selectedLayout?.name || "no-layout")}`
     const exportFields = fieldDefinitionsForLayout(selectedLayout)
     const columns = exportFields.map((field) => field.column)
     const rows = templateRows(selectedLayout)
-    const fieldGuideRows = exportFields.map((field) => ({ Column: field.column, "Maps To": field.key, Source: field.source, "Data Type": field.dataType, Required: field.required ? "Yes" : "No", Default: field.defaultValue === null || field.defaultValue === undefined ? "None" : JSON.stringify(field.defaultValue), Example: field.example, "Allowed Values": field.allowedValues.join(", "), Format: field.importFormat, Notes: field.notes }))
-    const selectRows = exportFields.filter((field) => field.dataType === "select").flatMap((field) => (field.allowedValues.length ? field.allowedValues : ["None / configure options in settings"]).map((option) => ({ Field: field.key, Column: field.column, Option: option })))
+    const fieldGuideRows = exportFields.map((field) => ({
+      Column: field.column,
+      "Maps To": field.key,
+      Source: field.source,
+      "Data Type": field.dataType,
+      Required: field.required ? "Yes" : "No",
+      Default:
+        field.defaultValue === null || field.defaultValue === undefined
+          ? "None"
+          : JSON.stringify(field.defaultValue),
+      Example: field.example,
+      "Allowed Values": field.allowedValues.join(", "),
+      Format: field.importFormat,
+      Notes: field.notes,
+    }))
+    const selectRows = exportFields
+      .filter((field) => field.dataType === "select")
+      .flatMap((field) =>
+        (field.allowedValues.length ? field.allowedValues : ["None / configure options in settings"]).map(
+          (option) => ({ Field: field.key, Column: field.column, Option: option }),
+        ),
+      )
 
     if (format === "json") {
-      downloadBlob(`${fileBase}.schema.json`, "application/json", JSON.stringify(schemaForLayout(selectedLayout), null, 2))
-      toast.success("Developer schema exported", { description: "JSON is a reference file, not an import upload." })
+      downloadBlob(
+        `${fileBase}.schema.json`,
+        "application/json",
+        JSON.stringify(schemaForLayout(selectedLayout), null, 2),
+      )
+      toast.success("Developer schema exported", {
+        description: "JSON is a reference file, not an import upload.",
+      })
+      setDownloadedFormat("json")
       return
     }
     if (format === "csv") {
-      downloadBlob(`${fileBase}.csv`, "text/csv;charset=utf-8", [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n"))
+      downloadBlob(
+        `${fileBase}.csv`,
+        "text/csv;charset=utf-8",
+        [
+          columns.join(","),
+          ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(",")),
+        ].join("\n"),
+      )
       toast.success("CSV import template exported")
+      setDownloadedFormat("csv")
       return
     }
 
     const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows, { header: columns }), "Import Template")
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(rows, { header: columns }),
+      "Import Template",
+    )
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(fieldGuideRows), "Field Guide")
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(selectRows.length ? selectRows : [{ Field: "No select fields", Column: "", Option: "" }]), "Select Options")
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ Key: "Layout", Value: selectedLayout?.name || "None" }, { Key: "Layout ID", Value: selectedLayout?.id || "none" }, { Key: "Backend imports", Value: "Only the first worksheet named Import Template is imported" }, { Key: "Generated At", Value: new Date().toISOString() }]), "Import Info")
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        selectRows.length ? selectRows : [{ Field: "No select fields", Column: "", Option: "" }],
+      ),
+      "Select Options",
+    )
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        { Key: "Layout", Value: selectedLayout?.name || "None" },
+        { Key: "Layout ID", Value: selectedLayout?.id || "none" },
+        {
+          Key: "Backend imports",
+          Value: "Only the first worksheet named Import Template is imported",
+        },
+        { Key: "Generated At", Value: new Date().toISOString() },
+      ]),
+      "Import Info",
+    )
     XLSX.writeFile(workbook, `${fileBase}.xlsx`)
-    toast.success("XLSX import workbook exported", { description: "Upload the workbook as-is; backend imports the first sheet." })
+    toast.success("XLSX import workbook exported", {
+      description: "Upload the workbook as-is; backend imports the first sheet.",
+    })
+    setDownloadedFormat("xlsx")
   }
 
   function continueToMapping() {
@@ -171,34 +380,63 @@ export function ImportNewContent() {
         <div>
           <p className="text-sm text-muted-foreground">Imports</p>
           <h1 className="font-heading text-2xl font-semibold tracking-tight">New import</h1>
-          <p className="text-sm text-muted-foreground">Prepare your product import, then continue to column mapping.</p>
+          <p className="text-sm text-muted-foreground">
+            Prepare your product import, then continue to column mapping.
+          </p>
         </div>
-        <Button asChild variant="outline" size="sm"><Link href="/imports"><ArrowLeftIcon className="size-4" />Back to imports</Link></Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/imports">
+            <ArrowLeftIcon className="size-4" />
+            Back to imports
+          </Link>
+        </Button>
       </div>
 
-      <div className="grid gap-4 px-4 lg:px-6 @5xl/main:grid-cols-[minmax(0,1fr)_320px]">
-        <Card className="min-h-[430px]">
-          <CardHeader>
-            <CardTitle>Import setup</CardTitle>
-            <CardDescription>Choose a layout, export a template if needed, then move to mapping.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 @3xl/main:grid-cols-3">
+      <div className="px-4 lg:px-6">
+        <ProgressRail current={1} />
+      </div>
+
+      <div className="grid gap-5 px-4 lg:px-6 @5xl/main:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="space-y-4">
+          <div>
+            <h2 className="font-heading text-lg font-semibold tracking-tight">Import setup</h2>
+            <p className="text-sm text-muted-foreground">
+              Choose a layout, export a template if needed, then move to mapping.
+            </p>
+          </div>
+          <div className="grid gap-4 @3xl/main:grid-cols-3">
             <StepCard
               step="1"
               title="Choose layout"
               description="Default is None. Choose a layout only when imported products must follow layout fields and required rules."
               icon={LayoutTemplateIcon}
+              complete={layoutSelected}
             >
-              <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId} disabled={loadingLayouts}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={noneValue}>None</SelectItem>
-                  {layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <Badge variant="secondary">{fieldCount} fields</Badge>
-                <Badge variant={requiredFields.length ? "destructive" : "outline"}>{requiredFields.length} required</Badge>
+              {loadingLayouts ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <Select value={selectedLayoutId} onValueChange={setSelectedLayoutId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={noneValue}>None - core fields only</SelectItem>
+                    {layouts.map((layout) => (
+                      <SelectItem key={layout.id} value={layout.id}>
+                        {layout.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                <Badge variant="secondary" className="gap-1">
+                  <LayersIcon className="size-3" />
+                  {fieldCount} fields
+                </Badge>
+                <Badge variant={requiredFields.length ? "destructive" : "outline"}>
+                  {requiredFields.length} required
+                </Badge>
               </div>
             </StepCard>
 
@@ -207,11 +445,31 @@ export function ImportNewContent() {
               title="Download template"
               description="Templates match the selected layout. CSV/XLSX can be imported; JSON is reference only."
               icon={DownloadIcon}
+              complete={downloadedFormat !== null}
             >
               <div className="grid gap-2">
-                <Button type="button" variant="outline" className="justify-start" onClick={() => exportTemplate("csv")}><DownloadIcon className="size-4" />CSV template</Button>
-                <Button type="button" variant="outline" className="justify-start" onClick={() => exportTemplate("xlsx")}><DownloadIcon className="size-4" />XLSX workbook</Button>
-                <Button type="button" variant="outline" className="justify-start" onClick={() => exportTemplate("json")}><DownloadIcon className="size-4" />Schema JSON</Button>
+                <TemplateButton
+                  active={downloadedFormat === "csv"}
+                  onClick={() => exportTemplate("csv")}
+                  icon={FileTextIcon}
+                  label="CSV template"
+                  hint="Simple comma-separated values"
+                />
+                <TemplateButton
+                  active={downloadedFormat === "xlsx"}
+                  onClick={() => exportTemplate("xlsx")}
+                  icon={FileSpreadsheetIcon}
+                  label="XLSX workbook"
+                  hint="Includes field guide sheets"
+                  recommended
+                />
+                <TemplateButton
+                  active={downloadedFormat === "json"}
+                  onClick={() => exportTemplate("json")}
+                  icon={FileJsonIcon}
+                  label="Schema JSON"
+                  hint="Developer reference only"
+                />
               </div>
             </StepCard>
 
@@ -219,56 +477,162 @@ export function ImportNewContent() {
               step="3"
               title="Map columns"
               description="Upload the completed CSV/XLSX and map spreadsheet columns on the next page."
-              icon={FileSpreadsheetIcon}
+              icon={SparklesIcon}
+              complete={false}
             >
-              <Button type="button" className="w-full justify-between" onClick={continueToMapping}>
+              <Button
+                type="button"
+                className="w-full justify-between"
+                onClick={continueToMapping}
+              >
                 Continue to mapping
                 <ArrowRightIcon className="size-4" />
               </Button>
+              <p className="text-xs text-muted-foreground">
+                You can change the layout later from the mapping page.
+              </p>
             </StepCard>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card className="min-h-[430px]">
-          <CardHeader>
-            <CardTitle>Import summary</CardTitle>
-            <CardDescription>Stable setup overview.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <SummaryRow label="Selected layout" value={selectedLayout?.name || "None"} />
-            <SummaryRow label="Core fields" value={String(coreFieldDefinitions.length)} />
-            <SummaryRow label="Layout fields" value={String(selectedFields.length)} />
-            <SummaryRow label="Required layout fields" value={String(requiredFields.length)} />
-            <div className="rounded-md border bg-muted/20 p-3">
-              <p className="flex items-center gap-2 font-medium"><CheckCircle2Icon className="size-4" />Next step</p>
-              <p className="mt-1 text-xs text-muted-foreground">The mapping page handles file upload, header detection, column mapping, validation, and Start Import.</p>
-            </div>
-            <div className="max-h-36 overflow-auto rounded-md border p-3">
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Import summary</CardTitle>
+              <CardDescription>Stable setup overview.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <SummaryRow label="Selected layout" value={selectedLayout?.name || "None"} />
+              <div className="grid grid-cols-2 gap-2">
+                <SummaryStat label="Core fields" value={coreFieldDefinitions.length} />
+                <SummaryStat label="Layout fields" value={selectedFields.length} />
+                <SummaryStat
+                  label="Required"
+                  value={requiredFields.length}
+                  tone={requiredFields.length ? "destructive" : "default"}
+                />
+                <SummaryStat label="Total" value={fieldCount} />
+              </div>
+
               {selectedFields.length ? (
-                <div className="space-y-2">
-                  {selectedFields.slice(0, 10).map((field) => (
-                    <div key={field.key} className="flex items-center justify-between gap-3 text-xs">
-                      <span className="truncate font-medium">{field.label}</span>
-                      <span className="shrink-0 text-muted-foreground">{normalizeFieldType(field.type)}{field.required ? " · required" : ""}</span>
-                    </div>
-                  ))}
+                <div className="rounded-md border">
+                  <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+                    Layout fields ({selectedFields.length})
+                  </div>
+                  <div className="max-h-44 space-y-1 overflow-auto p-2">
+                    {selectedFields.map((field) => (
+                      <div
+                        key={field.key}
+                        className="flex items-center justify-between gap-3 rounded-sm px-2 py-1.5 text-xs hover:bg-muted/50"
+                      >
+                        <span className="truncate font-medium">{field.label}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {normalizeFieldType(field.type)}
+                          {field.required ? " - req" : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">No layout fields selected. The import will use core product fields only.</p>
+                <p className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  No layout fields selected. The import will use core product fields only.
+                </p>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Alert>
+            <CheckCircle2Icon />
+            <AlertTitle>Next step</AlertTitle>
+            <AlertDescription>
+              The mapping page handles file upload, header detection, column mapping, validation, and
+              starting the import.
+            </AlertDescription>
+          </Alert>
+        </div>
       </div>
     </div>
   )
 }
 
-function StepCard({ step, title, description, icon: Icon, children }: { step: string; title: string; description: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+function ProgressRail({ current }: { current: number }) {
+  const steps = [
+    { num: 1, label: "Setup" },
+    { num: 2, label: "Map columns" },
+    { num: 3, label: "Import" },
+  ]
+  const value = ((current - 1) / Math.max(steps.length - 1, 1)) * 100
   return (
-    <div className="flex min-h-[300px] flex-col rounded-xl border bg-card p-4">
-      <div className="flex items-start gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold">{step}</div>
+    <Card size="sm">
+      <CardContent className="space-y-3">
+        <Progress value={value} className="h-1.5" />
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          {steps.map((step) => {
+            const done = step.num < current
+            const active = step.num === current
+            return (
+            <div
+              key={step.num}
+              className={cn(
+                "flex min-w-0 items-center gap-2 rounded-md px-2.5 py-1.5",
+                active && "bg-muted text-foreground",
+                done && "text-foreground",
+                !active && !done && "text-muted-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-5 items-center justify-center rounded-full text-[10px] font-semibold",
+                  active && "bg-background text-foreground",
+                  done && "bg-foreground text-background",
+                  !active && !done && "border bg-muted",
+                )}
+              >
+                {done ? <CheckIcon className="size-3" /> : step.num}
+              </span>
+              <span className="truncate font-medium">{step.label}</span>
+            </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function StepCard({
+  step,
+  title,
+  description,
+  icon: Icon,
+  complete,
+  children,
+}: {
+  step: string
+  title: string
+  description: string
+  icon: React.ComponentType<{ className?: string }>
+  complete: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <Card
+      size="sm"
+      className={cn(
+        "flex min-h-[260px] flex-col transition-colors",
+        complete && "border-foreground/30 bg-muted/20",
+      )}
+    >
+      <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+        <div
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold",
+            complete ? "border-transparent bg-foreground text-background" : "bg-muted",
+          )}
+        >
+          {complete ? <CheckIcon className="size-4" /> : step}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Icon className="size-4 text-muted-foreground" />
@@ -276,12 +640,87 @@ function StepCard({ step, title, description, icon: Icon, children }: { step: st
           </div>
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
+      </CardHeader>
+      <CardContent className="mt-auto space-y-3">{children}</CardContent>
+    </Card>
+  )
+}
+
+function TemplateButton({
+  onClick,
+  icon: Icon,
+  label,
+  hint,
+  active,
+  recommended,
+}: {
+  onClick: () => void
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  hint: string
+  active: boolean
+  recommended?: boolean
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={onClick}
+      className={cn(
+        "group h-auto w-full justify-start gap-3 px-3 py-2.5 text-left",
+        active && "border-foreground/40 bg-muted/40",
+      )}
+    >
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-medium">{label}</span>
+          {recommended ? (
+            <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+              Recommended
+            </Badge>
+          ) : null}
+        </div>
+        <p className="truncate text-xs text-muted-foreground">{hint}</p>
       </div>
-      <div className="mt-auto space-y-3 pt-5">{children}</div>
-    </div>
+      {active ? (
+        <CheckIcon className="size-4 text-foreground" />
+      ) : (
+        <DownloadIcon className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      )}
+    </Button>
   )
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-3 rounded-md border p-3"><span className="text-muted-foreground">{label}</span><span className="font-medium text-right">{value}</span></div>
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{value}</span>
+    </div>
+  )
+}
+
+function SummaryStat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string
+  value: number
+  tone?: "default" | "destructive"
+}) {
+  return (
+    <div className="rounded-md border p-2.5">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "text-lg font-semibold tabular-nums",
+          tone === "destructive" && value > 0 && "text-destructive",
+        )}
+      >
+        {value.toLocaleString()}
+      </p>
+    </div>
+  )
 }
