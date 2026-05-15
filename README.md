@@ -217,6 +217,13 @@ These changes were applied directly to the `main-v2` branch.
    - Changed the Products page primary action into a dropdown with `Add new product` and `Import products` options.
    - The `Import products` option now routes users to `/imports/new`.
 
+12. **Import layout selection and field rules**
+   - Added a Product layout selector to `/imports/new`; it defaults to `None` until the user selects a layout.
+   - `POST /api/products/import` now accepts `productTypeId` and applies only the selected layout's fields and rules to imported products.
+   - Selected layout metadata is saved on imported products and import logs.
+   - Required layout fields are enforced during import.
+   - Select layout fields treat `none` as an empty/default UI value and only save a value when the spreadsheet value matches a configured select option.
+
 ## Current known follow-up items
 
 - Improve `/imports/new` from JSON mapping to a visual column-to-field mapping UI.
