@@ -7,13 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { Express } from 'express';
+import { Express, Response } from 'express';
 import {
   CurrentUser,
   CurrentUserPayload,
@@ -62,6 +63,36 @@ export class ProductsController {
   )
   uploadFieldAttachment(@UploadedFile() file: Express.Multer.File) {
     return this.products.uploadAttachment(file);
+  }
+
+  @Get('export')
+  async exportProducts(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('format') format: 'csv' | 'xlsx' = 'csv',
+    @Res() response: Response,
+  ) {
+    const exportFile = await this.importExport.exportProducts(
+      user.organizationId,
+      format === 'xlsx' ? 'xlsx' : 'csv',
+    );
+
+    response.setHeader('Content-Type', exportFile.contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${exportFile.fileName}"`);
+    return response.send(exportFile.buffer);
+  }
+
+  @Post('import')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  importProducts(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.importExport.importProducts(user.organizationId, file);
   }
 
   @Post(':id/upload-image')
