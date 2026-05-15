@@ -1,7 +1,7 @@
 import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { ApiKeyGuard } from '../api-keys/api-key.guard';
-import { CreateProductDto, ListProductsDto, UpdateProductDto } from '../products/dto';
+import { AdjustInventoryDto, CreateProductDto, ListProductsDto, UpdateProductDto } from '../products/dto';
 import { ProductsService } from '../products/products.service';
 
 type ApiRequest = Request & { apiOrganizationId: string; apiScopes: string[] };
@@ -33,6 +33,15 @@ export class PublicProductsController {
   update(@Req() req: ApiRequest, @Param('id') id: string, @Body() dto: UpdateProductDto) {
     this.assertScope(req, 'products:write');
     return this.products.update(req.apiOrganizationId, id, dto);
+  }
+
+  @Post(':id/adjust')
+  adjustInventory(@Req() req: ApiRequest, @Param('id') id: string, @Body() dto: AdjustInventoryDto) {
+    this.assertScope(req, 'products:write');
+    return this.products.adjustInventory(req.apiOrganizationId, id, {
+      ...dto,
+      source: dto.source?.trim() || 'public_api',
+    });
   }
 
   private assertScope(req: ApiRequest, scope: string) {
