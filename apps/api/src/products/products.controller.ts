@@ -33,6 +33,10 @@ import { ProductTypesService } from './product-types.service';
 import { ProductsImportExportService } from './products-import-export.service';
 import { ProductsService } from './products.service';
 
+type ProductStatusPatch = UpdateProductDto & {
+  status?: 'active' | 'draft' | 'archived';
+};
+
 @Controller('products')
 @UseGuards(JwtAuthGuard)
 export class ProductsController {
@@ -201,7 +205,7 @@ export class ProductsController {
   update(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
-    @Body() dto: UpdateProductDto,
+    @Body() dto: ProductStatusPatch,
   ) {
     return this.products.update(user.organizationId, id, dto);
   }
