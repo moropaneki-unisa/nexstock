@@ -295,6 +295,18 @@ These changes were applied directly to the `main-v2` branch.
    - Added reusable `apps/web/components/records/record-action-dialog.tsx` for list-page destructive or important confirmations.
    - Manual test checklist: open `/products`, `/suppliers`, `/purchase-orders`, and `/imports`; verify compact stats, table scroll, pagination, search/filter behavior, column controls where present, row actions, and confirmation dialogs on destructive/important actions.
 
+20. **Product CRUD page standardization and backend hardening**
+   - Reworked the product detail page archive action to use shadcn AlertDialog through `RecordActionDialog` instead of archiving immediately.
+   - Improved the product create/edit layout selector with a compact responsive selector, better loading skeleton, no-layout blocked state, layout field preview badges, and a clear `Manage layouts` action.
+   - Refactored `product-layout-form.tsx` into a clearer shadcn/Tailwind structure with distinct sections for basic details, supplier cost source, selling price and stock, product images, layout fields, sticky save/cancel actions, and a compact summary sidebar.
+   - Optional product fields are no longer visually or logically forced in the UI. Product name remains the only required core field by default; layout fields are required only when marked required in Layout Settings.
+   - Optional layout select, lookup, image, and attachment fields now stay empty when the user chooses `None` or leaves them blank.
+   - Product creation no longer sends `status` to the create DTO; status is still sent when editing an existing product.
+   - Hardened backend product creation/update for stale `nextSkuNumber` by generating the next available organization-scoped SKU instead of failing on a duplicate SKU constraint.
+   - Hardened backend layout validation so optional attachment/image/lookup fields with blank/default/old malformed-empty values are treated as empty instead of blocking product updates.
+   - Backend now returns a clearer error when Product layout tables are missing, instructing developers to run the latest Prisma migrations for `main-v2`.
+   - Manual test checklist: create a product with only a name and layout, create/edit a product with optional layout fields blank, save a product with an optional `attachment` field blank, add/remove supplier rows, upload/remove images, adjust stock from the detail page, and verify archive confirmation on product detail.
+
 ## Current known follow-up items
 
 - Add import preview/validation before final upload.
