@@ -458,6 +458,10 @@ export function ProductsContent() {
     {
       label: "Archive selected",
       variant: "destructive",
+      confirmTitle: "Archive selected products?",
+      confirmDescription: (count) => `This will archive ${count} selected product${count === 1 ? "" : "s"} and remove them from active inventory workflows. Historical records will remain available.`,
+      confirmLabel: "Archive products",
+      confirmVariant: "destructive",
       onClick: bulkArchive,
     },
   ], [])
