@@ -225,7 +225,7 @@ These changes were applied directly to the `main-v2` branch.
    - Select layout fields treat `none` as an empty/default UI value and only save a value when the spreadsheet value matches a configured select option.
 
 13. **Backend-aligned import template exports**
-   - Selecting a layout on `/imports/new` regenerates the mapping JSON example to include that layout's custom fields.
+   - Selecting a layout on `/imports/new` regenerates the import field set to include that layout's custom fields.
    - CSV and XLSX exports are explicitly importable by the current backend.
    - CSV export is an upload-ready product import template.
    - XLSX export keeps the importable product data in the first worksheet because the backend reads only the first worksheet; additional `Field Guide`, `Select Options`, and `Import Info` sheets are reference-only and ignored by import.
@@ -236,9 +236,18 @@ These changes were applied directly to the `main-v2` branch.
    - Templates include backend-supported core fields: price currency, cost, cost currency, exchange rate, quantity, low stock level, status, images, and selected layout fields.
    - Added `xlsx` to the web app dependencies for client-side XLSX template generation.
 
+14. **Visual import column mapper**
+   - Replaced manual mapping JSON entry on `/imports/new` with a visual column-to-field mapping table.
+   - Users choose a CSV/XLSX file first; the browser reads the first worksheet/first row and extracts spreadsheet headers.
+   - Every mapping select defaults to `None`; users explicitly map spreadsheet columns to NexStock fields.
+   - Added an `Auto-match columns` action that suggests mappings by matching normalized column names to backend field names and layout field labels.
+   - Required fields are highlighted and must be mapped before import can start.
+   - The UI still submits the backend-supported `mapping` object to `POST /api/products/import`, so the backend contract is unchanged.
+   - A generated backend mapping preview is available for review/debugging.
+
 ## Current known follow-up items
 
-- Improve `/imports/new` from JSON mapping to a visual column-to-field mapping UI.
+- Add import preview/validation before final upload.
 - Verify or complete purchase order receiving UI.
 - Verify or complete API key management UI.
 - Verify or complete webhook management UI.
