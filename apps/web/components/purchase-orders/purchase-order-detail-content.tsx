@@ -2,9 +2,23 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ArchiveIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardListIcon, EditIcon, Loader2Icon, MailIcon, PackageCheckIcon, RefreshCwIcon, TruckIcon, WalletCardsIcon, WarehouseIcon } from "lucide-react"
+import {
+  ArchiveIcon,
+  ArrowLeftIcon,
+  ChevronDownIcon,
+  ClipboardListIcon,
+  EditIcon,
+  Loader2Icon,
+  MailIcon,
+  PackageCheckIcon,
+  RefreshCwIcon,
+  TruckIcon,
+  WalletCardsIcon,
+  WarehouseIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
+import { RecordActionDialog } from "@/components/records/record-action-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,6 +58,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   const [templatesLoading, setTemplatesLoading] = React.useState(false)
   const [running, setRunning] = React.useState(false)
   const [receiveOpen, setReceiveOpen] = React.useState(false)
+  const [cancelOpen, setCancelOpen] = React.useState(false)
   const [receiveNotes, setReceiveNotes] = React.useState("")
   const [receiveLines, setReceiveLines] = React.useState<Record<string, string>>({})
   const [sendOpen, setSendOpen] = React.useState(false)
@@ -67,11 +82,11 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     setTemplatesLoading(true)
     try {
       const result = await apiFetch<DocumentTemplate[]>("/api/document-templates")
-      const activePurchaseOrderTemplates = result
+      const next = result
         .filter((template) => template.isActive !== false && template.type === "purchase_orders")
         .sort((a, b) => Number(Boolean(b.isDefault)) - Number(Boolean(a.isDefault)) || a.name.localeCompare(b.name))
-      setTemplates(activePurchaseOrderTemplates)
-      setSelectedTemplateId((current) => current !== "default" && activePurchaseOrderTemplates.some((template) => template.id === current) ? current : activePurchaseOrderTemplates.find((template) => template.isDefault)?.id || "default")
+      setTemplates(next)
+      setSelectedTemplateId((current) => current !== "default" && next.some((template) => template.id === current) ? current : next.find((template) => template.isDefault)?.id || "default")
     } catch (err) {
       setTemplates([])
       toast.error("Templates could not load", { description: err instanceof Error ? err.message : "Template load failed" })
@@ -109,12 +124,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
     try {
       const response = await apiFetch<SendDocumentResponse>(`/api/purchase-orders/${order.id}/send-document`, {
         method: "POST",
-        body: JSON.stringify({
-          templateId: selectedTemplateId === "default" ? undefined : selectedTemplateId,
-          to: sendTo.trim(),
-          subject: clean(sendSubject),
-          message: clean(sendMessage),
-        }),
+        body: JSON.stringify({ templateId: selectedTemplateId === "default" ? undefined : selectedTemplateId, to: sendTo.trim(), subject: clean(sendSubject), message: clean(sendMessage) }),
       })
       toast.success(response.message || "Purchase order email sent", { description: [response.to, response.providerMessageId ? `Resend ID: ${response.providerMessageId}` : null].filter(Boolean).join(" · ") })
       setSendOpen(false)
@@ -126,8 +136,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   async function receiveOrder() {
     if (!order) return
     const lines = (order.lines ?? []).map((line) => ({ lineId: line.id, quantityReceived: Math.max(0, Math.floor(numberValue(receiveLines[line.id]))) }))
-    const hasReceived = lines.some((line) => line.quantityReceived > 0)
-    if (!hasReceived) return toast.error("Enter received quantity for at least one line")
+    if (!lines.some((line) => line.quantityReceived > 0)) return toast.error("Enter received quantity for at least one line")
     setRunning(true)
     try {
       const response = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${order.id}/receive`, { method: "POST", body: JSON.stringify({ lines, notes: receiveNotes.trim() || undefined }) })
@@ -141,8 +150,12 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
   async function cancelOrder() {
     if (!order) return
     setRunning(true)
-    try { const response = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${order.id}`, { method: "DELETE" }); toast.success("Purchase order cancelled", { description: response.poNumber }); await loadOrder() }
-    catch (err) { toast.error("Could not cancel purchase order", { description: err instanceof Error ? err.message : "Cancel failed" }) }
+    try {
+      const response = await apiFetch<PurchaseOrder>(`/api/purchase-orders/${order.id}`, { method: "DELETE" })
+      toast.success("Purchase order cancelled", { description: response.poNumber })
+      setCancelOpen(false)
+      await loadOrder()
+    } catch (err) { toast.error("Could not cancel purchase order", { description: err instanceof Error ? err.message : "Cancel failed" }) }
     finally { setRunning(false) }
   }
 
@@ -166,7 +179,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
           <div className="flex flex-wrap items-center gap-2"><h1 className="font-heading text-2xl font-semibold tracking-tight">{order.poNumber}</h1><StatusBadge status={order.status} /></div>
           <p className="mt-1 text-sm text-muted-foreground">{order.supplier?.name || "No supplier"} · {formatMoney(order.subtotal, order.currency)}</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadOrder()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button size="sm" onClick={openSendDialog} disabled={!canSend || running}><MailIcon className="size-4" />Send email</Button><Button size="sm" onClick={openReceiveDialog} disabled={!canReceive || running}><WarehouseIcon className="size-4" />Receive stock</Button><Button asChild size="sm" variant="outline"><Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={cancelOrder} disabled={running || order.status === "cancelled"}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Cancel</Button></div>
+        <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => void loadOrder()} disabled={running}><RefreshCwIcon className="size-4" />Refresh</Button><Button size="sm" onClick={openSendDialog} disabled={!canSend || running}><MailIcon className="size-4" />Send email</Button><Button size="sm" onClick={openReceiveDialog} disabled={!canReceive || running}><WarehouseIcon className="size-4" />Receive stock</Button><Button asChild size="sm" variant="outline"><Link href={`/purchase-orders/${order.id}/edit`}><EditIcon className="size-4" />Edit</Link></Button><Button size="sm" variant="destructive" onClick={() => setCancelOpen(true)} disabled={running || order.status === "cancelled"}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <ArchiveIcon className="size-4" />}Cancel</Button></div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card">
@@ -189,12 +202,7 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
       <Dialog open={sendOpen} onOpenChange={setSendOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>Send purchase order email</DialogTitle><DialogDescription>Select a saved purchase order template, then optionally override subject or message for this send only.</DialogDescription></DialogHeader>
-          <div className="grid gap-4">
-            <label className="grid gap-2"><Label>Template</Label><Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading}><SelectTrigger className="w-full"><SelectValue placeholder={templatesLoading ? "Loading templates..." : "Choose template"} /></SelectTrigger><SelectContent><SelectItem value="default">System default template</SelectItem>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}{template.isDefault ? " · Default" : ""}{template.kind ? ` · ${template.kind.toUpperCase()}` : ""}</SelectItem>)}</SelectContent></Select>{selectedTemplate ? <p className="text-xs text-muted-foreground">{selectedTemplate.description || selectedTemplate.subjectTemplate || "Saved template selected."}</p> : <p className="text-xs text-muted-foreground">Uses the default active purchase order template from Settings &gt; Templates when available.</p>}</label>
-            <label className="grid gap-2"><Label>To</Label><Input type="email" value={sendTo} onChange={(event) => setSendTo(event.target.value)} placeholder="supplier@example.com" /></label>
-            <label className="grid gap-2"><Label>Subject override</Label><Input value={sendSubject} onChange={(event) => setSendSubject(event.target.value)} placeholder="Leave blank to use the selected template subject" /></label>
-            <label className="grid gap-2"><Label>Message override</Label><Textarea value={sendMessage} onChange={(event) => setSendMessage(event.target.value)} className="min-h-36" placeholder="Leave blank to use the selected template email message" /></label>
-          </div>
+          <div className="grid gap-4"><label className="grid gap-2"><Label>Template</Label><Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading}><SelectTrigger className="w-full"><SelectValue placeholder={templatesLoading ? "Loading templates..." : "Choose template"} /></SelectTrigger><SelectContent><SelectItem value="default">System default template</SelectItem>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}{template.isDefault ? " · Default" : ""}{template.kind ? ` · ${template.kind.toUpperCase()}` : ""}</SelectItem>)}</SelectContent></Select>{selectedTemplate ? <p className="text-xs text-muted-foreground">{selectedTemplate.description || selectedTemplate.subjectTemplate || "Saved template selected."}</p> : <p className="text-xs text-muted-foreground">Uses the default active purchase order template from Settings &gt; Templates when available.</p>}</label><label className="grid gap-2"><Label>To</Label><Input type="email" value={sendTo} onChange={(event) => setSendTo(event.target.value)} placeholder="supplier@example.com" /></label><label className="grid gap-2"><Label>Subject override</Label><Input value={sendSubject} onChange={(event) => setSendSubject(event.target.value)} placeholder="Leave blank to use the selected template subject" /></label><label className="grid gap-2"><Label>Message override</Label><Textarea value={sendMessage} onChange={(event) => setSendMessage(event.target.value)} className="min-h-36" placeholder="Leave blank to use the selected template email message" /></label></div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => setSendOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={sendDocument} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <MailIcon className="size-4" />}Send email</Button></DialogFooter>
         </DialogContent>
       </Dialog>
@@ -202,13 +210,12 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
       <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader><DialogTitle>Receive stock</DialogTitle><DialogDescription>Enter quantities received now. Product stock, purchase order status, and linked supplier costs will update automatically.</DialogDescription></DialogHeader>
-          <div className="grid gap-4">
-            <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="w-36 text-right">Receive now</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const already = numberValue(line.quantityReceived); const remaining = remainingQuantity(line); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span>{line.productSupplier?.isPreferred ? <Badge variant="secondary" className="w-fit">Preferred supplier</Badge> : null}</div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || line.productSupplier?.supplierSku || "-"}</TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{already}</TableCell><TableCell className="text-right">{remaining}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || order.currency)}</TableCell><TableCell><Input type="number" min="0" max={remaining} value={receiveLines[line.id] ?? "0"} onChange={(event) => setReceiveLines((current) => ({ ...current, [line.id]: event.target.value }))} className="text-right" /></TableCell></TableRow> })}</TableBody></Table></div>
-            <label className="grid gap-2"><Label>Receiving notes</Label><Textarea value={receiveNotes} onChange={(event) => setReceiveNotes(event.target.value)} className="min-h-24" /></label>
-          </div>
+          <div className="grid gap-4"><div className="overflow-x-auto rounded-xl border"><Table className="min-w-[860px]"><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="w-36 text-right">Receive now</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const already = numberValue(line.quantityReceived); const remaining = remainingQuantity(line); return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span>{line.productSupplier?.isPreferred ? <Badge variant="secondary" className="w-fit">Preferred supplier</Badge> : null}</div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || line.productSupplier?.supplierSku || "-"}</TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{already}</TableCell><TableCell className="text-right">{remaining}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || order.currency)}</TableCell><TableCell><Input type="number" min="0" max={remaining} value={receiveLines[line.id] ?? "0"} onChange={(event) => setReceiveLines((current) => ({ ...current, [line.id]: event.target.value }))} className="text-right" /></TableCell></TableRow> })}</TableBody></Table></div><label className="grid gap-2"><Label>Receiving notes</Label><Textarea value={receiveNotes} onChange={(event) => setReceiveNotes(event.target.value)} className="min-h-24" /></label></div>
           <DialogFooter><Button type="button" variant="outline" onClick={() => setReceiveOpen(false)} disabled={running}>Cancel</Button><Button type="button" onClick={receiveOrder} disabled={running}>{running ? <Loader2Icon className="size-4 animate-spin" /> : <WarehouseIcon className="size-4" />}Receive stock</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RecordActionDialog open={cancelOpen} onOpenChange={setCancelOpen} busy={running} title="Cancel purchase order?" description={`This will cancel purchase order ${order.poNumber}. Cancelled orders should not be received later.`} confirmLabel="Cancel order" onConfirm={() => void cancelOrder()} />
     </div>
   )
 }
@@ -216,5 +223,5 @@ export function PurchaseOrderDetailContent({ purchaseOrderId }: { purchaseOrderI
 function MetricCard({ title, value, detail, icon: Icon, mono }: { title: string; value: string | number; detail: string; icon: React.ComponentType<{ className?: string }>; mono?: boolean }) { return <Card className="@container/card"><CardHeader><CardDescription>{title}</CardDescription><CardTitle className={cn("text-2xl font-semibold tabular-nums @[250px]/card:text-3xl", mono && "font-mono text-xl")}>{value}</CardTitle></CardHeader><CardFooter className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{detail}</span><Icon className="size-4 text-muted-foreground" /></CardFooter></Card> }
 function DetailSection({ title, description, badge, open, onOpenChange, children }: { title: string; description: string; badge: string; open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode }) { return <Collapsible open={open} onOpenChange={onOpenChange}><Card><CollapsibleTrigger asChild><button type="button" className="flex w-full items-start justify-between gap-4 p-4 text-left transition hover:bg-muted/40"><div><CardTitle>{title}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div><div className="flex items-center gap-2"><Badge variant="secondary">{badge}</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} /></div></button></CollapsibleTrigger><CollapsibleContent><CardContent className="pt-0">{children}</CardContent></CollapsibleContent></Card></Collapsible> }
 function FieldGrid({ fields }: { fields: Array<[string, string | number]> }) { return <div className="grid overflow-hidden rounded-xl border md:grid-cols-2">{fields.map(([label, value]) => <div key={label} className="border-b p-4 text-sm transition hover:bg-muted/25 md:border-r even:md:border-r-0"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-2 break-words font-medium">{value}</p></div>)}</div> }
-function LinesTable({ lines, currency }: { lines: PurchaseOrderLine[]; currency: string }) { return <div className="overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Supplier link</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const received = numberValue(line.quantityReceived); const linkCurrency = line.productSupplier?.currency || line.currency || currency; return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || line.productSupplier?.supplierSku || "-"}</TableCell><TableCell><div className="flex flex-wrap items-center gap-1">{line.productSupplierId || line.productSupplier ? <Badge variant={line.productSupplier?.isPreferred ? "default" : "secondary"}>{line.productSupplier?.isPreferred ? "Preferred" : "Linked"}</Badge> : <Badge variant="outline">Manual</Badge>}{line.productSupplier?.cost ? <Badge variant="outline">{formatMoney(line.productSupplier.cost, linkCurrency)}</Badge> : null}</div></TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{received}</TableCell><TableCell className="text-right">{Math.max(0, line.quantityOrdered - received)}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || currency)}</TableCell><TableCell className="text-right font-medium">{formatMoney(line.lineTotal, line.currency || currency)}</TableCell></TableRow> })}</TableBody></Table></div> }
+function LinesTable({ lines, currency }: { lines: PurchaseOrderLine[]; currency: string }) { return <div className="overflow-x-auto rounded-xl border"><Table className="min-w-[900px]"><TableHeader><TableRow><TableHead>Product</TableHead><TableHead>Supplier SKU</TableHead><TableHead>Supplier link</TableHead><TableHead className="text-right">Ordered</TableHead><TableHead className="text-right">Received</TableHead><TableHead className="text-right">Remaining</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{lines.map((line) => { const received = numberValue(line.quantityReceived); const linkCurrency = line.productSupplier?.currency || line.currency || currency; return <TableRow key={line.id}><TableCell><div className="grid gap-1"><span className="font-medium">{line.product?.name || line.description || "Product"}</span><span className="font-mono text-xs text-muted-foreground">{line.product?.sku || "-"}</span></div></TableCell><TableCell className="font-mono text-xs">{line.supplierSku || line.productSupplier?.supplierSku || "-"}</TableCell><TableCell><div className="flex flex-wrap items-center gap-1">{line.productSupplierId || line.productSupplier ? <Badge variant={line.productSupplier?.isPreferred ? "default" : "secondary"}>{line.productSupplier?.isPreferred ? "Preferred" : "Linked"}</Badge> : <Badge variant="outline">Manual</Badge>}{line.productSupplier?.cost ? <Badge variant="outline">{formatMoney(line.productSupplier.cost, linkCurrency)}</Badge> : null}</div></TableCell><TableCell className="text-right">{line.quantityOrdered}</TableCell><TableCell className="text-right">{received}</TableCell><TableCell className="text-right">{Math.max(0, line.quantityOrdered - received)}</TableCell><TableCell className="text-right">{formatMoney(line.unitCost, line.currency || currency)}</TableCell><TableCell className="text-right font-medium">{formatMoney(line.lineTotal, line.currency || currency)}</TableCell></TableRow> })}</TableBody></Table></div> }
 function QuickFact({ label, value, mono }: { label: string; value: string; mono?: boolean }) { return <div className="flex items-center justify-between gap-3 border-b pb-3 last:border-b-0 last:pb-0"><span className="text-muted-foreground">{label}</span><span className={cn("truncate font-medium", mono && "font-mono text-xs")}>{value}</span></div> }
