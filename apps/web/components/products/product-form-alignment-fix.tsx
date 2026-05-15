@@ -4,10 +4,6 @@ import * as React from "react"
 
 const MONEY_READ_ONLY_LABELS = new Set(["preferred converted cost", "converted cost"])
 
-function textOf(element: Element | null) {
-  return element?.textContent?.replace(/\s+/g, " ").trim() || ""
-}
-
 function normalizeLabel(value: string) {
   return value.replace("*", "").replace(/required/i, "").trim().toLowerCase()
 }
@@ -131,14 +127,16 @@ export function ProductFormAlignmentFix() {
         opacity: 1 !important;
       }
 
-      /* Active supplier row editor: never force seven columns inside the product form. */
+      /* Active supplier row editor: responsive row with compact actions pinned to the far right. */
       .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"],
       form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] {
+        position: relative !important;
         display: grid !important;
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)) !important;
         align-items: start !important;
         overflow: visible !important;
         max-width: 100% !important;
+        padding-right: 4.25rem !important;
       }
 
       .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > div,
@@ -148,8 +146,36 @@ export function ProductFormAlignmentFix() {
 
       .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2,
       form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 {
-        align-self: end !important;
+        position: absolute !important;
+        top: 0.75rem !important;
+        right: 0.75rem !important;
+        display: flex !important;
+        align-items: center !important;
         justify-content: flex-end !important;
+        gap: 0.25rem !important;
+        width: auto !important;
+      }
+
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button,
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button {
+        width: 1.75rem !important;
+        height: 1.75rem !important;
+        min-width: 1.75rem !important;
+        border-radius: 9999px !important;
+        padding: 0 !important;
+      }
+
+      .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button svg,
+      form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] > .flex.gap-2 button svg {
+        width: 0.875rem !important;
+        height: 0.875rem !important;
+      }
+
+      @media (max-width: 640px) {
+        .product-form-layout-scope form main div[class*="lg:grid-cols-[1.2fr"],
+        form[class*="@container/main"] main div[class*="lg:grid-cols-[1.2fr"] {
+          padding-right: 3.75rem !important;
+        }
       }
 
       @media (max-width: 1279px) {
