@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ArrowLeftIcon, DownloadIcon, Loader2Icon, UploadIcon } from "lucide-react"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
@@ -13,41 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiFetch } from "@/lib/api"
 import { getCachedLayouts } from "@/lib/cached-api"
 
-type ImportResult = {
-  logId?: string
-  status?: string
-  created?: number
-  updated?: number
-  skipped?: number
-  total?: number
-  errors?: Array<{ row?: number; message?: string } | string>
-}
-
-type LayoutField = {
-  id?: string
-  key: string
-  label: string
-  type: string
-  required?: boolean | null
-  options?: string[] | null
-  defaultValue?: unknown
-  placeholder?: string | null
-  helpText?: string | null
-}
-
-type Layout = {
-  id: string
-  name: string
-  kind?: string | null
-  trackInventory?: boolean | null
-  fields?: LayoutField[] | null
-}
-
-type Paginated<T> = {
-  items?: T[]
-  data?: T[]
-}
-
+type ImportResult = { logId?: string; created?: number; updated?: number; skipped?: number; errors?: Array<{ row?: number; message?: string } | string> }
+type LayoutField = { id?: string; key: string; label: string; type: string; required?: boolean | null; options?: string[] | null; defaultValue?: unknown; placeholder?: string | null; helpText?: string | null }
+type Layout = { id: string; name: string; kind?: string | null; trackInventory?: boolean | null; fields?: LayoutField[] | null }
+type Paginated<T> = { items?: T[]; data?: T[] }
 type ImportFieldDefinition = {
   key: string
   column: string
@@ -62,146 +31,32 @@ type ImportFieldDefinition = {
 }
 
 const coreFieldDefinitions: ImportFieldDefinition[] = [
-  {
-    key: "name",
-    column: "Product Name",
-    source: "core",
-    dataType: "text",
-    required: true,
-    defaultValue: null,
-    example: "Example Product",
-    allowedValues: [],
-    importFormat: "Plain text",
-    notes: "Required. Used as the product display name.",
-  },
-  {
-    key: "sku",
-    column: "SKU",
-    source: "core",
-    dataType: "text",
-    required: false,
-    defaultValue: "Auto-generated when empty",
-    example: "EXAMPLE-001",
-    allowedValues: [],
-    importFormat: "Plain text; must be unique per organization when provided",
-    notes: "Existing SKU updates the matching product; empty SKU creates a new generated SKU.",
-  },
-  {
-    key: "description",
-    column: "Description",
-    source: "core",
-    dataType: "text",
-    required: false,
-    defaultValue: null,
-    example: "Example product description",
-    allowedValues: [],
-    importFormat: "Plain text",
-    notes: "Optional product description.",
-  },
-  {
-    key: "price",
-    column: "Price",
-    source: "core",
-    dataType: "decimal",
-    required: false,
-    defaultValue: 0,
-    example: "100.00",
-    allowedValues: [],
-    importFormat: "Number or decimal, e.g. 100 or 100.50",
-    notes: "Selling price. Current backend expects selling currency to match organization base currency.",
-  },
-  {
-    key: "quantity",
-    column: "Quantity",
-    source: "core",
-    dataType: "integer",
-    required: false,
-    defaultValue: 0,
-    example: "10",
-    allowedValues: [],
-    importFormat: "Whole number, zero or more",
-    notes: "Stock on hand. Inventory logs are created when quantity changes.",
-  },
-  {
-    key: "lowStockLevel",
-    column: "Low Stock Level",
-    source: "core",
-    dataType: "integer",
-    required: false,
-    defaultValue: 5,
-    example: "2",
-    allowedValues: [],
-    importFormat: "Whole number, zero or more",
-    notes: "Used for low-stock alerts. Defaults to 5 when empty.",
-  },
-  {
-    key: "category",
-    column: "Category",
-    source: "core",
-    dataType: "text",
-    required: false,
-    defaultValue: null,
-    example: "Example Category",
-    allowedValues: [],
-    importFormat: "Plain text",
-    notes: "Optional category label.",
-  },
-  {
-    key: "status",
-    column: "Status",
-    source: "core",
-    dataType: "select",
-    required: false,
-    defaultValue: "active",
-    example: "active",
-    allowedValues: ["active", "draft", "archived"],
-    importFormat: "One of: active, draft, archived",
-    notes: "Defaults to active when empty or unrecognized.",
-  },
-  {
-    key: "images",
-    column: "Images",
-    source: "core",
-    dataType: "images",
-    required: false,
-    defaultValue: [],
-    example: "https://example.com/image.jpg",
-    allowedValues: [],
-    importFormat: "One or more URLs separated by comma or pipe",
-    notes: "Optional image URLs.",
-  },
+  { key: "name", column: "Product Name", source: "core", dataType: "text", required: true, defaultValue: null, example: "Example Product", allowedValues: [], importFormat: "Plain text", notes: "Required. Backend skips rows without a product name." },
+  { key: "sku", column: "SKU", source: "core", dataType: "text", required: false, defaultValue: "Auto-generated when empty", example: "EXAMPLE-001", allowedValues: [], importFormat: "Plain text", notes: "Existing SKU updates the matching product; empty SKU creates a new generated SKU." },
+  { key: "description", column: "Description", source: "core", dataType: "text", required: false, defaultValue: null, example: "Example product description", allowedValues: [], importFormat: "Plain text", notes: "Optional product description." },
+  { key: "price", column: "Price", source: "core", dataType: "decimal", required: false, defaultValue: 0, example: "100.00", allowedValues: [], importFormat: "Number or decimal", notes: "Selling price. Price currency must match the organization's base currency." },
+  { key: "priceCurrency", column: "Price Currency", source: "core", dataType: "currency-code", required: false, defaultValue: "Organization base currency", example: "ZAR", allowedValues: [], importFormat: "3-letter currency code", notes: "Backend requires selling currency to match organization base currency." },
+  { key: "cost", column: "Cost", source: "core", dataType: "decimal", required: false, defaultValue: null, example: "70.00", allowedValues: [], importFormat: "Number or decimal", notes: "Optional buying/vendor cost." },
+  { key: "costCurrency", column: "Cost Currency", source: "core", dataType: "currency-code", required: false, defaultValue: "Price currency", example: "ZAR", allowedValues: [], importFormat: "3-letter enabled currency code", notes: "Must be enabled in organization currency settings." },
+  { key: "exchangeRateToBase", column: "Exchange Rate To Base", source: "core", dataType: "decimal", required: false, defaultValue: "System rate or 1", example: "1", allowedValues: [], importFormat: "Number or decimal", notes: "Used to convert cost to base currency when cost currency differs." },
+  { key: "quantity", column: "Quantity", source: "core", dataType: "integer", required: false, defaultValue: 0, example: "10", allowedValues: [], importFormat: "Whole number, zero or more", notes: "Stock on hand. Inventory logs are created when quantity changes." },
+  { key: "lowStockLevel", column: "Low Stock Level", source: "core", dataType: "integer", required: false, defaultValue: 5, example: "2", allowedValues: [], importFormat: "Whole number, zero or more", notes: "Defaults to 5 when empty." },
+  { key: "category", column: "Category", source: "core", dataType: "text", required: false, defaultValue: null, example: "Example Category", allowedValues: [], importFormat: "Plain text", notes: "Optional category label." },
+  { key: "status", column: "Status", source: "core", dataType: "select", required: false, defaultValue: "active", example: "active", allowedValues: ["active", "draft", "archived"], importFormat: "One of: active, draft, archived", notes: "Backend defaults to active when empty or unrecognized." },
+  { key: "images", column: "Images", source: "core", dataType: "images", required: false, defaultValue: [], example: "https://example.com/image.jpg", allowedValues: [], importFormat: "One or more URLs separated by comma or pipe", notes: "Optional image URLs." },
 ]
 
-function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) {
-  if (!value) return []
-  if (Array.isArray(value)) return value
-  return value.items ?? value.data ?? []
-}
-
-function importSummary(result: ImportResult) {
-  return [
-    typeof result.created === "number" ? `${result.created} created` : null,
-    typeof result.updated === "number" ? `${result.updated} updated` : null,
-    typeof result.skipped === "number" ? `${result.skipped} skipped` : null,
-  ].filter(Boolean).join(" · ") || "Import completed"
-}
-
-function parseMapping(value: string) {
-  const trimmed = value.trim()
-  if (!trimmed) return {}
-  const parsed = JSON.parse(trimmed)
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Mapping must be a JSON object")
-  return parsed as Record<string, string>
-}
-
-function normalizeFieldType(type: string | null | undefined) {
-  return String(type || "text").trim().toLowerCase()
-}
+function normalizeList<T>(value: T[] | Paginated<T> | null | undefined) { return !value ? [] : Array.isArray(value) ? value : value.items ?? value.data ?? [] }
+function normalizeFieldType(type: string | null | undefined) { return String(type || "text").trim().toLowerCase() }
+function importSummary(result: ImportResult) { return [typeof result.created === "number" ? `${result.created} created` : null, typeof result.updated === "number" ? `${result.updated} updated` : null, typeof result.skipped === "number" ? `${result.skipped} skipped` : null].filter(Boolean).join(" · ") || "Import completed" }
+function parseMapping(value: string) { const text = value.trim(); if (!text) return {}; const parsed = JSON.parse(text); if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Mapping must be a JSON object"); return parsed as Record<string, string> }
+function safeFilePart(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "products" }
+function csvEscape(value: unknown) { const text = String(value ?? ""); return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text }
+function downloadBlob(fileName: string, contentType: string, content: BlobPart) { const blob = new Blob([content], { type: contentType }); const url = window.URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = fileName; document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url) }
 
 function importFormatForLayoutField(field: LayoutField) {
   const type = normalizeFieldType(field.type)
   const options = field.options?.filter(Boolean) ?? []
-
   if (type === "select") return options.length ? `One of: ${options.join(", ")}` : "Select option configured in layout settings"
   if (type === "number") return "Whole number"
   if (type === "decimal") return "Number or decimal, e.g. 10.50"
@@ -244,85 +99,34 @@ function fieldDefinitionsForLayout(layout: Layout | null): ImportFieldDefinition
     importFormat: importFormatForLayoutField(field),
     notes: [field.helpText, field.placeholder ? `Placeholder: ${field.placeholder}` : null, Boolean(field.required) ? "Required by selected layout." : "Optional layout field."].filter(Boolean).join(" "),
   }))
-
   return [...coreFieldDefinitions, ...layoutFields]
 }
 
-function mappingForLayout(layout: Layout | null) {
-  const mapping = Object.fromEntries(fieldDefinitionsForLayout(layout).map((field) => [field.key, field.column]))
-  return JSON.stringify(mapping, null, 2)
-}
-
-function templateRows(layout: Layout | null) {
-  const row = Object.fromEntries(fieldDefinitionsForLayout(layout).map((field) => [field.column, field.example]))
-  return [row]
-}
-
-function safeFilePart(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "products"
-}
-
-function downloadBlob(fileName: string, contentType: string, content: BlobPart) {
-  const blob = new Blob([content], { type: contentType })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement("a")
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.URL.revokeObjectURL(url)
-}
-
-function csvEscape(value: unknown) {
-  const text = String(value ?? "")
-  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
-  return text
-}
+function mappingForLayout(layout: Layout | null) { return JSON.stringify(Object.fromEntries(fieldDefinitionsForLayout(layout).map((field) => [field.key, field.column])), null, 2) }
+function templateRows(layout: Layout | null) { return [Object.fromEntries(fieldDefinitionsForLayout(layout).map((field) => [field.column, field.example]))] }
 
 function schemaForLayout(layout: Layout | null, mapping: Record<string, string>) {
   const fields = fieldDefinitionsForLayout(layout)
   return {
     schemaVersion: 1,
     app: "NexStock",
+    importableByBackend: false,
+    validUploadFormats: ["csv", "xlsx"],
     generatedAt: new Date().toISOString(),
-    purpose: "Product spreadsheet import structure and validation guide",
-    layout: layout
-      ? {
-          id: layout.id,
-          name: layout.name,
-          kind: layout.kind ?? "physical",
-          trackInventory: layout.trackInventory ?? true,
-        }
-      : null,
-    defaults: {
-      layout: "none until selected by user",
-      selectFields: "none/empty until spreadsheet value matches configured option",
-      sku: "auto-generated when empty",
-      status: "active",
-      quantity: 0,
-      lowStockLevel: 5,
-    },
+    purpose: "Developer/reference schema for the CSV/XLSX product import template. This JSON file is not uploadable to the current backend importer.",
+    backendContract: { endpoint: "POST /api/products/import", contentType: "multipart/form-data", fields: ["file", "mapping", "productTypeId"], xlsxImporterReads: "first worksheet only" },
+    layout: layout ? { id: layout.id, name: layout.name, kind: layout.kind ?? "physical", trackInventory: layout.trackInventory ?? true } : null,
+    defaults: { layout: "none until selected by user", selectFields: "none/empty until spreadsheet value matches configured option", sku: "auto-generated when empty", status: "active", quantity: 0, lowStockLevel: 5 },
     mapping,
-    columns: fields.map((field) => ({
-      column: field.column,
-      mapsTo: field.key,
-      source: field.source,
-      dataType: field.dataType,
-      required: field.required,
-      defaultValue: field.defaultValue,
-      allowedValues: field.allowedValues,
-      example: field.example,
-      importFormat: field.importFormat,
-      notes: field.notes,
-    })),
+    columns: fields.map((field) => ({ column: field.column, mapsTo: field.key, source: field.source, dataType: field.dataType, required: field.required, defaultValue: field.defaultValue, allowedValues: field.allowedValues, example: field.example, importFormat: field.importFormat, notes: field.notes })),
     sampleRows: templateRows(layout),
     validationRules: [
       "Product Name is required.",
       "SKU updates an existing product when it matches; empty SKU creates a generated SKU.",
-      "Price must be numeric and use the organization's base currency.",
+      "Price must be numeric and Price Currency must match the organization's base currency.",
+      "Cost Currency must be enabled in organization currency settings.",
       "Quantity and Low Stock Level must be zero or positive whole numbers.",
-      "Status should be active, draft, or archived.",
+      "Status should be active, draft, or archived; unrecognized/empty status becomes active.",
       "Selected layout required fields must be mapped and provided.",
       "Selected layout select fields must match one of their configured options; none is treated as empty and is not saved.",
     ],
@@ -342,16 +146,10 @@ export function ImportNewContent() {
   React.useEffect(() => {
     async function loadLayouts() {
       setLoadingLayouts(true)
-      try {
-        const result = await getCachedLayouts<Layout[] | Paginated<Layout>>()
-        setLayouts(normalizeList(result).filter((layout) => layout?.id))
-      } catch (error) {
-        toast.error("Could not load layouts", { description: error instanceof Error ? error.message : "Request failed" })
-      } finally {
-        setLoadingLayouts(false)
-      }
+      try { setLayouts(normalizeList(await getCachedLayouts<Layout[] | Paginated<Layout>>()).filter((layout) => layout?.id)) }
+      catch (error) { toast.error("Could not load layouts", { description: error instanceof Error ? error.message : "Request failed" }) }
+      finally { setLoadingLayouts(false) }
     }
-
     void loadLayouts()
   }, [])
 
@@ -365,41 +163,21 @@ export function ImportNewContent() {
   }
 
   function exportTemplate(format: "csv" | "xlsx" | "json") {
-    const layoutName = selectedLayout?.name || "no-layout"
-    const fileBase = `nexstock-import-template-${safeFilePart(layoutName)}`
+    const fileBase = `nexstock-import-template-${safeFilePart(selectedLayout?.name || "no-layout")}`
     const fields = fieldDefinitionsForLayout(selectedLayout)
     const columns = fields.map((field) => field.column)
     const rows = templateRows(selectedLayout)
     const parsedMapping = parseMapping(mapping)
-    const fieldGuideRows = fields.map((field) => ({
-      Column: field.column,
-      "Maps To": field.key,
-      Source: field.source,
-      "Data Type": field.dataType,
-      Required: field.required ? "Yes" : "No",
-      Default: field.defaultValue === null || field.defaultValue === undefined ? "None" : JSON.stringify(field.defaultValue),
-      Example: field.example,
-      "Allowed Values": field.allowedValues.join(", "),
-      Format: field.importFormat,
-      Notes: field.notes,
-    }))
-    const selectRows = fields
-      .filter((field) => field.dataType === "select")
-      .flatMap((field) => (field.allowedValues.length ? field.allowedValues : ["None / configure options in settings"]).map((option) => ({
-        Field: field.key,
-        Column: field.column,
-        Option: option,
-      })))
+    const fieldGuideRows = fields.map((field) => ({ Column: field.column, "Maps To": field.key, Source: field.source, "Data Type": field.dataType, Required: field.required ? "Yes" : "No", Default: field.defaultValue === null || field.defaultValue === undefined ? "None" : JSON.stringify(field.defaultValue), Example: field.example, "Allowed Values": field.allowedValues.join(", "), Format: field.importFormat, Notes: field.notes }))
+    const selectRows = fields.filter((field) => field.dataType === "select").flatMap((field) => (field.allowedValues.length ? field.allowedValues : ["None / configure options in settings"]).map((option) => ({ Field: field.key, Column: field.column, Option: option })))
 
     if (format === "json") {
-      downloadBlob(`${fileBase}.json`, "application/json", JSON.stringify(schemaForLayout(selectedLayout, parsedMapping), null, 2))
-      toast.success("JSON schema exported")
+      downloadBlob(`${fileBase}.schema.json`, "application/json", JSON.stringify(schemaForLayout(selectedLayout, parsedMapping), null, 2))
+      toast.success("Developer schema exported", { description: "JSON is a reference file, not an import upload." })
       return
     }
-
     if (format === "csv") {
-      const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n")
-      downloadBlob(`${fileBase}.csv`, "text/csv;charset=utf-8", csv)
+      downloadBlob(`${fileBase}.csv`, "text/csv;charset=utf-8", [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n"))
       toast.success("CSV import template exported")
       return
     }
@@ -408,9 +186,9 @@ export function ImportNewContent() {
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows, { header: columns }), "Import Template")
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(fieldGuideRows), "Field Guide")
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(selectRows.length ? selectRows : [{ Field: "No select fields", Column: "", Option: "" }]), "Select Options")
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ Key: "Layout", Value: selectedLayout?.name || "None" }, { Key: "Layout ID", Value: selectedLayout?.id || "none" }, { Key: "Generated At", Value: new Date().toISOString() }]), "Import Info")
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ Key: "Layout", Value: selectedLayout?.name || "None" }, { Key: "Layout ID", Value: selectedLayout?.id || "none" }, { Key: "Backend imports", Value: "Only the first worksheet named Import Template is imported" }, { Key: "Generated At", Value: new Date().toISOString() }]), "Import Info")
     XLSX.writeFile(workbook, `${fileBase}.xlsx`)
-    toast.success("XLSX workbook exported")
+    toast.success("XLSX import workbook exported", { description: "Upload the workbook as-is; backend imports the first sheet." })
   }
 
   async function uploadImport(file: File) {
@@ -421,21 +199,10 @@ export function ImportNewContent() {
       formData.append("file", file)
       formData.append("mapping", JSON.stringify(parseMapping(mapping)))
       formData.append("productTypeId", selectedLayoutId === "none" ? "none" : selectedLayoutId)
-
-      const result = await apiFetch<ImportResult>("/api/products/import", {
-        method: "POST",
-        body: formData,
-      })
-
+      const result = await apiFetch<ImportResult>("/api/products/import", { method: "POST", body: formData })
       const errors = result.errors ?? []
-      if (errors.length) {
-        toast.warning("Import completed with warnings", {
-          description: `${importSummary(result)} · ${errors.length} row issue${errors.length === 1 ? "" : "s"}`,
-        })
-      } else {
-        toast.success("Import completed", { description: importSummary(result) })
-      }
-
+      if (errors.length) toast.warning("Import completed with warnings", { description: `${importSummary(result)} · ${errors.length} row issue${errors.length === 1 ? "" : "s"}` })
+      else toast.success("Import completed", { description: importSummary(result) })
       router.push(result.logId ? `/imports/${result.logId}` : "/imports")
     } catch (error) {
       toast.error("Import failed", { description: error instanceof Error ? error.message : "Upload failed" })
@@ -453,121 +220,54 @@ export function ImportNewContent() {
           <h1 className="font-heading text-2xl font-semibold tracking-tight">New import</h1>
           <p className="text-sm text-muted-foreground">Upload a product spreadsheet, choose a layout, and map its columns to NexStock fields.</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/imports">
-            <ArrowLeftIcon className="size-4" />
-            Back to imports
-          </Link>
-        </Button>
+        <Button asChild variant="outline" size="sm"><Link href="/imports"><ArrowLeftIcon className="size-4" />Back to imports</Link></Button>
       </div>
 
       <div className="grid gap-4 px-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Upload spreadsheet</CardTitle>
-            <CardDescription>Supported formats: CSV and XLSX. Select a layout only when the import should follow that layout's fields and rules.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Upload spreadsheet</CardTitle><CardDescription>Backend supports CSV/XLSX uploads only. JSON export is a developer schema, not an import file.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file) void uploadImport(file)
-              }}
-            />
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImport(file) }} />
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Product layout</label>
               <Select value={selectedLayoutId} onValueChange={handleLayoutChange} disabled={loadingLayouts || uploading}>
-                <SelectTrigger>
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {layouts.map((layout) => (
-                    <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent><SelectItem value="none">None</SelectItem>{layouts.map((layout) => <SelectItem key={layout.id} value={layout.id}>{layout.name}</SelectItem>)}</SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Default is None. Choosing a layout updates the mapping JSON and export schema with that layout's field types and rules.
-              </p>
+              <p className="text-xs text-muted-foreground">Default is None. Choosing a layout updates the mapping and templates with backend-supported field types and rules.</p>
             </div>
 
             <div className="rounded-md border bg-muted/20 p-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium">Export data structure</p>
-                  <p className="text-xs text-muted-foreground">CSV is upload-ready. XLSX includes field guide sheets. JSON includes a typed schema.</p>
-                </div>
+                <div><p className="text-sm font-medium">Export data structure</p><p className="text-xs text-muted-foreground">CSV/XLSX are importable. JSON Schema is reference only.</p></div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("csv")}>
-                    <DownloadIcon className="size-4" />
-                    CSV
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("xlsx")}>
-                    <DownloadIcon className="size-4" />
-                    XLSX
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("json")}>
-                    <DownloadIcon className="size-4" />
-                    JSON Schema
-                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("csv")}><DownloadIcon className="size-4" />CSV template</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("xlsx")}><DownloadIcon className="size-4" />XLSX workbook</Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => exportTemplate("json")}><DownloadIcon className="size-4" />Schema JSON</Button>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Column mapping JSON</label>
-              <textarea
-                value={mapping}
-                onChange={(event) => setMapping(event.target.value)}
-                className="min-h-64 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                spellCheck={false}
-              />
-              <p className="text-xs text-muted-foreground">
-                Keys are NexStock fields. Values are spreadsheet column names. Use <span className="font-mono">custom:fieldKey</span> for selected layout fields.
-              </p>
+              <textarea value={mapping} onChange={(event) => setMapping(event.target.value)} className="min-h-64 w-full rounded-md border bg-background px-3 py-2 font-mono text-xs shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" spellCheck={false} />
+              <p className="text-xs text-muted-foreground">This mapping is sent with the upload. Keys are backend field names; values are spreadsheet column names.</p>
             </div>
 
-            <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-              {uploading ? `Uploading ${fileName || "file"}...` : "Choose file and import"}
-            </Button>
+            <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>{uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}{uploading ? `Uploading ${fileName || "file"}...` : "Choose CSV/XLSX and import"}</Button>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Import rules</CardTitle>
-            <CardDescription>How layout and select defaults are applied.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Import rules</CardTitle><CardDescription>Rules verified against the backend import service.</CardDescription></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <FieldHint label="Layout default" description="Layout defaults to None until the user chooses one." />
-            <FieldHint label="Typed JSON schema" description="JSON export includes data types, required flags, defaults, allowed values, examples, and validation rules." />
-            <FieldHint label="XLSX workbook" description="XLSX export includes Import Template, Field Guide, Select Options, and Import Info sheets." />
-            <FieldHint label="Select defaults" description="Select fields are treated as None unless a spreadsheet value is provided and it matches a configured option." />
-            <FieldHint label="Required layout fields" description="If a selected layout field is required, the import row must include a mapped value." />
-            {selectedLayout ? (
-              <div className="rounded-md border p-3">
-                <p className="font-medium">Selected layout: {selectedLayout.name}</p>
-                <p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p>
-                <div className="mt-3 space-y-2">
-                  {selectedFields.slice(0, 8).map((field) => (
-                    <div key={field.key} className="rounded border p-2 text-xs">
-                      <p className="font-mono">custom:{field.key}</p>
-                      <p className="text-muted-foreground">{field.label} · {field.type}{field.required ? " · required" : ""}</p>
-                      {field.type === "select" && field.options?.length ? (
-                        <p className="text-muted-foreground">Options: {field.options.join(", ")}</p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+            <FieldHint label="Upload formats" description="Only CSV and XLSX are importable by the backend. JSON is schema/reference only." />
+            <FieldHint label="XLSX first sheet" description="The backend imports only the first worksheet. Extra guide sheets are ignored." />
+            <FieldHint label="Core fields" description="Template includes backend-supported product fields: price/cost currencies, exchange rate, stock, status, images, and layout fields." />
+            <FieldHint label="Select defaults" description="Select fields are empty/None unless a spreadsheet value matches a configured option." />
+            <FieldHint label="Required layout fields" description="Selected layout required fields must be mapped and provided per row." />
+            {selectedLayout ? <div className="rounded-md border p-3"><p className="font-medium">Selected layout: {selectedLayout.name}</p><p className="text-xs text-muted-foreground">{selectedFields.length} field{selectedFields.length === 1 ? "" : "s"} available for mapping.</p><div className="mt-3 space-y-2">{selectedFields.slice(0, 8).map((field) => <div key={field.key} className="rounded border p-2 text-xs"><p className="font-mono">custom:{field.key}</p><p className="text-muted-foreground">{field.label} · {field.type}{field.required ? " · required" : ""}</p>{field.type === "select" && field.options?.length ? <p className="text-muted-foreground">Options: {field.options.join(", ")}</p> : null}</div>)}</div></div> : null}
           </CardContent>
         </Card>
       </div>
@@ -576,10 +276,5 @@ export function ImportNewContent() {
 }
 
 function FieldHint({ label, description }: { label: string; description: string }) {
-  return (
-    <div className="rounded-md border p-3">
-      <p className="font-mono text-xs font-medium">{label}</p>
-      <p className="text-xs text-muted-foreground">{description}</p>
-    </div>
-  )
+  return <div className="rounded-md border p-3"><p className="font-mono text-xs font-medium">{label}</p><p className="text-xs text-muted-foreground">{description}</p></div>
 }
