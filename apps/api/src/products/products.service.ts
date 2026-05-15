@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Prisma, ProductStatus } from '@prisma/client';
 import { PlanLimitsService } from '../plan-limits/plan-limits.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -208,14 +208,14 @@ export class ProductsService {
       const currencySettings = this.organizationCurrencySettings(organization);
       const currencyData = this.productCurrencyData(dto, currencySettings);
       const skuPrefix = organization.skuPrefix ?? this.generateSkuPrefix(organization.name);
-      const sku = this.generateSku(skuPrefix, organization.nextSkuNumber);
+      const skuData = await this.nextAvailableSku(db, organizationId, skuPrefix, organization.nextSkuNumber);
       const metadata = await this.productMetadata(db, organizationId, dto, dto.metadata);
 
       const created = await db.product.create({
         data: {
           organizationId,
           name: dto.name.trim(),
-          sku,
+          sku: skuData.sku,
           description: dto.description?.trim(),
           price: dto.price,
           priceCurrency: currencyData.priceCurrency,
@@ -236,7 +236,7 @@ export class ProductsService {
         where: { id: organizationId },
         data: {
           skuPrefix,
-          nextSkuNumber: { increment: 1 },
+          nextSkuNumber: skuData.nextNumber,
         },
       });
 
@@ -394,22 +394,30 @@ export class ProductsService {
   }
 
   private async layoutWithFields(db: PrismaTransaction, organizationId: string, productTypeId: string) {
-    const types = await db.$queryRaw<ProductTypeRow[]>`
-      SELECT id, name, kind, "trackInventory", "isDefault"
-      FROM "ProductType"
-      WHERE id = ${productTypeId} AND "organizationId" = ${organizationId} AND "isActive" = true
-      LIMIT 1
-    `;
-    const type = types[0];
-    if (!type) throw new BadRequestException('Selected layout does not exist');
+    try {
+      const types = await db.$queryRaw<ProductTypeRow[]>`
+        SELECT id, name, kind, "trackInventory", "isDefault"
+        FROM "ProductType"
+        WHERE id = ${productTypeId} AND "organizationId" = ${organizationId} AND "isActive" = true
+        LIMIT 1
+      `;
+      const type = types[0];
+      if (!type) throw new BadRequestException('Selected layout does not exist');
 
-    const fields = await db.$queryRaw<ProductTypeFieldRow[]>`
-      SELECT id, "productTypeId", key, label, type, required, options, "defaultValue", "order", "isActive"
-      FROM "ProductTypeField"
-      WHERE "productTypeId" = ${productTypeId} AND "organizationId" = ${organizationId} AND "isActive" = true
-      ORDER BY "order" ASC, label ASC
-    `;
-    return { type, fields };
+      const fields = await db.$queryRaw<ProductTypeFieldRow[]>`
+        SELECT id, "productTypeId", key, label, type, required, options, "defaultValue", "order", "isActive"
+        FROM "ProductTypeField"
+        WHERE "productTypeId" = ${productTypeId} AND "organizationId" = ${organizationId} AND "isActive" = true
+        ORDER BY "order" ASC, label ASC
+      `;
+      return { type, fields };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      if (this.isMissingLayoutMigrationError(error)) {
+        throw new InternalServerErrorException('Product layout database tables are missing. Run the latest Prisma migrations for main-v2 before creating products.');
+      }
+      throw error;
+    }
   }
 
   private normalizeLayoutValues(fields: ProductTypeFieldRow[], values: Record<string, unknown>) {
@@ -543,7 +551,28 @@ export class ProductsService {
   }
 
   private isEmptyLayoutValue(value: unknown) {
-    return value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0);
+    return value === undefined || value === null || value === 'none' || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0);
+  }
+
+  private isMissingLayoutMigrationError(error: unknown) {
+    const message = String((error as { message?: unknown })?.message || error || '').toLowerCase();
+    return message.includes('producttype') && (message.includes('does not exist') || message.includes('not exist') || message.includes('p2021') || message.includes('p2022'));
+  }
+
+  private async nextAvailableSku(db: PrismaTransaction, organizationId: string, prefix: string, currentNumber: number | null | undefined) {
+    let nextNumber = Math.max(Number(currentNumber ?? 1), 1);
+
+    for (let attempts = 0; attempts < 1000; attempts += 1) {
+      const sku = this.generateSku(prefix, nextNumber);
+      const existing = await db.product.findFirst({
+        where: { organizationId, sku },
+        select: { id: true },
+      });
+      if (!existing) return { sku, nextNumber: nextNumber + 1 };
+      nextNumber += 1;
+    }
+
+    throw new BadRequestException('Could not generate a unique SKU. Please update the organization SKU prefix or try again.');
   }
 
   private organizationCurrencySettings(organization: { baseCurrency?: string | null; enabledCurrencies?: string[] | null; exchangeRates?: Prisma.JsonValue | null }): CurrencySettings {
