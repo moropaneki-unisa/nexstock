@@ -179,6 +179,7 @@ These changes were applied directly to the `main-v2` branch.
    - Dashboard now returns both `inventoryRetailValue` and `inventoryCostValue`.
    - `inventoryValue` remains available as a backward-compatible alias for retail value.
    - Cost value uses `convertedCost`, then `cost`, then falls back to selling price when no cost is available.
+   - Dashboard cards now display retail value and cost value together so the backend valuation work is visible in the UI.
 
 ## Current known follow-up items
 
