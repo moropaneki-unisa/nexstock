@@ -195,15 +195,15 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs dark:*:data-[slot=card]:bg-card">
+      <div className="flex flex-wrap gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs dark:*:data-[slot=card]:bg-card">
         <MetricCard title="Supplier code" value={supplier.supplierCode} detail="Locked identifier" icon={TruckIcon} mono />
         <MetricCard title="Currency" value={cleanValue(supplier.currency)} detail={cleanValue(supplier.paymentTerms)} icon={WalletCardsIcon} />
         <MetricCard title="Product links" value={productLinks} detail="Linked sourcing records" icon={Building2Icon} />
         <MetricCard title="Location" value={supplier.city || supplier.country || "Not set"} detail={[supplier.province, supplier.country].filter(Boolean).join(", ") || "No location"} icon={MapPinIcon} />
       </div>
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="grid min-w-0 gap-4">
+      <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
           <DetailSection title="Supplier details" description="Core fields and purchasing settings for this supplier." open={detailsOpen} onOpenChange={setDetailsOpen} badge="17 fields">
             <SectionBlock
               title="Supplier information"
@@ -264,9 +264,9 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
           </DetailSection>
         </div>
 
-        <Card className="h-fit min-w-0 xl:sticky xl:top-[calc(var(--header-height)+1rem)]">
+        <Card className="h-fit min-w-0 w-full xl:sticky xl:top-[calc(var(--header-height)+1rem)] xl:w-80 xl:shrink-0">
           <CardHeader><CardTitle>Quick facts</CardTitle><CardDescription>At-a-glance purchasing context.</CardDescription></CardHeader>
-          <CardContent className="grid gap-3 text-sm">
+          <CardContent className="flex flex-col gap-3 text-sm">
             <QuickFact label="Code" value={supplier.supplierCode} mono />
             <QuickFact label="Products" value={String(productLinks)} />
             <QuickFact label="Currency" value={cleanValue(supplier.currency)} />
@@ -301,7 +301,7 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
 
 function MetricCard({ title, value, detail, icon: Icon, mono }: { title: string; value: string | number; detail: string; icon: React.ComponentType<{ className?: string }>; mono?: boolean }) {
   return (
-    <Card className="@container/card min-w-0">
+    <Card className="@container/card min-w-0 flex-1 basis-full sm:basis-[calc(50%-0.5rem)] xl:basis-[calc(25%-0.75rem)]">
       <CardHeader className="min-w-0">
         <CardDescription className="min-w-0 truncate">{title}</CardDescription>
         <CardTitle className={cn("min-w-0 break-words text-2xl font-semibold tabular-nums [overflow-wrap:anywhere] @[250px]/card:text-3xl", mono && "font-mono text-xl")}>{value}</CardTitle>
@@ -321,7 +321,7 @@ function DetailSection({ title, description, badge, open, onOpenChange, children
             <div className="flex shrink-0 items-center gap-2"><Badge variant="secondary">{badge}</Badge><ChevronDownIcon className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} /></div>
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent><CardContent className="grid gap-5 pt-0">{children}</CardContent></CollapsibleContent>
+        <CollapsibleContent><CardContent className="flex flex-col gap-5 pt-0">{children}</CardContent></CollapsibleContent>
       </Card>
     </Collapsible>
   )
@@ -329,9 +329,9 @@ function DetailSection({ title, description, badge, open, onOpenChange, children
 
 function SectionBlock({ title, fields }: { title: string; fields: Array<[string, FieldGridValue]> }) {
   return (
-    <section className="grid min-w-0 gap-3">
+    <section className="flex min-w-0 flex-col gap-3">
       <h3 className="text-sm font-semibold text-muted-foreground">{title}</h3>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+      <div className="flex min-w-0 flex-wrap gap-3">
         {fields.map(([label, value]) => <FieldCard key={label} label={label} value={value} />)}
       </div>
     </section>
@@ -340,7 +340,7 @@ function SectionBlock({ title, fields }: { title: string; fields: Array<[string,
 
 function FieldCard({ label, value }: { label: string; value: FieldGridValue }) {
   return (
-    <div className="grid min-h-24 min-w-0 content-start gap-2 rounded-xl border bg-background p-4 text-sm shadow-xs transition hover:bg-muted/25">
+    <div className="flex min-h-24 min-w-0 flex-1 basis-full flex-col gap-2 rounded-xl border bg-background p-4 text-sm shadow-xs transition hover:bg-muted/25 sm:basis-[calc(50%-0.375rem)] 2xl:basis-[calc(33.333%-0.5rem)]">
       <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-muted-foreground [overflow-wrap:anywhere]">{label}</p>
       <p className="min-w-0 break-words font-medium leading-5 [overflow-wrap:anywhere]">{value}</p>
     </div>
