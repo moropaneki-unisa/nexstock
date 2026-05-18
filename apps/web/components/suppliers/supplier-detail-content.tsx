@@ -205,11 +205,60 @@ export function SupplierDetailContent({ supplierId }: { supplierId: string }) {
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="grid min-w-0 gap-4">
           <DetailSection title="Supplier details" description="Core fields and purchasing settings for this supplier." open={detailsOpen} onOpenChange={setDetailsOpen} badge="17 fields">
-            <FieldGrid fields={[["Name", supplier.name], ["Supplier code", supplier.supplierCode], ["Type", titleCase(supplier.supplierType || "vendor")], ["Category", cleanValue(supplier.category)], ["Rating", titleCase(supplier.rating || "unrated")], ["Status", titleCase(supplier.status)], ["Currency", cleanValue(supplier.currency)], ["Payment terms", cleanValue(supplier.paymentTerms)], ["Payment method", cleanValue(supplier.paymentMethod)], ["Tax status", titleCase(supplier.taxStatus || "unknown")], ["Tax number", cleanValue(supplier.taxNumber)], ["Shipping terms", cleanValue(supplier.shippingTerms)], ["Incoterm", cleanValue(supplier.incoterm)], ["Account number", cleanValue(supplier.accountNumber)], ["Lead time", supplier.leadTimeDays == null ? "Not set" : `${supplier.leadTimeDays} days`], ["Minimum order qty", cleanValue(supplier.minimumOrderQty)], ["Last order", formatDate(supplier.lastOrderAt)]]} />
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+              <FieldPanel
+                title="Supplier information"
+                fields={[
+                  ["Name", supplier.name],
+                  ["Supplier code", supplier.supplierCode],
+                  ["Type", titleCase(supplier.supplierType || "vendor")],
+                  ["Category", cleanValue(supplier.category)],
+                  ["Rating", titleCase(supplier.rating || "unrated")],
+                  ["Status", titleCase(supplier.status)],
+                ]}
+              />
+              <FieldPanel
+                title="Purchasing settings"
+                fields={[
+                  ["Currency", cleanValue(supplier.currency)],
+                  ["Payment terms", cleanValue(supplier.paymentTerms)],
+                  ["Payment method", cleanValue(supplier.paymentMethod)],
+                  ["Tax status", titleCase(supplier.taxStatus || "unknown")],
+                  ["Tax number", cleanValue(supplier.taxNumber)],
+                  ["Shipping terms", cleanValue(supplier.shippingTerms)],
+                  ["Incoterm", cleanValue(supplier.incoterm)],
+                  ["Account number", cleanValue(supplier.accountNumber)],
+                  ["Lead time", supplier.leadTimeDays == null ? "Not set" : `${supplier.leadTimeDays} days`],
+                  ["Minimum order qty", cleanValue(supplier.minimumOrderQty)],
+                  ["Last order", formatDate(supplier.lastOrderAt)],
+                ]}
+              />
+            </div>
           </DetailSection>
 
           <DetailSection title="Contact and address" description="Communication and supplier location details." open={contactOpen} onOpenChange={setContactOpen} badge="10 fields">
-            <FieldGrid fields={[["Contact person", cleanValue(supplier.contactName)], ["Email", cleanValue(supplier.email)], ["Phone", cleanValue(supplier.phone)], ["Website", cleanValue(supplier.website)], ["Address line 1", cleanValue(supplier.addressLine1)], ["Address line 2", cleanValue(supplier.addressLine2)], ["City", cleanValue(supplier.city)], ["Province", cleanValue(supplier.province)], ["Country", cleanValue(supplier.country)], ["Postal code", cleanValue(supplier.postalCode)]]} />
+            <div className="grid min-w-0 gap-4 lg:grid-cols-2">
+              <FieldPanel
+                title="Primary contact"
+                fields={[
+                  ["Contact person", cleanValue(supplier.contactName)],
+                  ["Email", cleanValue(supplier.email)],
+                  ["Phone", cleanValue(supplier.phone)],
+                  ["Website", cleanValue(supplier.website)],
+                ]}
+              />
+              <FieldPanel
+                title="Address"
+                fields={[
+                  ["Address line 1", cleanValue(supplier.addressLine1)],
+                  ["Address line 2", cleanValue(supplier.addressLine2)],
+                  ["City", cleanValue(supplier.city)],
+                  ["Province", cleanValue(supplier.province)],
+                  ["Country", cleanValue(supplier.country)],
+                  ["Postal code", cleanValue(supplier.postalCode)],
+                ]}
+              />
+            </div>
           </DetailSection>
 
           <DetailSection title="Notes" description="Internal supplier notes and reminders." open={notesOpen} onOpenChange={setNotesOpen} badge={supplier.notes ? "Saved" : "Empty"}>
@@ -282,24 +331,30 @@ function DetailSection({ title, description, badge, open, onOpenChange, children
   )
 }
 
-function FieldGrid({ fields }: { fields: Array<[string, FieldGridValue]> }) {
-  const rows = Array.from({ length: Math.ceil(fields.length / 2) }, (_, index) => fields.slice(index * 2, index * 2 + 2))
-
+function FieldPanel({ title, fields }: { title: string; fields: Array<[string, FieldGridValue]> }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border">
-      {rows.map((row, index) => (
-        <div key={row.map(([label]) => label).join("-")} className={cn("grid min-w-0 md:grid-cols-2", index < rows.length - 1 && "border-b")}>
-          <FieldCell label={row[0][0]} value={row[0][1]} className="md:border-r" />
-          {row[1] ? <FieldCell label={row[1][0]} value={row[1][1]} /> : <div className="hidden min-h-[5rem] bg-muted/10 md:block" />}
-        </div>
-      ))}
+    <Card className="min-w-0 shadow-none">
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <FieldList fields={fields} />
+      </CardContent>
+    </Card>
+  )
+}
+
+function FieldList({ fields }: { fields: Array<[string, FieldGridValue]> }) {
+  return (
+    <div className="min-w-0 divide-y">
+      {fields.map(([label, value]) => <FieldLine key={label} label={label} value={value} />)}
     </div>
   )
 }
 
-function FieldCell({ label, value, className }: { label: string; value: FieldGridValue; className?: string }) {
+function FieldLine({ label, value }: { label: string; value: FieldGridValue }) {
   return (
-    <div className={cn("grid min-h-[5rem] min-w-0 content-start gap-2 p-4 text-sm transition hover:bg-muted/25", className)}>
+    <div className="grid min-w-0 gap-1 px-4 py-3 text-sm sm:grid-cols-[9.5rem_minmax(0,1fr)] sm:gap-4">
       <p className="min-w-0 break-words text-xs font-medium uppercase tracking-wide text-muted-foreground [overflow-wrap:anywhere]">{label}</p>
       <p className="min-w-0 break-words font-medium leading-5 [overflow-wrap:anywhere]">{value}</p>
     </div>
